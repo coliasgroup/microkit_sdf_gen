@@ -36,16 +36,14 @@ pub const SystemDescription = struct {
 
             pub fn toSize(page_size: PageSize, arch: Arch) usize {
                 switch (arch) {
-                    .aarch64, .riscv64 =>
-                        return switch (page_size) {
-                            .small => 0x1000,
-                            .large => 0x200000,
-                        },
-                    .riscv32 =>
-                        return switch (page_size) {
-                            .small => 0x1000,
-                            .large => 0x400000,
-                        },
+                    .aarch64, .riscv64 => return switch (page_size) {
+                        .small => 0x1000,
+                        .large => 0x200000,
+                    },
+                    .riscv32 => return switch (page_size) {
+                        .small => 0x1000,
+                        .large => 0x400000,
+                    },
                 }
             }
         };
@@ -56,7 +54,7 @@ pub const SystemDescription = struct {
         page_size: PageSize,
 
         pub fn create(name: []const u8, size: usize, phys_addr: ?usize, page_size: ?PageSize) MemoryRegion {
-            return MemoryRegion {
+            return MemoryRegion{
                 .name = name,
                 .size = size,
                 .phys_addr = phys_addr,
@@ -64,22 +62,18 @@ pub const SystemDescription = struct {
             };
         }
 
-        pub fn toXml(mr: *const MemoryRegion, allocator: Allocator, _: ArrayList(u8).Writer, indent: []const u8, arch: Arch) !void {
-            const mr_xml = try allocPrint(allocator,
-                "{s}<memory_region name=\"{s}\" size=\"0x{x}\" page_size=\"0x{x}\"",
-                .{ indent, mr.name, mr.size, mr.page_size.toSize(arch) }
-            );
+        pub fn toXml(mr: *const MemoryRegion, allocator: Allocator, indent: []const u8, arch: Arch) ![]const u8 {
+            var xml = try allocPrint(allocator, "{s}<memory_region name=\"{s}\" size=\"0x{x}\" page_size=\"0x{x}\"", .{ indent, mr.name, mr.size, mr.page_size.toSize(arch) });
             defer allocator.free(mr_xml);
 
             var mr_xml_with_phys_addr: []const u8 = undefined;
             if (mr.phys_addr) |phys_addr| {
-                mr_xml_with_phys_addr = try allocPrint(allocator, "{s} phys_addr=\"{}\"", .{ mr_xml, phys_addr });
-                defer allocator.free(mr_xml_with_phys_addr);
+                xml = try allocPrint(allocator, "{s} phys_addr=\"0x{x}\" />", .{ xml, phys_addr });
             } else {
-                mr_xml_with_phys_addr = mr_xml;
+                xml = try allocPrint(allocator, "{s} />\n", .{xml});
             }
 
-            // return try allocPrint(allocator, "{s} />\n", .{ mr_xml_with_phys_addr });
+            return xml;
         }
     };
 
@@ -113,7 +107,7 @@ pub const SystemDescription = struct {
         };
 
         pub fn create(mr: *const MemoryRegion, vaddr: usize, perms: Permissions, cached: bool) Map {
-            return Map {
+            return Map{
                 .mr = mr,
                 .vaddr = vaddr,
                 .perms = perms,
@@ -178,7 +172,7 @@ pub const SystemDescription = struct {
             path: []const u8,
 
             pub fn create(path: []const u8) ProgramImage {
-                return ProgramImage { .path = path };
+                return ProgramImage{ .path = path };
             }
 
             pub fn toXml(program_image: *const ProgramImage, allocator: Allocator, writer: ArrayList(u8).Writer) !void {
@@ -189,7 +183,7 @@ pub const SystemDescription = struct {
         };
 
         pub fn create(allocator: Allocator, name: []const u8, program_image: ?ProgramImage, priority: ?u8, budget: ?usize, period: ?usize, passive: ?bool) ProtectionDomain {
-            return ProtectionDomain {
+            return ProtectionDomain{
                 .name = name,
                 .passive = passive,
                 .program_image = program_image,
@@ -284,7 +278,7 @@ pub const SystemDescription = struct {
         pd2_end_id: usize,
 
         pub fn create(pd1: *ProtectionDomain, pd2: *ProtectionDomain) Channel {
-            const ch = Channel {
+            const ch = Channel{
                 .pd1 = pd1,
                 .pd2 = pd2,
                 .pd1_end_id = pd1.next_avail_id,
@@ -317,17 +311,10 @@ pub const SystemDescription = struct {
         irq: usize,
         trigger: Trigger,
 
-        const Trigger = enum {
-            edge,
-            level
-        };
+        pub const Trigger = enum { edge, level };
 
         pub fn create(name: []const u8, irq: usize, trigger: Trigger) Interrupt {
-            return Interrupt {
-                .name = name,
-                .irq = irq,
-                .trigger = trigger
-            };
+            return Interrupt{ .name = name, .irq = irq, .trigger = trigger };
         }
 
         pub fn toXml(interrupt: *const Interrupt, allocator: Allocator, id: usize) ![]const u8 {
