@@ -62,18 +62,17 @@ pub const SystemDescription = struct {
             };
         }
 
-        pub fn toXml(mr: *const MemoryRegion, allocator: Allocator, indent: []const u8, arch: Arch) ![]const u8 {
+        pub fn toXml(mr: *const MemoryRegion, allocator: Allocator, writer: ArrayList(u8).Writer, indent: []const u8, arch: Arch) !void {
             var xml = try allocPrint(allocator, "{s}<memory_region name=\"{s}\" size=\"0x{x}\" page_size=\"0x{x}\"", .{ indent, mr.name, mr.size, mr.page_size.toSize(arch) });
-            defer allocator.free(mr_xml);
+            defer allocator.free(xml);
 
-            var mr_xml_with_phys_addr: []const u8 = undefined;
             if (mr.phys_addr) |phys_addr| {
                 xml = try allocPrint(allocator, "{s} phys_addr=\"0x{x}\" />", .{ xml, phys_addr });
             } else {
                 xml = try allocPrint(allocator, "{s} />\n", .{xml});
             }
 
-            return xml;
+            _ = try writer.write(xml);
         }
     };
 
