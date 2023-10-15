@@ -21,33 +21,15 @@ pub const SystemDescription = struct {
     mrs: ArrayList(MemoryRegion),
     channels: ArrayList(Channel),
 
-    /// Supported architectures by seL4 Core Platform
+    /// Supported architectures by seL4
     pub const Arch = enum {
+        aarch32,
         aarch64,
         riscv32,
         riscv64,
     };
 
     pub const MemoryRegion = struct {
-        // TODO: consider other architectures
-        const PageSize = enum(usize) {
-            small,
-            large,
-
-            pub fn toSize(page_size: PageSize, arch: Arch) usize {
-                switch (arch) {
-                    .aarch64, .riscv64 => return switch (page_size) {
-                        .small => 0x1000,
-                        .large => 0x200000,
-                    },
-                    .riscv32 => return switch (page_size) {
-                        .small => 0x1000,
-                        .large => 0x400000,
-                    },
-                }
-            }
-        };
-
         name: []const u8,
         size: usize,
         phys_addr: ?usize,
@@ -66,14 +48,39 @@ pub const SystemDescription = struct {
             var xml = try allocPrint(allocator, "{s}<memory_region name=\"{s}\" size=\"0x{x}\" page_size=\"0x{x}\"", .{ indent, mr.name, mr.size, mr.page_size.toSize(arch) });
             defer allocator.free(xml);
 
+            var final_xml: []const u8 = undefined;
             if (mr.phys_addr) |phys_addr| {
-                xml = try allocPrint(allocator, "{s} phys_addr=\"0x{x}\" />", .{ xml, phys_addr });
+                final_xml = try allocPrint(allocator, "{s} phys_addr=\"0x{x}\" />\n", .{ xml, phys_addr });
             } else {
-                xml = try allocPrint(allocator, "{s} />\n", .{xml});
+                final_xml = try allocPrint(allocator, "{s} />\n", .{xml});
             }
+            defer allocator.free(final_xml);
 
-            _ = try writer.write(xml);
+            _ = try writer.write(final_xml);
         }
+
+        // TODO: consider other architectures
+        const PageSize = enum(usize) {
+            small,
+            large,
+            huge,
+
+            pub fn toSize(page_size: PageSize, arch: Arch) usize {
+                switch (arch) {
+                    .aarch64, .riscv64 => return switch (page_size) {
+                        .small => 0x1000,
+                        .large => 0x200000,
+                        .huge => 0x40000000,
+                    },
+                    .aarch32, .riscv32 => return switch (page_size) {
+                        .small => 0x1000,
+                        .large => 0x400000,
+                        // TODO: handle
+                        else => unreachable,
+                    },
+                }
+            }
+        };
     };
 
     pub const Map = struct {
@@ -88,7 +95,7 @@ pub const SystemDescription = struct {
             write: bool = true,
             execute: bool = false,
 
-            pub fn toString(perms: Permissions, buf: *[3]u8) void {
+            pub fn toString(perms: Permissions, buf: *[4]u8) usize {
                 var i: u8 = 0;
                 if (perms.read) {
                     buf[i] = 'r';
@@ -102,6 +109,8 @@ pub const SystemDescription = struct {
                     buf[i] = 'x';
                     i += 1;
                 }
+
+                return i;
             }
         };
 
@@ -118,11 +127,12 @@ pub const SystemDescription = struct {
             const mr_str =
                 \\<map mr="{s}" vaddr="0x{x}" perms="{s}" cached="{s}" />
             ;
-            var perms = [_]u8{0} ** 3;
-            map.perms.toString(&perms);
+            // TODO: use null terminated pointer from Zig?
+            var perms = [_]u8{0} ** 4;
+            const i = map.perms.toString(&perms);
 
             const xml = try allocPrint(allocator, mr_str,
-                                  .{ map.mr.name, map.vaddr, perms, if (map.cached) "true" else "false" });
+                                  .{ map.mr.name, map.vaddr, perms[0..i], if (map.cached) "true" else "false" });
             defer allocator.free(xml);
 
             _ = try writer.write(xml);
@@ -234,6 +244,8 @@ pub const SystemDescription = struct {
             _ = try writer.write(top);
             defer allocator.free(top);
 
+            // TODO: handle period, budget, priority, passive
+
             const inner_indent = try allocPrint(allocator, "\n{s}    ", .{ indent });
             defer allocator.free(inner_indent);
             // Add program image (if we have one)
@@ -259,10 +271,12 @@ pub const SystemDescription = struct {
             //     xml = try allocPrint(allocator, "{s}\n{s}{s}", .{ xml, inner_indent, try vm.toXml(allocator) });
             // }
             // Add interrupts
-            // for (pd.irqs.items) |irq| {
-            //     xml = try allocPrint(allocator, "{s}\n{s}{s}", .{ xml, inner_indent, try irq.toXml(allocator, pd.next_avail_id) });
-            //     pd.next_avail_id += 1;
-            // }
+            for (pd.irqs.items) |irq| {
+                _ = try writer.write(inner_indent);
+                try irq.toXml(allocator, writer, pd.next_avail_id);
+                // xml = try allocPrint(allocator, "{s}\n{s}{s}", .{ xml, inner_indent, try irq.toXml(allocator, pd.next_avail_id) });
+                pd.next_avail_id += 1;
+            }
 
             const bottom = try allocPrint(allocator, "\n{s}</protection_domain>\n", .{ indent });
             defer allocator.free(bottom);
@@ -316,11 +330,14 @@ pub const SystemDescription = struct {
             return Interrupt{ .name = name, .irq = irq, .trigger = trigger };
         }
 
-        pub fn toXml(interrupt: *const Interrupt, allocator: Allocator, id: usize) ![]const u8 {
+        pub fn toXml(interrupt: *const Interrupt, allocator: Allocator, writer: ArrayList(u8).Writer, id: usize) !void {
             const irq_str =
-                \\<irq id="{}" trigger="{s}" id="{}" />
+                \\<irq irq="{}" trigger="{s}" id="{}" />
             ;
-            return try allocPrint(allocator, irq_str, .{ interrupt.irq, @tagName(interrupt.trigger), id });
+            const irq_xml = try allocPrint(allocator, irq_str, .{ interrupt.irq, @tagName(interrupt.trigger), id });
+            defer allocator.free(irq_xml);
+
+            _ = try writer.write(irq_xml);
         }
     };
 

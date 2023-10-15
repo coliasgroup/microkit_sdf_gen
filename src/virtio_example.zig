@@ -1,8 +1,10 @@
 const std = @import("std");
+const builtin = @import("builtin");
+const sdf_gen = @import("sdf_gen.zig");
 const ArrayList = std.ArrayList;
 const Allocator = std.mem.Allocator;
 
-const SystemDescription = @import("sdf_gen.zig").SystemDescription;
+const SystemDescription = sdf_gen.SystemDescription;
 const ProtectionDomain = SystemDescription.ProtectionDomain;
 const ProgramImage = ProtectionDomain.ProgramImage;
 const MemoryRegion = SystemDescription.MemoryRegion;
@@ -25,34 +27,37 @@ fn strToBoard(str: []const u8) MicrokitBoard {
     }
 }
 
-fn uartPaddr(board: MicrokitBoard) usize {
-    // In the future, this function implementation can just be replaced
-    // by looking at the device tree for the particular board.
-    return switch (board) {
-        .qemu_arm_virt => 0x9000000,
-        .odroidc4 => 0xff803000,
-    };
-}
+// In the future, this functionality regarding the UART
+// can just be replaced by looking at the device tree for
+// the particular board.
+const Uart = struct {
+    fn paddr(board: MicrokitBoard) usize {
+        return switch (board) {
+            .qemu_arm_virt => 0x9000000,
+            .odroidc4 => 0xff803000,
+        };
+    }
 
-fn uartSize(board: MicrokitBoard) usize {
-    return switch (board) {
-        .qemu_arm_virt, .odroidc4 => 0x1000,
-    };
-}
+    fn size(board: MicrokitBoard) usize {
+        return switch (board) {
+            .qemu_arm_virt, .odroidc4 => 0x1000,
+        };
+    }
 
-fn uartIrq(board: MicrokitBoard) usize {
-    return switch (board) {
-        .qemu_arm_virt => 33,
-        .odroidc4 => 225,
-    };
-}
+    fn irq(board: MicrokitBoard) usize {
+        return switch (board) {
+            .qemu_arm_virt => 33,
+            .odroidc4 => 225,
+        };
+    }
 
-fn uartTrigger(board: MicrokitBoard) Interrupt.Trigger {
-    return switch (board) {
-        .qemu_arm_virt => .level,
-        .odroidc4 => .edge,
-    };
-}
+    fn trigger(board: MicrokitBoard) Interrupt.Trigger {
+        return switch (board) {
+            .qemu_arm_virt => .level,
+            .odroidc4 => .edge,
+        };
+    }
+};
 
 const SDDF_BUF_SIZE: usize = 0x200_000;
 
@@ -67,41 +72,46 @@ const SDDF_BUF_SIZE: usize = 0x200_000;
 // }
 
 pub fn main() !void {
-    var general_purpose_allocator = std.heap.GeneralPurposeAllocator(.{}){};
-    const gpa = general_purpose_allocator.allocator();
+    // An arena allocator makes much more sense for our purposes, all we're doing is doing a bunch
+    // of allocations in a linear fashion and then just tearing everything down. This has better
+    // performance than something like the General Purpose Allocator.
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    const allocator = arena.allocator();
+    defer arena.deinit();
 
-    const args = try std.process.argsAlloc(gpa);
-    defer std.process.argsFree(gpa, args);
-
+    const args = try std.process.argsAlloc(allocator);
+    defer std.process.argsFree(allocator, args);
+    // TODO: do this properly...
     const target = strToBoard(args[2]);
+    const xml_path = args[4];
 
-    var system = try SystemDescription.create(gpa, .aarch64);
+    var system = try SystemDescription.create(allocator, .aarch64);
 
     // 1. Create UART driver and map in UART device
     const uart_driver_image = ProgramImage.create("uart_driver.elf");
-    var uart_driver = ProtectionDomain.create(gpa, "uart_driver", uart_driver_image, 100, null, null, false);
+    var uart_driver = ProtectionDomain.create(allocator, "uart_driver", uart_driver_image, 100, null, null, false);
     try system.addProtectionDomain(&uart_driver);
 
-    const uart_mr = MemoryRegion.create("uart", uartSize(target), uartPaddr(target), .small);
+    const uart_mr = MemoryRegion.create("uart", Uart.size(target), Uart.paddr(target), .small);
     try system.addMemoryRegion(uart_mr);
     try uart_driver.addMap(Map.create(&uart_mr, 0x5_000_000, .{ .read = true, .write = true }, true));
 
-    const uart_irq = Interrupt.create("uart_irq", uartIrq(target), uartTrigger(target));
+    const uart_irq = Interrupt.create("uart_irq", Uart.irq(target), Uart.trigger(target));
     try uart_driver.addInterrupt(uart_irq);
 
     // 2. Create MUX RX
     const serial_mux_rx_image = ProgramImage.create("serial_mux_rx.elf");
-    var serial_mux_rx = ProtectionDomain.create(gpa, "serial_mux_rx", serial_mux_rx_image, 98, null, null, false);
+    var serial_mux_rx = ProtectionDomain.create(allocator, "serial_mux_rx", serial_mux_rx_image, 98, null, null, false);
     try system.addProtectionDomain(&serial_mux_rx);
 
     // 3. Create MUX TX
     const serial_mux_tx_image = ProgramImage.create("serial_mux_tx.elf");
-    var serial_mux_tx = ProtectionDomain.create(gpa, "serial_mux_tx", serial_mux_tx_image, 99, null, null, false);
+    var serial_mux_tx = ProtectionDomain.create(allocator, "serial_mux_tx", serial_mux_tx_image, 99, null, null, false);
     try system.addProtectionDomain(&serial_mux_tx);
 
     // 4. Create native serial device
     const serial_tester_image = ProgramImage.create("serial_tester.elf");
-    var serial_tester = ProtectionDomain.create(gpa, "serial_tester", serial_tester_image, 97, null, null, false);
+    var serial_tester = ProtectionDomain.create(allocator, "serial_tester", serial_tester_image, 97, null, null, false);
     try system.addProtectionDomain(&serial_tester);
 
     // 5. Connect UART driver and MUX RX
@@ -187,6 +197,15 @@ pub fn main() !void {
     try serial_tester.addMap(tx_used_serial_tester_map);
     try serial_tester.addMap(tx_data_serial_tester_map);
 
-    std.debug.print("{s}", .{ try system.toXml(gpa) });
-    // std.debug.print("HEADER: \n{s}", .{ try system.exportCHeader(gpa, &pd1) });
+    // Get the XML representation
+    const xml = try system.toXml(allocator);
+
+    // Lastly, write out the XML output to the user-provided path
+    var xml_file = try std.fs.cwd().createFile(xml_path, .{});
+    defer xml_file.close();
+    _ = try xml_file.write(xml);
+
+    if (builtin.mode == .Debug) {
+        std.debug.print("{s}", .{ xml });
+    }
 }
