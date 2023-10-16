@@ -1,10 +1,11 @@
 const std = @import("std");
 const builtin = @import("builtin");
-const sdf_gen = @import("sdf_gen.zig");
+const sdf = @import("sdf.zig");
+const sddf = @import("sddf.zig");
 const ArrayList = std.ArrayList;
 const Allocator = std.mem.Allocator;
 
-const SystemDescription = sdf_gen.SystemDescription;
+const SystemDescription = sdf.SystemDescription;
 const ProtectionDomain = SystemDescription.ProtectionDomain;
 const VirtualMachine = SystemDescription.VirtualMachine;
 const ProgramImage = ProtectionDomain.ProgramImage;
@@ -18,13 +19,13 @@ const MicrokitBoard = enum {
     odroidc4,
 };
 
-fn strToBoard(str: []const u8) MicrokitBoard {
+fn strToBoard(str: []const u8) !MicrokitBoard {
     if (std.mem.eql(u8, "qemu_arm_virt", str)) {
         return .qemu_arm_virt;
     } else if (std.mem.eql(u8, "odroidc4", str)) {
         return .odroidc4;
     } else {
-        unreachable;
+        return error.BoardNotFound;
     }
 }
 
@@ -67,19 +68,32 @@ fn guestRamVaddr(board: MicrokitBoard) usize {
     };
 }
 
-const SDDF_BUF_SIZE: usize = 0x200_000;
-// 128MB of RAM
+const SDDF_BUF_SIZE: usize = 1024 * 1024 * 2;
 const GUEST_RAM_SIZE: usize = 1024 * 1024 * 128;
 
 // fn serialConnect(system: *SystemDescription, mux: *ProtectionDomain, client: *ProtectionDomain) !void {
 //     // Here we create regions to connect a multiplexor with a client
-//     const rx_free = MemoryRegion.create("rx_free_" ++ client.name, SDDF_BUF_SIZE, null, .large);
-//     const rx_used = MemoryRegion.create("rx_used_" ++ client.name, SDDF_BUF_SIZE, null, .large);
-//     const tx_free = MemoryRegion.create("tx_free_" ++ client.name, SDDF_BUF_SIZE, null, .large);
-//     const tx_used = MemoryRegion.create("tx_free_" ++ client.name, SDDF_BUF_SIZE, null, .large);
-//     const rx_data = MemoryRegion.create("rx_data_" ++ client.name, SDDF_BUF_SIZE, null, .large);
-//     const tx_data = MemoryRegion.create("tx_data_" ++ client.name, SDDF_BUF_SIZE, null, .large);
+//     const rx_free = MemoryRegion.create(&system, "rx_free_" ++ client.name, SDDF_BUF_SIZE, null, .large);
+//     const rx_used = MemoryRegion.create(&system, "rx_used_" ++ client.name, SDDF_BUF_SIZE, null, .large);
+//     const tx_free = MemoryRegion.create(&system, "tx_free_" ++ client.name, SDDF_BUF_SIZE, null, .large);
+//     const tx_used = MemoryRegion.create(&system, "tx_free_" ++ client.name, SDDF_BUF_SIZE, null, .large);
+//     const rx_data = MemoryRegion.create(&system, "rx_data_" ++ client.name, SDDF_BUF_SIZE, null, .large);
+//     const tx_data = MemoryRegion.create(&system, "tx_data_" ++ client.name, SDDF_BUF_SIZE, null, .large);
 // }
+
+fn parseDriver(allocator: Allocator) !std.json.Parsed(sddf.Driver) {
+    const path = "examples/driver.json";
+    const driver_description = try std.fs.cwd().openFile(path, .{});
+    defer driver_description.close();
+
+    const bytes = try driver_description.reader().readAllAlloc(allocator, 2048);
+
+    const driver = try std.json.parseFromSlice(sddf.Driver, allocator, bytes, .{});
+
+    std.debug.print("{}\n", .{ std.json.fmt(driver.value, .{ .whitespace = .indent_2 }) });
+
+    return driver;
+}
 
 pub fn main() !void {
     // An arena allocator makes much more sense for our purposes, all we're doing is doing a bunch
@@ -92,7 +106,7 @@ pub fn main() !void {
     const args = try std.process.argsAlloc(allocator);
     defer std.process.argsFree(allocator, args);
     // TODO: do this properly...
-    const target = strToBoard(args[2]);
+    const target = try strToBoard(args[2]);
     const xml_path = args[4];
 
     var system = try SystemDescription.create(allocator, .aarch64);
@@ -102,12 +116,16 @@ pub fn main() !void {
     var uart_driver = ProtectionDomain.create(allocator, "uart_driver", uart_driver_image, 100, null, null, false);
     try system.addProtectionDomain(&uart_driver);
 
-    const uart_mr = MemoryRegion.create("uart", Uart.size(target), Uart.paddr(target), .small);
+    const uart_mr = MemoryRegion.create(&system, "uart", Uart.size(target), Uart.paddr(target), .small);
     try system.addMemoryRegion(uart_mr);
-    try uart_driver.addMap(Map.create(&uart_mr, 0x5_000_000, .{ .read = true, .write = true }, true, "uart_base"));
+    try uart_driver.addMap(Map.create(uart_mr, 0x5_000_000, .{ .read = true, .write = true }, false, "uart_base"));
 
-    const uart_irq = Interrupt.create("uart_irq", Uart.irq(target), Uart.trigger(target));
+    const uart_irq = Interrupt.create(Uart.irq(target), Uart.trigger(target), null);
     try uart_driver.addInterrupt(uart_irq);
+
+    const driver = try parseDriver(allocator);
+    var uart_driver_test = try sddf.createDriver(&system, driver.value, Uart.paddr(target));
+    try system.addProtectionDomain(&uart_driver_test);
 
     // 2. Create MUX RX
     const serial_mux_rx_image = ProgramImage.create("serial_mux_rx.elf");
@@ -125,16 +143,16 @@ pub fn main() !void {
     try system.addProtectionDomain(&serial_tester);
 
     // 5. Connect UART driver and MUX RX
-    const rx_free = MemoryRegion.create("rx_free_driver", SDDF_BUF_SIZE, null, .large);
-    const rx_used = MemoryRegion.create("rx_used_driver", SDDF_BUF_SIZE, null, .large);
-    const rx_data = MemoryRegion.create("rx_data_driver", SDDF_BUF_SIZE, null, .large);
+    const rx_free = MemoryRegion.create(&system, "rx_free_driver", SDDF_BUF_SIZE, null, .large);
+    const rx_used = MemoryRegion.create(&system, "rx_used_driver", SDDF_BUF_SIZE, null, .large);
+    const rx_data = MemoryRegion.create(&system, "rx_data_driver", SDDF_BUF_SIZE, null, .large);
     try system.addMemoryRegion(rx_free);
     try system.addMemoryRegion(rx_used);
     try system.addMemoryRegion(rx_data);
 
-    const rx_free_map = Map.create(&rx_free, 0x20_000_000, .{ .read = true, .write = true }, true, "rx_free");
-    const rx_used_map = Map.create(&rx_used, 0x20_200_000, .{ .read = true, .write = true }, true, "rx_used");
-    const rx_data_map = Map.create(&rx_data, 0x20_400_000, .{ .read = true, .write = true }, true, null);
+    const rx_free_map = Map.create(rx_free, 0x20_000_000, .{ .read = true, .write = true }, true, "rx_free");
+    const rx_used_map = Map.create(rx_used, 0x20_200_000, .{ .read = true, .write = true }, true, "rx_used");
+    const rx_data_map = Map.create(rx_data, 0x20_400_000, .{ .read = true, .write = true }, true, null);
 
     try serial_mux_rx.addMap(rx_free_map);
     try serial_mux_rx.addMap(rx_used_map);
@@ -147,16 +165,16 @@ pub fn main() !void {
     try system.addChannel(uart_mux_rx_channel);
 
     // 6. Connect UART driver and MUX TX
-    const tx_free = MemoryRegion.create("tx_free_driver", SDDF_BUF_SIZE, null, .large);
-    const tx_used = MemoryRegion.create("tx_used_driver", SDDF_BUF_SIZE, null, .large);
-    const tx_data = MemoryRegion.create("tx_data_driver", SDDF_BUF_SIZE, null, .large);
+    const tx_free = MemoryRegion.create(&system, "tx_free_driver", SDDF_BUF_SIZE, null, .large);
+    const tx_used = MemoryRegion.create(&system, "tx_used_driver", SDDF_BUF_SIZE, null, .large);
+    const tx_data = MemoryRegion.create(&system, "tx_data_driver", SDDF_BUF_SIZE, null, .large);
     try system.addMemoryRegion(tx_free);
     try system.addMemoryRegion(tx_used);
     try system.addMemoryRegion(tx_data);
 
-    const tx_free_map = Map.create(&tx_free, 0x40_000_000, .{ .read = true, .write = true }, true, "tx_free");
-    const tx_used_map = Map.create(&tx_used, 0x40_200_000, .{ .read = true, .write = true }, true, "tx_used");
-    const tx_data_map = Map.create(&tx_data, 0x40_400_000, .{ .read = true, .write = true }, true, null);
+    const tx_free_map = Map.create(tx_free, 0x40_000_000, .{ .read = true, .write = true }, true, "tx_free");
+    const tx_used_map = Map.create(tx_used, 0x40_200_000, .{ .read = true, .write = true }, true, "tx_used");
+    const tx_data_map = Map.create(tx_data, 0x40_400_000, .{ .read = true, .write = true }, true, null);
 
     try serial_mux_tx.addMap(tx_free_map);
     try serial_mux_tx.addMap(tx_used_map);
@@ -169,16 +187,16 @@ pub fn main() !void {
     try system.addChannel(uart_mux_tx_ch);
 
     // 7. Connect MUX RX and serial tester
-    const rx_free_serial_tester = MemoryRegion.create("rx_free_serial_tester", SDDF_BUF_SIZE, null, .large);
-    const rx_used_serial_tester = MemoryRegion.create("rx_used_serial_tester", SDDF_BUF_SIZE, null, .large);
-    const rx_data_serial_tester = MemoryRegion.create("rx_data_serial_tester", SDDF_BUF_SIZE, null, .large);
+    const rx_free_serial_tester = MemoryRegion.create(&system, "rx_free_serial_tester", SDDF_BUF_SIZE, null, .large);
+    const rx_used_serial_tester = MemoryRegion.create(&system, "rx_used_serial_tester", SDDF_BUF_SIZE, null, .large);
+    const rx_data_serial_tester = MemoryRegion.create(&system, "rx_data_serial_tester", SDDF_BUF_SIZE, null, .large);
     try system.addMemoryRegion(rx_free_serial_tester);
     try system.addMemoryRegion(rx_used_serial_tester);
     try system.addMemoryRegion(rx_data_serial_tester);
 
-    const rx_free_serial_tester_map = Map.create(&rx_free_serial_tester, 0x60_000_000, .{ .read = true, .write = true }, true, null);
-    const rx_used_serial_tester_map = Map.create(&rx_used_serial_tester, 0x60_200_000, .{ .read = true, .write = true }, true, null);
-    const rx_data_serial_tester_map = Map.create(&rx_data_serial_tester, 0x60_400_000, .{ .read = true, .write = true }, true, null);
+    const rx_free_serial_tester_map = Map.create(rx_free_serial_tester, 0x60_000_000, .{ .read = true, .write = true }, true, null);
+    const rx_used_serial_tester_map = Map.create(rx_used_serial_tester, 0x60_200_000, .{ .read = true, .write = true }, true, null);
+    const rx_data_serial_tester_map = Map.create(rx_data_serial_tester, 0x60_400_000, .{ .read = true, .write = true }, true, null);
     try serial_mux_rx.addMap(rx_free_serial_tester_map);
     try serial_mux_rx.addMap(rx_used_serial_tester_map);
     try serial_mux_rx.addMap(rx_data_serial_tester_map);
@@ -190,16 +208,16 @@ pub fn main() !void {
     try system.addChannel(serial_mux_rx_tester_ch);
 
     // 8. Connect MUX TX and serial tester
-    const tx_free_serial_tester = MemoryRegion.create("tx_free_serial_tester", SDDF_BUF_SIZE, null, .large);
-    const tx_used_serial_tester = MemoryRegion.create("tx_used_serial_tester", SDDF_BUF_SIZE, null, .large);
-    const tx_data_serial_tester = MemoryRegion.create("tx_data_serial_tester", SDDF_BUF_SIZE, null, .large);
+    const tx_free_serial_tester = MemoryRegion.create(&system, "tx_free_serial_tester", SDDF_BUF_SIZE, null, .large);
+    const tx_used_serial_tester = MemoryRegion.create(&system, "tx_used_serial_tester", SDDF_BUF_SIZE, null, .large);
+    const tx_data_serial_tester = MemoryRegion.create(&system, "tx_data_serial_tester", SDDF_BUF_SIZE, null, .large);
     try system.addMemoryRegion(tx_free_serial_tester);
     try system.addMemoryRegion(tx_used_serial_tester);
     try system.addMemoryRegion(tx_data_serial_tester);
 
-    const tx_free_serial_tester_map = Map.create(&tx_free_serial_tester, 0x80_000_000, .{ .read = true, .write = true }, true, null);
-    const tx_used_serial_tester_map = Map.create(&tx_used_serial_tester, 0x80_200_000, .{ .read = true, .write = true }, true, null);
-    const tx_data_serial_tester_map = Map.create(&tx_data_serial_tester, 0x80_400_000, .{ .read = true, .write = true }, true, null);
+    const tx_free_serial_tester_map = Map.create(tx_free_serial_tester, 0x80_000_000, .{ .read = true, .write = true }, true, null);
+    const tx_used_serial_tester_map = Map.create(tx_used_serial_tester, 0x80_200_000, .{ .read = true, .write = true }, true, null);
+    const tx_data_serial_tester_map = Map.create(tx_data_serial_tester, 0x80_400_000, .{ .read = true, .write = true }, true, null);
     try serial_mux_tx.addMap(tx_free_serial_tester_map);
     try serial_mux_tx.addMap(tx_used_serial_tester_map);
     try serial_mux_tx.addMap(tx_data_serial_tester_map);
@@ -212,14 +230,14 @@ pub fn main() !void {
     var vmm = ProtectionDomain.create(allocator, "vmm", vmm_image, null, null, null, false);
 
     var guest = VirtualMachine.create(allocator, "linux");
-    const guest_ram = MemoryRegion.create("guest_ram", GUEST_RAM_SIZE, null, .large);
+    const guest_ram = MemoryRegion.create(&system, "guest_ram", GUEST_RAM_SIZE, null, .large);
     try system.addMemoryRegion(guest_ram);
 
-    const guest_ram_map = Map.create(&guest_ram, guestRamVaddr(target), .{ .read = true, .execute = true }, true, null);
+    const guest_ram_map = Map.create(guest_ram, guestRamVaddr(target), .{ .read = true, .execute = true }, true, null);
     try guest.addMap(guest_ram_map);
 
     // Then we add the virtual machine to the VMM
-    const guest_ram_map_vmm = Map.create(&guest_ram, guestRamVaddr(target), .{ .read = true }, true, null);
+    const guest_ram_map_vmm = Map.create(guest_ram, guestRamVaddr(target), .{ .read = true }, true, null);
     try vmm.addMap(guest_ram_map_vmm);
     try vmm.addVirtualMachine(&guest);
 

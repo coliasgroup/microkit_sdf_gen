@@ -36,16 +36,20 @@ pub const SystemDescription = struct {
         phys_addr: ?usize,
         page_size: PageSize,
 
-        pub fn create(name: []const u8, size: usize, phys_addr: ?usize, page_size: ?PageSize) MemoryRegion {
+        pub fn create(system: *SystemDescription, name: []const u8, size: usize, phys_addr: ?usize, page_size: ?PageSize) MemoryRegion {
             return MemoryRegion{
-                .name = name,
+                .name = system.allocator.dupe(u8, name) catch "Could not allocate name for MemoryRegion",
                 .size = size,
                 .phys_addr = phys_addr,
                 .page_size = if (page_size) |ps| ps else PageSize.small,
             };
         }
 
-        pub fn toXml(mr: *const MemoryRegion, allocator: Allocator, writer: ArrayList(u8).Writer, indent: []const u8, arch: Arch) !void {
+        pub fn destroy(mr: MemoryRegion, system: *SystemDescription) void {
+            system.allocator.free(mr.name);
+        }
+
+        pub fn toXml(mr: MemoryRegion, allocator: Allocator, writer: ArrayList(u8).Writer, indent: []const u8, arch: Arch) !void {
             var xml = try allocPrint(allocator, "{s}<memory_region name=\"{s}\" size=\"0x{x}\" page_size=\"0x{x}\"", .{ indent, mr.name, mr.size, mr.page_size.toSize(arch) });
             defer allocator.free(xml);
 
@@ -61,7 +65,7 @@ pub const SystemDescription = struct {
         }
 
         // TODO: consider other architectures
-        const PageSize = enum(usize) {
+        pub const PageSize = enum(usize) {
             small,
             large,
             huge,
@@ -81,18 +85,34 @@ pub const SystemDescription = struct {
                     },
                 }
             }
+
+            pub fn fromInt(page_size: usize, arch: Arch) !PageSize {
+                switch (arch) {
+                    .aarch64, .riscv64 => return switch (page_size) {
+                        0x1000 => .small,
+                        0x200000 => .large,
+                        0x40000000 => .huge,
+                        else => return error.InvalidPageSize,
+                    },
+                    .aarch32, .riscv32 => return switch (page_size) {
+                        0x1000 => .small,
+                        0x400000 => .large,
+                        else => return error.InvalidPageSize,
+                    },
+                }
+            }
         };
     };
 
     pub const Map = struct {
-        mr: *const MemoryRegion,
+        mr: MemoryRegion,
         vaddr: usize,
         perms: Permissions,
         cached: bool,
         // TODO: could make this a type?
         setvar_vaddr: ?[]const u8,
 
-        const Permissions = packed struct {
+        pub const Permissions = packed struct {
             read: bool = false,
             /// On all architectures of seL4, write permissions are required
             write: bool = true,
@@ -115,9 +135,28 @@ pub const SystemDescription = struct {
 
                 return i;
             }
+
+            pub fn fromString(str: []const u8) Permissions {
+                const read_count = std.mem.count(u8, str, "r");
+                const write_count = std.mem.count(u8, str, "w");
+                const exec_count = std.mem.count(u8, str, "x");
+                std.debug.assert(read_count == 0 or read_count == 1);
+                std.debug.assert(write_count == 0 or write_count == 1);
+                std.debug.assert(exec_count == 0 or exec_count == 1);
+
+                var perms: Permissions = .{};
+                if (read_count > 0) {
+                    perms.read = true;
+                }
+                if (exec_count > 0) {
+                    perms.execute = true;
+                }
+
+                return perms;
+            }
         };
 
-        pub fn create(mr: *const MemoryRegion, vaddr: usize, perms: Permissions, cached: bool, setvar_vaddr: ?[]const u8) Map {
+        pub fn create(mr: MemoryRegion, vaddr: usize, perms: Permissions, cached: bool, setvar_vaddr: ?[]const u8) Map {
             return Map{
                 .mr = mr,
                 .vaddr = vaddr,
@@ -186,6 +225,7 @@ pub const SystemDescription = struct {
                 \\ {s}<virtual_machine />
             ;
             const closing_xml = try allocPrint(allocator, closing_tag, .{ indent });
+            defer allocator.free(closing_xml);
             _ = try writer.write(closing_xml);
         }
     };
@@ -269,6 +309,7 @@ pub const SystemDescription = struct {
             if (id) |id_val| {
                 top = try allocPrint(allocator, "{s}<protection_domain name=\"{s}\" id=\"{}\">", .{ indent, pd.name, id_val });
             } else {
+                std.debug.print("name len: {}\n", .{ pd.name.len });
                 top = try allocPrint(allocator, "{s}<protection_domain name=\"{s}\">", .{ indent, pd.name });
             }
             _ = try writer.write(top);
@@ -350,22 +391,22 @@ pub const SystemDescription = struct {
     };
 
     pub const Interrupt = struct {
-        name: []const u8,
-        id: ?usize = null,
+        fixed_id: ?usize = null,
         irq: usize,
         trigger: Trigger,
 
         pub const Trigger = enum { edge, level };
 
-        pub fn create(name: []const u8, irq: usize, trigger: Trigger) Interrupt {
-            return Interrupt{ .name = name, .irq = irq, .trigger = trigger };
+        pub fn create(irq: usize, trigger: Trigger, id: ?usize) Interrupt {
+            return Interrupt{ .irq = irq, .trigger = trigger, .fixed_id = id };
         }
 
-        pub fn toXml(interrupt: *const Interrupt, allocator: Allocator, writer: ArrayList(u8).Writer, id: usize) !void {
+        pub fn toXml(irq: *const Interrupt, allocator: Allocator, writer: ArrayList(u8).Writer, id: usize) !void {
             const irq_str =
                 \\<irq irq="{}" trigger="{s}" id="{}" />
             ;
-            const irq_xml = try allocPrint(allocator, irq_str, .{ interrupt.irq, @tagName(interrupt.trigger), id });
+            const irq_id = if (irq.fixed_id) |irq_fixed_id| irq_fixed_id else id;
+            const irq_xml = try allocPrint(allocator, irq_str, .{ irq.irq, @tagName(irq.trigger), irq_id });
             defer allocator.free(irq_xml);
 
             _ = try writer.write(irq_xml);
