@@ -6,6 +6,7 @@ const allocPrint = std.fmt.allocPrint;
 // TODO: for addresses should we use the word size of the *target* machine?
 // TODO: should passing a virual address to a mapping be necessary?
 // TODO: indent stuff could be done better
+// TODO: need to use the stored allocator in SystemDescription when creating PDs etc
 
 pub const SystemDescription = struct {
     /// Store the allocator used when creating the SystemDescirption so we
@@ -88,6 +89,8 @@ pub const SystemDescription = struct {
         vaddr: usize,
         perms: Permissions,
         cached: bool,
+        // TODO: could make this a type?
+        setvar_vaddr: ?[]const u8,
 
         const Permissions = packed struct {
             read: bool = false,
@@ -114,12 +117,13 @@ pub const SystemDescription = struct {
             }
         };
 
-        pub fn create(mr: *const MemoryRegion, vaddr: usize, perms: Permissions, cached: bool) Map {
+        pub fn create(mr: *const MemoryRegion, vaddr: usize, perms: Permissions, cached: bool, setvar_vaddr: ?[]const u8) Map {
             return Map{
                 .mr = mr,
                 .vaddr = vaddr,
                 .perms = perms,
                 .cached = cached,
+                .setvar_vaddr = setvar_vaddr,
             };
         }
 
@@ -139,8 +143,12 @@ pub const SystemDescription = struct {
         }
     };
 
-    const VirtualMachine = struct {
+    pub const VirtualMachine = struct {
         name: []const u8,
+        priority: u8 = 100,
+        budget: usize = 100,
+        period: usize = 100,
+        passive: bool = false,
         maps: ArrayList(Map),
 
         pub fn create(allocator: Allocator, name: []const u8) VirtualMachine {
@@ -150,13 +158,35 @@ pub const SystemDescription = struct {
             };
         }
 
+        pub fn addMap(vm: *VirtualMachine, map: Map) !void {
+            try vm.maps.append(map);
+        }
+
         pub fn destroy(vm: *VirtualMachine) void {
             vm.maps.deinit();
         }
 
-        pub fn toXml(_: *VirtualMachine, _: Allocator) ![]const u8 {
-            // TODO: finish this function!
-            return "VM TODO";
+        pub fn toXml(vm: *VirtualMachine, allocator: Allocator, writer: ArrayList(u8).Writer, indent: []const u8, id: usize) !void {
+            const first_tag =
+                \\ {s}<virtual_machine name="{s}" id="{}" priority="{}" budget="{}" period="{}" passive="{}" />
+            ;
+            const first_xml = try allocPrint(allocator, first_tag, .{ indent, vm.name, id, vm.priority, vm.budget, vm.period, vm.passive });
+            defer allocator.free(first_xml);
+            _ = try writer.write(first_xml);
+
+            // Add memory region mappings as child nodes
+            const inner_indent = try allocPrint(allocator, "{s}    ", .{ indent });
+            defer allocator.free(inner_indent);
+            for (vm.maps.items) |map| {
+                _ = try writer.write(inner_indent);
+                try map.toXml(allocator, writer);
+            }
+
+            const closing_tag =
+                \\ {s}<virtual_machine />
+            ;
+            const closing_xml = try allocPrint(allocator, closing_tag, .{ indent });
+            _ = try writer.write(closing_xml);
         }
     };
 
@@ -214,7 +244,7 @@ pub const SystemDescription = struct {
             pd.irqs.deinit();
         }
 
-        pub fn addVirtualMachine(pd: *ProtectionDomain, vm: VirtualMachine) !void {
+        pub fn addVirtualMachine(pd: *ProtectionDomain, vm: *VirtualMachine) !void {
             if (pd.vm != null) return error.ProtectionDomainAlreadyHasVirtualMachine;
             pd.vm = vm;
         }
@@ -267,9 +297,10 @@ pub const SystemDescription = struct {
                 pd.next_avail_id += 1;
             }
             // Add virtual machine (if we have one)
-            // if (pd.vm) |vm| {
-            //     xml = try allocPrint(allocator, "{s}\n{s}{s}", .{ xml, inner_indent, try vm.toXml(allocator) });
-            // }
+            if (pd.vm) |vm| {
+                try vm.toXml(allocator, writer, inner_indent, pd.next_avail_id);
+                pd.next_avail_id += 1;
+            }
             // Add interrupts
             for (pd.irqs.items) |irq| {
                 _ = try writer.write(inner_indent);

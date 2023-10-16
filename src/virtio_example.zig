@@ -6,6 +6,7 @@ const Allocator = std.mem.Allocator;
 
 const SystemDescription = sdf_gen.SystemDescription;
 const ProtectionDomain = SystemDescription.ProtectionDomain;
+const VirtualMachine = SystemDescription.VirtualMachine;
 const ProgramImage = ProtectionDomain.ProgramImage;
 const MemoryRegion = SystemDescription.MemoryRegion;
 const Map = SystemDescription.Map;
@@ -59,7 +60,16 @@ const Uart = struct {
     }
 };
 
+fn guestRamVaddr(board: MicrokitBoard) usize {
+    return switch (board) {
+        .qemu_arm_virt => 0x40000000,
+        .odroidc4 => 0x20000000,
+    };
+}
+
 const SDDF_BUF_SIZE: usize = 0x200_000;
+// 128MB of RAM
+const GUEST_RAM_SIZE: usize = 1024 * 1024 * 128;
 
 // fn serialConnect(system: *SystemDescription, mux: *ProtectionDomain, client: *ProtectionDomain) !void {
 //     // Here we create regions to connect a multiplexor with a client
@@ -94,7 +104,7 @@ pub fn main() !void {
 
     const uart_mr = MemoryRegion.create("uart", Uart.size(target), Uart.paddr(target), .small);
     try system.addMemoryRegion(uart_mr);
-    try uart_driver.addMap(Map.create(&uart_mr, 0x5_000_000, .{ .read = true, .write = true }, true));
+    try uart_driver.addMap(Map.create(&uart_mr, 0x5_000_000, .{ .read = true, .write = true }, true, "uart_base"));
 
     const uart_irq = Interrupt.create("uart_irq", Uart.irq(target), Uart.trigger(target));
     try uart_driver.addInterrupt(uart_irq);
@@ -122,9 +132,9 @@ pub fn main() !void {
     try system.addMemoryRegion(rx_used);
     try system.addMemoryRegion(rx_data);
 
-    const rx_free_map = Map.create(&rx_free, 0x20_000_000, .{ .read = true, .write = true }, true);
-    const rx_used_map = Map.create(&rx_used, 0x20_200_000, .{ .read = true, .write = true }, true);
-    const rx_data_map = Map.create(&rx_data, 0x20_400_000, .{ .read = true, .write = true }, true);
+    const rx_free_map = Map.create(&rx_free, 0x20_000_000, .{ .read = true, .write = true }, true, "rx_free");
+    const rx_used_map = Map.create(&rx_used, 0x20_200_000, .{ .read = true, .write = true }, true, "rx_used");
+    const rx_data_map = Map.create(&rx_data, 0x20_400_000, .{ .read = true, .write = true }, true, null);
 
     try serial_mux_rx.addMap(rx_free_map);
     try serial_mux_rx.addMap(rx_used_map);
@@ -144,9 +154,9 @@ pub fn main() !void {
     try system.addMemoryRegion(tx_used);
     try system.addMemoryRegion(tx_data);
 
-    const tx_free_map = Map.create(&tx_free, 0x40_000_000, .{ .read = true, .write = true }, true);
-    const tx_used_map = Map.create(&tx_used, 0x40_200_000, .{ .read = true, .write = true }, true);
-    const tx_data_map = Map.create(&tx_data, 0x40_400_000, .{ .read = true, .write = true }, true);
+    const tx_free_map = Map.create(&tx_free, 0x40_000_000, .{ .read = true, .write = true }, true, "tx_free");
+    const tx_used_map = Map.create(&tx_used, 0x40_200_000, .{ .read = true, .write = true }, true, "tx_used");
+    const tx_data_map = Map.create(&tx_data, 0x40_400_000, .{ .read = true, .write = true }, true, null);
 
     try serial_mux_tx.addMap(tx_free_map);
     try serial_mux_tx.addMap(tx_used_map);
@@ -166,9 +176,9 @@ pub fn main() !void {
     try system.addMemoryRegion(rx_used_serial_tester);
     try system.addMemoryRegion(rx_data_serial_tester);
 
-    const rx_free_serial_tester_map = Map.create(&rx_free_serial_tester, 0x60_000_000, .{ .read = true, .write = true }, true);
-    const rx_used_serial_tester_map = Map.create(&rx_used_serial_tester, 0x60_200_000, .{ .read = true, .write = true }, true);
-    const rx_data_serial_tester_map = Map.create(&rx_data_serial_tester, 0x60_400_000, .{ .read = true, .write = true }, true);
+    const rx_free_serial_tester_map = Map.create(&rx_free_serial_tester, 0x60_000_000, .{ .read = true, .write = true }, true, null);
+    const rx_used_serial_tester_map = Map.create(&rx_used_serial_tester, 0x60_200_000, .{ .read = true, .write = true }, true, null);
+    const rx_data_serial_tester_map = Map.create(&rx_data_serial_tester, 0x60_400_000, .{ .read = true, .write = true }, true, null);
     try serial_mux_rx.addMap(rx_free_serial_tester_map);
     try serial_mux_rx.addMap(rx_used_serial_tester_map);
     try serial_mux_rx.addMap(rx_data_serial_tester_map);
@@ -187,15 +197,33 @@ pub fn main() !void {
     try system.addMemoryRegion(tx_used_serial_tester);
     try system.addMemoryRegion(tx_data_serial_tester);
 
-    const tx_free_serial_tester_map = Map.create(&tx_free_serial_tester, 0x80_000_000, .{ .read = true, .write = true }, true);
-    const tx_used_serial_tester_map = Map.create(&tx_used_serial_tester, 0x80_200_000, .{ .read = true, .write = true }, true);
-    const tx_data_serial_tester_map = Map.create(&tx_data_serial_tester, 0x80_400_000, .{ .read = true, .write = true }, true);
+    const tx_free_serial_tester_map = Map.create(&tx_free_serial_tester, 0x80_000_000, .{ .read = true, .write = true }, true, null);
+    const tx_used_serial_tester_map = Map.create(&tx_used_serial_tester, 0x80_200_000, .{ .read = true, .write = true }, true, null);
+    const tx_data_serial_tester_map = Map.create(&tx_data_serial_tester, 0x80_400_000, .{ .read = true, .write = true }, true, null);
     try serial_mux_tx.addMap(tx_free_serial_tester_map);
     try serial_mux_tx.addMap(tx_used_serial_tester_map);
     try serial_mux_tx.addMap(tx_data_serial_tester_map);
     try serial_tester.addMap(tx_free_serial_tester_map);
     try serial_tester.addMap(tx_used_serial_tester_map);
     try serial_tester.addMap(tx_data_serial_tester_map);
+
+    // 9. Create the virtual machine and virtual-machine-monitor
+    const vmm_image = ProgramImage.create("vmm.elf");
+    var vmm = ProtectionDomain.create(allocator, "vmm", vmm_image, null, null, null, false);
+
+    var guest = VirtualMachine.create(allocator, "linux");
+    const guest_ram = MemoryRegion.create("guest_ram", GUEST_RAM_SIZE, null, .large);
+    try system.addMemoryRegion(guest_ram);
+
+    const guest_ram_map = Map.create(&guest_ram, guestRamVaddr(target), .{ .read = true, .execute = true }, true, null);
+    try guest.addMap(guest_ram_map);
+
+    // Then we add the virtual machine to the VMM
+    const guest_ram_map_vmm = Map.create(&guest_ram, guestRamVaddr(target), .{ .read = true }, true, null);
+    try vmm.addMap(guest_ram_map_vmm);
+    try vmm.addVirtualMachine(&guest);
+
+    try system.addProtectionDomain(&vmm);
 
     // Get the XML representation
     const xml = try system.toXml(allocator);
