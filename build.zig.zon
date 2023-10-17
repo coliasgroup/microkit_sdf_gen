@@ -1,0 +1,15 @@
+.{
+    .name = "sdfgen",
+    .version = "0.1.0",
+    .dependencies = .{
+        .dtbzig = .{
+            .path = "dtb.zig"
+        }
+    },
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "src",
+        "examples",
+    }
+}

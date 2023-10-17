@@ -2,6 +2,7 @@ const std = @import("std");
 const builtin = @import("builtin");
 const mod_sdf = @import("sdf.zig");
 const sddf = @import("sddf.zig");
+const mod_dtb = @import("dtb");
 const ArrayList = std.ArrayList;
 const Allocator = std.mem.Allocator;
 
@@ -429,6 +430,15 @@ pub fn main() !void {
             }
         }
     };
+
+    // Read the DTB contents
+    const dtb_file = try std.fs.cwd().openFile(board_dtb_path, .{});
+    const dtb_size = (try dtb_file.stat()).size;
+    const dtb = try dtb_file.reader().readAllAlloc(allocator, dtb_size);
+    // Parse the DTB
+    var parsed_dtb = try mod_dtb.parse(allocator, dtb);
+    // TODO: the allocator should already be known by the DTB...
+    defer parsed_dtb.deinit(allocator);
 
     try sddf.probe(allocator, sddf_path);
     const compatible_drivers = try sddf.compatibleDrivers(allocator);
