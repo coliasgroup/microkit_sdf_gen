@@ -35,12 +35,12 @@ pub const SystemDescription = struct {
         phys_addr: ?usize,
         page_size: PageSize,
 
-        pub fn create(system: *SystemDescription, name: []const u8, size: usize, phys_addr: ?usize, page_size: ?PageSize) MemoryRegion {
+        pub fn create(system: *SystemDescription, name: []const u8, size: usize, phys_addr: ?usize, page_size: PageSize) MemoryRegion {
             return MemoryRegion{
                 .name = system.allocator.dupe(u8, name) catch "Could not allocate name for MemoryRegion",
                 .size = size,
                 .phys_addr = phys_addr,
-                .page_size = if (page_size) |ps| ps else PageSize.small,
+                .page_size = page_size,
             };
         }
 
@@ -112,6 +112,8 @@ pub const SystemDescription = struct {
         setvar_vaddr: ?[]const u8,
 
         pub const Permissions = packed struct {
+            // TODO: the write-only mappings not being allowed
+            // needs to be enforced here
             read: bool = false,
             /// On all architectures of seL4, write permissions are required
             write: bool = true,
@@ -306,6 +308,7 @@ pub const SystemDescription = struct {
                 \\priority="{}" budget="{}" period="{}" passive="{}" pp="{}"
             ;
             const attributes_xml = try allocPrint(sdf.allocator, attributes_str, .{ pd.priority, pd.budget, pd.period, pd.passive, pd.pp });
+            defer sdf.allocator.free(attributes_xml);
             var top: []const u8 = undefined;
             if (id) |id_val| {
                 top = try allocPrint(sdf.allocator,
@@ -400,6 +403,8 @@ pub const SystemDescription = struct {
         pub const Trigger = enum { edge, level };
 
         pub fn create(irq: usize, trigger: Trigger, id: ?usize) Interrupt {
+            // TODO: if there's a fixed id then we need to check it's not allocated already
+            // TODO: the XML export of a PD also needs to consider the fixed IDs
             return Interrupt{ .irq = irq, .trigger = trigger, .fixed_id = id };
         }
 
@@ -431,6 +436,7 @@ pub const SystemDescription = struct {
     pub fn destroy(sdf: *SystemDescription) void {
         for (sdf.pds.items) |pd| pd.destroy();
         sdf.pds.deinit();
+        for (sdf.mrs.items) |mr| mr.destroy(sdf);
         sdf.mrs.deinit();
         sdf.channels.deinit();
         sdf.xml_data.deinit();
