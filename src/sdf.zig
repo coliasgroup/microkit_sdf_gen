@@ -189,10 +189,10 @@ pub const SystemDescription = struct {
         passive: bool = false,
         maps: ArrayList(Map),
 
-        pub fn create(allocator: Allocator, name: []const u8) VirtualMachine {
+        pub fn create(sdf: *SystemDescription, name: []const u8) VirtualMachine {
             return VirtualMachine {
                 .name = name,
-                .maps = ArrayList(Map).init(allocator),
+                .maps = ArrayList(Map).init(sdf.allocator),
             };
         }
 
@@ -262,13 +262,13 @@ pub const SystemDescription = struct {
             }
         };
 
-        pub fn create(allocator: Allocator, name: []const u8, program_image: ?ProgramImage) ProtectionDomain {
+        pub fn create(sdf: *SystemDescription, name: []const u8, program_image: ?ProgramImage) ProtectionDomain {
             return ProtectionDomain{
                 .name = name,
                 .program_image = program_image,
-                .maps = ArrayList(Map).init(allocator),
-                .child_pds = ArrayList(*ProtectionDomain).init(allocator),
-                .irqs = ArrayList(Interrupt).init(allocator),
+                .maps = ArrayList(Map).init(sdf.allocator),
+                .child_pds = ArrayList(*ProtectionDomain).init(sdf.allocator),
+                .irqs = ArrayList(Interrupt).init(sdf.allocator),
                 .vm = null,
             };
         }

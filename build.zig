@@ -19,26 +19,26 @@ pub fn build(b: *std.Build) void {
         .name = "microkit_sdf_gen",
         // In this case the main source file is merely a path, however, in more
         // complicated build scripts, this could be a generated file.
-        .root_source_file = .{ .path = "src/sdf_gen.zig" },
+        .root_source_file = .{ .path = "src/sdf.zig" },
         .target = target,
         .optimize = optimize,
     });
 
-    const virtio_example_step = b.step("virtio", "Run the virtIO example of system generation");
-    const virtio_example = b.addExecutable(.{
-        .name = "virtio_example",
-        .root_source_file = .{ .path = "src/virtio_example.zig" },
+    const sdfgen_step = b.step("sdfgen", "Run the sdfgen example of system generation");
+    const sdfgen = b.addExecutable(.{
+        .name = "sdfgen",
+        .root_source_file = .{ .path = "src/sdfgen.zig" },
         .target = target,
         .optimize = optimize,
     });
 
-    const virtio_example_cmd = b.addRunArtifact(virtio_example);
+    const sdfgen_cmd = b.addRunArtifact(sdfgen);
     if (b.args) |args| {
-        virtio_example_cmd.addArgs(args);
+        sdfgen_cmd.addArgs(args);
     }
-    virtio_example_step.dependOn(&virtio_example_cmd.step);
-    const virtio_example_install = b.addInstallArtifact(virtio_example, .{});
-    virtio_example_step.dependOn(&virtio_example_install.step);
+    sdfgen_step.dependOn(&sdfgen_cmd.step);
+    const sdfgen_install = b.addInstallArtifact(sdfgen, .{});
+    sdfgen_step.dependOn(&sdfgen_install.step);
 
     // This declares intent for the library to be installed into the standard
     // location when the user invokes the "install" step (the default step when
