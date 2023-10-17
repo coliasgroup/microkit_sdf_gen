@@ -6,7 +6,6 @@ const allocPrint = std.fmt.allocPrint;
 // TODO: for addresses should we use the word size of the *target* machine?
 // TODO: should passing a virual address to a mapping be necessary?
 // TODO: indent stuff could be done better
-// TODO: need to use the stored allocator in SystemDescription when creating PDs etc
 
 pub const SystemDescription = struct {
     /// Store the allocator used when creating the SystemDescirption so we
@@ -49,17 +48,17 @@ pub const SystemDescription = struct {
             system.allocator.free(mr.name);
         }
 
-        pub fn toXml(mr: MemoryRegion, allocator: Allocator, writer: ArrayList(u8).Writer, indent: []const u8, arch: Arch) !void {
-            var xml = try allocPrint(allocator, "{s}<memory_region name=\"{s}\" size=\"0x{x}\" page_size=\"0x{x}\"", .{ indent, mr.name, mr.size, mr.page_size.toSize(arch) });
-            defer allocator.free(xml);
+        pub fn toXml(mr: MemoryRegion, sdf: *SystemDescription, writer: ArrayList(u8).Writer, indent: []const u8, arch: Arch) !void {
+            var xml = try allocPrint(sdf.allocator, "{s}<memory_region name=\"{s}\" size=\"0x{x}\" page_size=\"0x{x}\"", .{ indent, mr.name, mr.size, mr.page_size.toSize(arch) });
+            defer sdf.allocator.free(xml);
 
             var final_xml: []const u8 = undefined;
             if (mr.phys_addr) |phys_addr| {
-                final_xml = try allocPrint(allocator, "{s} phys_addr=\"0x{x}\" />\n", .{ xml, phys_addr });
+                final_xml = try allocPrint(sdf.allocator, "{s} phys_addr=\"0x{x}\" />\n", .{ xml, phys_addr });
             } else {
-                final_xml = try allocPrint(allocator, "{s} />\n", .{xml});
+                final_xml = try allocPrint(sdf.allocator, "{s} />\n", .{xml});
             }
-            defer allocator.free(final_xml);
+            defer sdf.allocator.free(final_xml);
 
             _ = try writer.write(final_xml);
         }
@@ -166,7 +165,7 @@ pub const SystemDescription = struct {
             };
         }
 
-        pub fn toXml(map: *const Map, allocator: Allocator, writer: ArrayList(u8).Writer) !void {
+        pub fn toXml(map: *const Map, sdf: *SystemDescription, writer: ArrayList(u8).Writer) !void {
             const mr_str =
                 \\<map mr="{s}" vaddr="0x{x}" perms="{s}" cached="{s}" />
             ;
@@ -174,9 +173,9 @@ pub const SystemDescription = struct {
             var perms = [_]u8{0} ** 4;
             const i = map.perms.toString(&perms);
 
-            const xml = try allocPrint(allocator, mr_str,
-                                  .{ map.mr.name, map.vaddr, perms[0..i], if (map.cached) "true" else "false" });
-            defer allocator.free(xml);
+            const cached = if (map.cached) "true" else "false";
+            const xml = try allocPrint(sdf.allocator, mr_str, .{ map.mr.name, map.vaddr, perms[0..i], cached });
+            defer sdf.allocator.free(xml);
 
             _ = try writer.write(xml);
         }
@@ -205,27 +204,27 @@ pub const SystemDescription = struct {
             vm.maps.deinit();
         }
 
-        pub fn toXml(vm: *VirtualMachine, allocator: Allocator, writer: ArrayList(u8).Writer, indent: []const u8, id: usize) !void {
+        pub fn toXml(vm: *VirtualMachine, sdf: *SystemDescription, writer: ArrayList(u8).Writer, indent: []const u8, id: usize) !void {
             const first_tag =
                 \\ {s}<virtual_machine name="{s}" id="{}" priority="{}" budget="{}" period="{}" passive="{}" />
             ;
-            const first_xml = try allocPrint(allocator, first_tag, .{ indent, vm.name, id, vm.priority, vm.budget, vm.period, vm.passive });
-            defer allocator.free(first_xml);
+            const first_xml = try allocPrint(sdf.allocator, first_tag, .{ indent, vm.name, id, vm.priority, vm.budget, vm.period, vm.passive });
+            defer sdf.allocator.free(first_xml);
             _ = try writer.write(first_xml);
 
             // Add memory region mappings as child nodes
-            const inner_indent = try allocPrint(allocator, "{s}    ", .{ indent });
-            defer allocator.free(inner_indent);
+            const inner_indent = try allocPrint(sdf.allocator, "{s}    ", .{ indent });
+            defer sdf.allocator.free(inner_indent);
             for (vm.maps.items) |map| {
                 _ = try writer.write(inner_indent);
-                try map.toXml(allocator, writer);
+                try map.toXml(sdf, writer);
             }
 
             const closing_tag =
                 \\ {s}<virtual_machine />
             ;
-            const closing_xml = try allocPrint(allocator, closing_tag, .{ indent });
-            defer allocator.free(closing_xml);
+            const closing_xml = try allocPrint(sdf.allocator, closing_tag, .{ indent });
+            defer sdf.allocator.free(closing_xml);
             _ = try writer.write(closing_xml);
         }
     };
@@ -235,10 +234,12 @@ pub const SystemDescription = struct {
         /// Program ELF
         program_image: ?ProgramImage,
         /// Scheduling parameters
-        priority: ?u8,
-        budget: ?usize,
-        period: ?usize,
-        passive: ?bool,
+        priority: u8 = 100,
+        budget: usize = 100,
+        period: usize = 100,
+        passive: bool = false,
+        /// Whether there is an available 'protected' entry point
+        pp: bool = false,
         /// Child nodes
         maps: ArrayList(Map),
         child_pds: ArrayList(*ProtectionDomain),
@@ -254,21 +255,17 @@ pub const SystemDescription = struct {
                 return ProgramImage{ .path = path };
             }
 
-            pub fn toXml(program_image: *const ProgramImage, allocator: Allocator, writer: ArrayList(u8).Writer) !void {
-                const xml = try allocPrint(allocator, "<program_image path=\"{s}\" />", .{ program_image.path });
-                defer allocator.free(xml);
+            pub fn toXml(program_image: *const ProgramImage, sdf: *SystemDescription, writer: ArrayList(u8).Writer) !void {
+                const xml = try allocPrint(sdf.allocator, "<program_image path=\"{s}\" />", .{ program_image.path });
+                defer sdf.allocator.free(xml);
                 _ = try writer.write(xml);
             }
         };
 
-        pub fn create(allocator: Allocator, name: []const u8, program_image: ?ProgramImage, priority: ?u8, budget: ?usize, period: ?usize, passive: ?bool) ProtectionDomain {
+        pub fn create(allocator: Allocator, name: []const u8, program_image: ?ProgramImage) ProtectionDomain {
             return ProtectionDomain{
                 .name = name,
-                .passive = passive,
                 .program_image = program_image,
-                .priority = priority,
-                .budget = budget,
-                .period = period,
                 .maps = ArrayList(Map).init(allocator),
                 .child_pds = ArrayList(*ProtectionDomain).init(allocator),
                 .irqs = ArrayList(Interrupt).init(allocator),
@@ -301,57 +298,62 @@ pub const SystemDescription = struct {
             try pd.child_pds.append(child);
         }
 
-        pub fn toXml(pd: *ProtectionDomain, allocator: Allocator, writer: ArrayList(u8).Writer, indent: []const u8, id: ?usize) !void {
+        pub fn toXml(pd: *ProtectionDomain, sdf: *SystemDescription, writer: ArrayList(u8).Writer, indent: []const u8, id: ?usize) !void {
             // If we are given an ID, this PD is in fact a child PD and we have to
             // specify the ID for the root PD to use when referring to this child PD.
-            // TODO: make this not undefined
+            // TODO: simplify this whole logic, it's quite messy right now
+            const attributes_str =
+                \\priority="{}" budget="{}" period="{}" passive="{}" pp="{}"
+            ;
+            const attributes_xml = try allocPrint(sdf.allocator, attributes_str, .{ pd.priority, pd.budget, pd.period, pd.passive, pd.pp });
             var top: []const u8 = undefined;
             if (id) |id_val| {
-                top = try allocPrint(allocator, "{s}<protection_domain name=\"{s}\" id=\"{}\">", .{ indent, pd.name, id_val });
+                top = try allocPrint(sdf.allocator,
+                    "{s}<protection_domain name=\"{s}\" id=\"{}\" {s}>", .{ indent, pd.name, id_val, attributes_xml });
             } else {
-                std.debug.print("name len: {}\n", .{ pd.name.len });
-                top = try allocPrint(allocator, "{s}<protection_domain name=\"{s}\">", .{ indent, pd.name });
+                top = try allocPrint(sdf.allocator,
+                    "{s}<protection_domain name=\"{s}\" {s}>", .{ indent, pd.name, attributes_xml });
             }
+            defer sdf.allocator.free(top);
             _ = try writer.write(top);
-            defer allocator.free(top);
 
             // TODO: handle period, budget, priority, passive
 
-            const inner_indent = try allocPrint(allocator, "\n{s}    ", .{ indent });
-            defer allocator.free(inner_indent);
+            const inner_indent = try allocPrint(sdf.allocator, "\n{s}    ", .{ indent });
+            defer sdf.allocator.free(inner_indent);
             // Add program image (if we have one)
             if (pd.program_image) |program_image| {
                 _ = try writer.write(inner_indent);
-                try program_image.toXml(allocator, writer);
+                try program_image.toXml(sdf, writer);
             }
             // Add memory region mappins
             for (pd.maps.items) |map| {
                 _ = try writer.write(inner_indent);
-                try map.toXml(allocator, writer);
+                try map.toXml(sdf, writer);
             }
             // Add child PDs
             for (pd.child_pds.items) |child_pd| {
-                const child_pd_xml = try allocPrint(allocator, "\n{s}", .{ inner_indent });
-                defer allocator.free(child_pd_xml);
-                try child_pd.toXml(allocator, writer, inner_indent, pd.next_avail_id);
+                const child_pd_xml = try allocPrint(sdf.allocator, "\n{s}", .{ inner_indent });
+                defer sdf.allocator.free(child_pd_xml);
+                try child_pd.toXml(sdf, writer, inner_indent, pd.next_avail_id);
                 _ = try writer.write(child_pd_xml);
                 pd.next_avail_id += 1;
             }
             // Add virtual machine (if we have one)
             if (pd.vm) |vm| {
-                try vm.toXml(allocator, writer, inner_indent, pd.next_avail_id);
+                try vm.toXml(sdf, writer, inner_indent, pd.next_avail_id);
                 pd.next_avail_id += 1;
             }
             // Add interrupts
             for (pd.irqs.items) |irq| {
                 _ = try writer.write(inner_indent);
-                try irq.toXml(allocator, writer, pd.next_avail_id);
-                // xml = try allocPrint(allocator, "{s}\n{s}{s}", .{ xml, inner_indent, try irq.toXml(allocator, pd.next_avail_id) });
+                try irq.toXml(sdf, writer, pd.next_avail_id);
+                // xml = try allocPrint(sdf.allocator, "{s}\n{s}{s}", .{ xml, inner_indent, try irq.toXml(sdf.allocator, pd.next_avail_id) });
                 pd.next_avail_id += 1;
             }
 
-            const bottom = try allocPrint(allocator, "\n{s}</protection_domain>\n", .{ indent });
-            defer allocator.free(bottom);
+            const bottom = try allocPrint(sdf.allocator, "\n{s}</protection_domain>\n", .{ indent });
+            defer sdf.allocator.free(bottom);
             _ = try writer.write(bottom);
         }
     };
@@ -375,7 +377,7 @@ pub const SystemDescription = struct {
             return ch;
         }
 
-        pub fn toXml(ch: Channel, allocator: Allocator, writer: ArrayList(u8).Writer) !void {
+        pub fn toXml(ch: Channel, sdf: *SystemDescription, writer: ArrayList(u8).Writer) !void {
             const channel_str =
                 \\    <channel>
                 \\        <end pd="{s}" id="{}" />
@@ -383,8 +385,8 @@ pub const SystemDescription = struct {
                 \\    </channel>
                 \\
             ;
-            const channel_xml = try allocPrint(allocator, channel_str, .{ ch.pd1.name, ch.pd1_end_id, ch.pd2.name, ch.pd2_end_id });
-            defer allocator.free(channel_xml);
+            const channel_xml = try allocPrint(sdf.allocator, channel_str, .{ ch.pd1.name, ch.pd1_end_id, ch.pd2.name, ch.pd2_end_id });
+            defer sdf.allocator.free(channel_xml);
 
             _ = try writer.write(channel_xml);
         }
@@ -401,13 +403,13 @@ pub const SystemDescription = struct {
             return Interrupt{ .irq = irq, .trigger = trigger, .fixed_id = id };
         }
 
-        pub fn toXml(irq: *const Interrupt, allocator: Allocator, writer: ArrayList(u8).Writer, id: usize) !void {
+        pub fn toXml(irq: *const Interrupt, sdf: *SystemDescription, writer: ArrayList(u8).Writer, id: usize) !void {
             const irq_str =
                 \\<irq irq="{}" trigger="{s}" id="{}" />
             ;
             const irq_id = if (irq.fixed_id) |irq_fixed_id| irq_fixed_id else id;
-            const irq_xml = try allocPrint(allocator, irq_str, .{ irq.irq, @tagName(irq.trigger), irq_id });
-            defer allocator.free(irq_xml);
+            const irq_xml = try allocPrint(sdf.allocator, irq_str, .{ irq.irq, @tagName(irq.trigger), irq_id });
+            defer sdf.allocator.free(irq_xml);
 
             _ = try writer.write(irq_xml);
         }
@@ -446,19 +448,19 @@ pub const SystemDescription = struct {
         try sdf.pds.append(pd);
     }
 
-    pub fn toXml(sdf: *SystemDescription, allocator: Allocator) ![]const u8 {
+    pub fn toXml(sdf: *SystemDescription) ![]const u8 {
         const writer = sdf.xml_data.writer();
         _ = try writer.write("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<system>\n");
 
         const indent = " " ** 4;
         for (sdf.mrs.items) |mr| {
-            try mr.toXml(allocator, writer, indent, sdf.arch);
+            try mr.toXml(sdf, writer, indent, sdf.arch);
         }
         for (sdf.pds.items) |pd| {
-            try pd.toXml(allocator, writer, indent, null);
+            try pd.toXml(sdf, writer, indent, null);
         }
         for (sdf.channels.items) |ch| {
-            try ch.toXml(allocator, writer);
+            try ch.toXml(sdf, writer);
         }
 
         _ = try writer.write("</system>\n");

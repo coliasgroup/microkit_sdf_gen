@@ -3,11 +3,10 @@ const sdf = @import("sdf.zig");
 const Allocator = std.mem.Allocator;
 
 const SystemDescription = sdf.SystemDescription;
-const MemoryRegion = SystemDescription.MemoryRegion;
+const Mr = SystemDescription.MemoryRegion;
 const Map = SystemDescription.Map;
-const Interrupt = SystemDescription.Interrupt;
-const ProtectionDomain = SystemDescription.ProtectionDomain;
-const ProgramImage = ProtectionDomain.ProgramImage;
+const Pd = SystemDescription.ProtectionDomain;
+const ProgramImage = Pd.ProgramImage;
 
 // pub fn createMux(system: *SystemDescription, mux: Mux)
 
@@ -43,17 +42,17 @@ fn fmtPrint(allocator: Allocator, comptime fmt: []const u8, args: anytype) []con
     return std.fmt.allocPrint(allocator, fmt, args) catch "Could not format print!";
 }
 
-pub fn createDriver(system: *SystemDescription, driver: Driver, device_paddr: usize) !ProtectionDomain {
+pub fn createDriver(system: *SystemDescription, driver: Driver, device_paddr: usize) !Pd {
     // const program_image = ProgramImage.create(driver.name ++ ".elf");
     const program_image = ProgramImage.create("uart.elf");
     // TODO: deal with passive, priority, and budgets
-    var pd = ProtectionDomain.create(system.allocator, driver.name, program_image, null, null, null, false);
+    var pd = Pd.create(system.allocator, driver.name, program_image);
     // Create all the memory regions
     var num_regions: usize = 0;
     for (driver.resources.shared_regions) |region| {
-        const page_size = try MemoryRegion.PageSize.fromInt(region.page_size, system.arch);
+        const page_size = try Mr.PageSize.fromInt(region.page_size, system.arch);
         const mr_name = fmtPrint(system.allocator, "{s}_{s}", .{ driver.name, region.name });
-        const mr = MemoryRegion.create(system, mr_name, region.size, null, page_size);
+        const mr = Mr.create(system, mr_name, region.size, null, page_size);
         try system.addMemoryRegion(mr);
 
         const perms = Map.Permissions.fromString(region.perms);
@@ -67,9 +66,9 @@ pub fn createDriver(system: *SystemDescription, driver: Driver, device_paddr: us
     // TODO: support more than one device region, it will most likely be needed in the future.
     std.debug.assert(driver.resources.device_regions.len == 1);
     for (driver.resources.device_regions) |region| {
-        const page_size = try MemoryRegion.PageSize.fromInt(region.page_size, system.arch);
+        const page_size = try Mr.PageSize.fromInt(region.page_size, system.arch);
         const mr_name = fmtPrint(system.allocator, "{s}_{s}", .{ driver.name, region.name });
-        const mr = MemoryRegion.create(system, mr_name, region.size, device_paddr, page_size);
+        const mr = Mr.create(system, mr_name, region.size, device_paddr, page_size);
         std.debug.print("driver.name: {s}\n", .{ driver.name });
         std.debug.print("allocating: {s}\n", .{ mr_name });
         std.debug.print("allocating mr.name: {s}\n", .{ mr.name });
@@ -86,7 +85,7 @@ pub fn createDriver(system: *SystemDescription, driver: Driver, device_paddr: us
     // Create all the IRQs
     for (driver.resources.irqs) |driver_irq| {
         // TODO: irq trigger should come from DTS
-        const irq = Interrupt.create(driver_irq.irq, .level, driver_irq.id);
+        const irq = SystemDescription.Interrupt.create(driver_irq.irq, .level, driver_irq.id);
         try pd.addInterrupt(irq);
     }
     // Create all the channels?
