@@ -109,8 +109,8 @@ fn guestRamVaddr(b: MicrokitBoard) usize {
 }
 
 var xml_out_path: []const u8 = "example.system";
-var sddf_path: []const u8 = "./sddf";
-var dtbs: []const u8 = "./dtbs";
+var sddf_path: []const u8 = "sddf";
+var dtbs_path: []const u8 = "dtbs";
 var board: MicrokitBoard = undefined;
 var example: Example = undefined;
 
@@ -198,12 +198,14 @@ fn parseArgs(args: []const []const u8, allocator: Allocator) !void {
                 std.debug.print("'{s}' requires a path to the sDDF repository.\n{s}", .{ arg, usage_text_fmt });
                 std.process.exit(1);
             }
-        } else if (std.mem.eql(u8, arg, "--dts")) {
+            sddf_path = args[arg_i];
+        } else if (std.mem.eql(u8, arg, "--dtbs")) {
             arg_i += 1;
             if (arg_i >= args.len) {
                 std.debug.print("'{s}' requires a path to the directory holding all the DTBs.\n{s}", .{ arg, usage_text_fmt });
                 std.process.exit(1);
             }
+            dtbs_path = args[arg_i];
         } else {
             std.debug.print("unrecognized argument: '{s}'\n{s}", .{ arg, usage_text_fmt });
             std.process.exit(1);
@@ -397,6 +399,36 @@ pub fn main() !void {
     const args = try std.process.argsAlloc(allocator);
     defer std.process.argsFree(allocator, args);
     try parseArgs(args, allocator);
+
+    // Check that path to sDDF exists
+    std.fs.cwd().access(sddf_path, .{}) catch |err| {
+        switch (err) {
+            error.FileNotFound => {
+                std.debug.print("Path to sDDF '{s}' does not exist\n", .{ sddf_path });
+                std.process.exit(1);
+            },
+            else => {
+                std.debug.print("Could not access sDDF directory '{s}' due to error: {}\n", .{ sddf_path, err });
+                std.process.exit(1);
+            }
+        }
+    };
+
+    // Check that path to DTS exists
+    const board_dtb_path = try std.fmt.allocPrint(allocator, "{s}/{s}.dtb", .{ dtbs_path, @tagName(board) });
+    defer allocator.free(board_dtb_path);
+    std.fs.cwd().access(board_dtb_path, .{}) catch |err| {
+        switch (err) {
+            error.FileNotFound => {
+                std.debug.print("Path to board DTB '{s}' does not exist\n", .{ board_dtb_path });
+                std.process.exit(1);
+            },
+            else => {
+                std.debug.print("Could not access DTB directory '{s}' due to error: {}\n", .{ board_dtb_path, err });
+                std.process.exit(1);
+            }
+        }
+    };
 
     try sddf.probe(allocator, sddf_path);
     const compatible_drivers = try sddf.compatibleDrivers(allocator);
