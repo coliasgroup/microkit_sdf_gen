@@ -93,13 +93,20 @@ pub fn probe(allocator: Allocator, path: []const u8) !void {
     }
 }
 
+/// These are the sDDF device classes that we expect to exist in the
+/// repository and will be searched through.
+/// You could instead have something in the repisitory to list the
+/// device classes or organise the repository differently, but I do
+/// not see the need for that kind of complexity at this time.
 const DeviceClasses = enum {
     network,
     serial
 };
 
 const Region = struct {
+    /// Name of the region
     name: []const u8,
+    /// Permissions to the region of memory once mapped in
     perms: []const u8,
     // TODO: do we need cached or can we decide based on the type?
     cached: bool,
