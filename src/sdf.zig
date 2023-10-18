@@ -27,6 +27,8 @@ pub const SystemDescription = struct {
         aarch64,
         riscv32,
         riscv64,
+        ia32,
+        x86_64,
     };
 
     pub const MemoryRegion = struct {
@@ -70,17 +72,17 @@ pub const SystemDescription = struct {
             huge,
 
             pub fn toSize(page_size: PageSize, arch: Arch) usize {
+                // TODO: on RISC-V we are assuming that it's Sv39.
                 switch (arch) {
-                    .aarch64, .riscv64 => return switch (page_size) {
+                    .aarch64, .riscv64, .x86_64 => return switch (page_size) {
                         .small => 0x1000,
                         .large => 0x200000,
                         .huge => 0x40000000,
                     },
-                    .aarch32, .riscv32 => return switch (page_size) {
+                    .aarch32, .riscv32, .ia32 => return switch (page_size) {
                         .small => 0x1000,
                         .large => 0x400000,
-                        // TODO: handle
-                        else => unreachable,
+                        .huge => 0x40000000,
                     },
                 }
             }
@@ -96,6 +98,7 @@ pub const SystemDescription = struct {
                     .aarch32, .riscv32 => return switch (page_size) {
                         0x1000 => .small,
                         0x400000 => .large,
+                        0x40000000 => .huge,
                         else => return error.InvalidPageSize,
                     },
                 }

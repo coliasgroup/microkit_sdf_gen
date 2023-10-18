@@ -13,10 +13,10 @@ const test_dir = "tests/";
 
 fn readAll(test_path: []const u8) ![]const u8 {
     const test_file = try std.fs.cwd().openFile(test_path, .{});
-    // TODO: the max buf size should just be the file size...
+    const test_file_size = (try test_file.stat()).size;
     return try test_file.reader().readAllAlloc(
         allocator,
-        2048,
+        test_file_size,
     );
 }
 

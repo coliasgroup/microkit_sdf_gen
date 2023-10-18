@@ -2,7 +2,7 @@ const std = @import("std");
 const builtin = @import("builtin");
 const mod_sdf = @import("sdf.zig");
 const sddf = @import("sddf.zig");
-const mod_dtb = @import("dtb");
+const dtb = @import("dtb");
 const ArrayList = std.ArrayList;
 const Allocator = std.mem.Allocator;
 
@@ -14,6 +14,44 @@ const Mr = SystemDescription.MemoryRegion;
 const Map = SystemDescription.Map;
 const Irq = SystemDescription.Interrupt;
 const Channel = SystemDescription.Channel;
+
+const DeviceTree = struct {
+    /// You will notice all of this is architecture specific. Why? Because
+    /// device trees are also architecture specific. The way interrupts are
+    /// described is different on ARM compared to RISC-V.
+    const ArmIrqType = enum {
+        spi,
+        ppi,
+        extended_spi,
+        extended_ppi,
+    };
+
+    pub fn armIrqType(irq_type: usize) !ArmIrqType {
+        return switch (irq_type) {
+            0x0 => .spi,
+            0x1 => .ppi,
+            0x2 => .extended_spi,
+            0x3 => .extended_ppi,
+            else => return error.InvalidArmIrqTypeValue,
+        };
+    }
+
+    pub fn armIrqNumber(number: usize, irq_type: ArmIrqType) usize {
+        return switch (irq_type) {
+            .spi => number + 32,
+            .ppi => number, // TODO: check this
+            .extended_spi, .extended_ppi => @panic("Unexpected IRQ type"),
+        };
+    }
+
+    pub fn armIrqTrigger(trigger: usize) !Irq.Trigger {
+        return switch (trigger) {
+            0x1 => return .edge,
+            0x4 => return .level,
+            else => return error.InvalidTriggerValue,
+        };
+    }
+};
 
 const MicrokitBoard = enum {
     qemu_arm_virt,
@@ -42,22 +80,37 @@ const MicrokitBoard = enum {
             std.debug.print("{s}\n", .{ fields[i].name });
         }
     }
+
+    /// Get the Device Tree node for the UART we want to use for
+    /// each board
+    pub fn uartNode(b: MicrokitBoard) []const u8 {
+        return switch (b) {
+            .qemu_arm_virt => "pl011@9000000",
+            .odroidc4 => "bus@ff800000/serial@3000",
+        };
+    }
 };
 
 const Example = enum {
     virtio,
+    abstractions,
 
     pub fn fromStr(str: []const u8) !Example {
+        // TODO: this has to be manually when we add a new example which
+        // is annoying and should be avoided.
         if (std.mem.eql(u8, "virtio", str)) {
             return .virtio;
+        } else if (std.mem.eql(u8, "abstractions", str)) {
+            return .abstractions;
         } else {
             return error.ExampleNotFound;
         }
     }
 
-    pub fn generate(e: Example, sdf: *SystemDescription) !void {
+    pub fn generate(e: Example, sdf: *SystemDescription, blob: *dtb.Node) !void {
         switch (e) {
             .virtio => try virtio(sdf),
+            .abstractions => try abstractions(sdf, blob),
         }
     }
 
@@ -227,14 +280,14 @@ fn parseArgs(args: []const []const u8, allocator: Allocator) !void {
     }
 }
 
-fn parseDriver(allocator: Allocator) !std.json.Parsed(sddf.Driver) {
+fn parseDriver(allocator: Allocator) !std.json.Parsed(sddf.Config.Driver) {
     const path = "examples/driver.json";
     const driver_description = try std.fs.cwd().openFile(path, .{});
     defer driver_description.close();
 
     const bytes = try driver_description.reader().readAllAlloc(allocator, 2048);
 
-    const driver = try std.json.parseFromSlice(sddf.Driver, allocator, bytes, .{});
+    const driver = try std.json.parseFromSlice(sddf.Config.Driver, allocator, bytes, .{});
 
     // std.debug.print("{}\n", .{ std.json.fmt(driver.value, .{ .whitespace = .indent_2 }) });
 
@@ -257,10 +310,6 @@ fn virtio(sdf: *SystemDescription) !void {
 
     const uart_irq = Irq.create(Uart.irq(board), Uart.trigger(board), null);
     try uart_driver.addInterrupt(uart_irq);
-
-    const driver = try parseDriver(sdf.allocator);
-    var uart_driver_test = try sddf.createDriver(sdf, driver.value, Uart.paddr(board));
-    try sdf.addProtectionDomain(&uart_driver_test);
 
     // 2. Create MUX RX
     const serial_mux_rx_image = ProgramImage.create("serial_mux_rx.elf");
@@ -389,6 +438,20 @@ fn virtio(sdf: *SystemDescription) !void {
     _ = try xml_file.write(xml);
 }
 
+/// Takes in the root DTB node
+fn abstractions(sdf: *SystemDescription, blob: *dtb.Node) !void {
+    const image = ProgramImage.create("uart_driver.elf");
+
+    // TODO: does this assume the uart node is at at the root level?
+    // TODO: error checking
+    const uart_node = blob.child(board.uartNode()).?;
+
+    try sddf.createDriver(sdf, image, uart_node);
+
+    const xml = try sdf.toXml();
+    std.debug.print("{s}", .{ xml });
+}
+
 pub fn main() !void {
     // An arena allocator makes much more sense for our purposes, all we're doing is doing a bunch
     // of allocations in a linear fashion and then just tearing everything down. This has better
@@ -415,7 +478,7 @@ pub fn main() !void {
         }
     };
 
-    // Check that path to DTS exists
+    // Check that path to DTB exists
     const board_dtb_path = try std.fmt.allocPrint(allocator, "{s}/{s}.dtb", .{ dtbs_path, @tagName(board) });
     defer allocator.free(board_dtb_path);
     std.fs.cwd().access(board_dtb_path, .{}) catch |err| {
@@ -434,11 +497,23 @@ pub fn main() !void {
     // Read the DTB contents
     const dtb_file = try std.fs.cwd().openFile(board_dtb_path, .{});
     const dtb_size = (try dtb_file.stat()).size;
-    const dtb = try dtb_file.reader().readAllAlloc(allocator, dtb_size);
+    const blob_bytes = try dtb_file.reader().readAllAlloc(allocator, dtb_size);
     // Parse the DTB
-    var parsed_dtb = try mod_dtb.parse(allocator, dtb);
+    var blob = try dtb.parse(allocator, blob_bytes);
     // TODO: the allocator should already be known by the DTB...
-    defer parsed_dtb.deinit(allocator);
+    defer blob.deinit(allocator);
+
+    const pl011 = blob.child(board.uartNode()).?;
+    const interrupts = pl011.prop(.Interrupts).?;
+    std.log.debug("interrupts are {any}", .{ interrupts });
+
+    const irq_type = try DeviceTree.armIrqType(interrupts[0][0]);
+    const irq_number = DeviceTree.armIrqNumber(interrupts[0][1], irq_type);
+    const irq_trigger = DeviceTree.armIrqTrigger(interrupts[0][2]);
+
+    std.log.debug("irq type: {any}", .{ irq_type });
+    std.log.debug("software irq no: {any}", .{ irq_number });
+    std.log.debug("trigger: {any}", .{ irq_trigger });
 
     try sddf.probe(allocator, sddf_path);
     const compatible_drivers = try sddf.compatibleDrivers(allocator);
@@ -457,5 +532,5 @@ pub fn main() !void {
     // now we will keep the device tree as the source of truth.
 
     var sdf = try SystemDescription.create(allocator, board.arch());
-    try example.generate(&sdf);
+    try example.generate(&sdf, blob);
 }

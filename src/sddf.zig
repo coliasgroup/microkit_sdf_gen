@@ -1,5 +1,6 @@
 const std = @import("std");
 const mod_sdf = @import("sdf.zig");
+const dtb = @import("dtb");
 const Allocator = std.mem.Allocator;
 
 const SystemDescription = mod_sdf.SystemDescription;
@@ -7,6 +8,7 @@ const Mr = SystemDescription.MemoryRegion;
 const Map = SystemDescription.Map;
 const Pd = SystemDescription.ProtectionDomain;
 const ProgramImage = Pd.ProgramImage;
+const Interrupt = SystemDescription.Interrupt;
 
 ///
 /// Expected sDDF repository layout:
@@ -21,16 +23,16 @@ const ProgramImage = Pd.ProgramImage;
 /// 'drivers/'.
 ///
 
-var drivers: std.ArrayList(Driver) = undefined;
+var drivers: std.ArrayList(Config.Driver) = undefined;
 
 const CONFIG_FILE = "config.json";
 
-pub fn findDriver(compatible: []const u8) ?*Driver {
+pub fn findDriver(compatible: []const u8) ?Config.Driver {
     // TODO: assumes probe has been called
     for (drivers.items) |driver| {
         if (std.mem.eql(u8, driver.compatible, compatible)) {
             // We have found a compatible driver
-            return &driver;
+            return driver;
         }
     }
 
@@ -50,7 +52,7 @@ pub fn compatibleDrivers(allocator: Allocator) ![]const []const u8 {
 /// files, parse them, and built up a data structure for us to then search
 /// through whenever we want to create a driver to the system description.
 pub fn probe(allocator: Allocator, path: []const u8) !void {
-    drivers = std.ArrayList(Driver).init(allocator);
+    drivers = std.ArrayList(Config.Driver).init(allocator);
 
     std.log.info("starting sDDF probe", .{});
     // TODO: what if we get an absolute path?
@@ -69,6 +71,7 @@ pub fn probe(allocator: Allocator, path: []const u8) !void {
             // Under this directory, we should find the configuration file
             std.log.info("reading 'drivers/{s}/{s}'", .{ entry.name, CONFIG_FILE });
             const config_path = std.fmt.allocPrint(allocator, "{s}/config.json", .{ entry.name }) catch @panic("OOM");
+            defer allocator.free(config_path);
             const config_file = device_class_dir.dir.openFile(config_path, .{}) catch |e| {
                 switch (e) {
                     error.FileNotFound => {
@@ -78,12 +81,13 @@ pub fn probe(allocator: Allocator, path: []const u8) !void {
                     else => return e,
                 }
             };
+            defer config_file.close();
             const config_size = (try config_file.stat()).size;
             const config = try config_file.reader().readAllAlloc(allocator, config_size);
             std.debug.assert(config.len == config_size);
             // TODO: we have no information if the parsing fails. We need to do some error output if
             // it the input is malformed.
-            const json = try std.json.parseFromSlice(Driver, allocator, config, .{});
+            const json = try std.json.parseFromSlice(Config.Driver, allocator, config, .{});
             // std.debug.print("{}\n", .{ std.json.fmt(json.value, .{ .whitespace = .indent_2 }) });
 
             try drivers.append(json.value);
@@ -103,47 +107,67 @@ const DeviceClasses = enum {
     serial
 };
 
-const Region = struct {
-    /// Name of the region
-    name: []const u8,
-    /// Permissions to the region of memory once mapped in
-    perms: []const u8,
-    // TODO: do we need cached or can we decide based on the type?
-    cached: bool,
-    setvar_vaddr: ?[]const u8,
-    page_size: usize,
-    size: usize,
+pub const Config = struct {
+    const Region = struct {
+        /// Name of the region
+        name: []const u8,
+        /// Permissions to the region of memory once mapped in
+        perms: []const u8,
+        // TODO: do we need cached or can we decide based on the type?
+        cached: bool,
+        setvar_vaddr: ?[]const u8,
+        page_size: usize,
+        size: usize,
+    };
+
+    const Irq = struct {
+        name: []const u8,
+        id: usize,
+    };
+
+    const Resources = struct {
+        device_regions: []const Region,
+        shared_regions: []const Region,
+        irqs: []const Irq,
+    };
+
+    pub const Driver = struct {
+        name: []const u8,
+        type: []const u8,
+        compatible: []const u8,
+        resources: Resources,
+    };
+
+    pub const Component = struct {
+        name: []const u8,
+        type: []const u8,
+        resources: Resources,
+    };
 };
 
-const Irq = struct {
-    irq: usize,
-    id: usize,
-};
+/// Given the DTB node for the device and the SDF program image, we can figure
+/// all the resources that need to be added to the system description.
+pub fn createDriver(sdf: *SystemDescription, image: ProgramImage, device: *dtb.Node) !void {
+    // First thing to do is find the driver configuration for the device given.
+    // The way we do that is by searching for the compatible string described in the DTB node.
+    const compatible = device.prop(.Compatible).?;
 
-const Resources = struct {
-    device_regions: []const Region,
-    shared_regions: []const Region,
-    irqs: []const Irq,
-};
+    // It is expected for a lot of devices to 
+    std.log.debug("Creating driver for device: '{s}'", .{ device.name });
+    std.log.debug("Compatible with:", .{});
+    for (compatible) |c| {
+        std.log.debug("     '{s}'", .{ c });
+    }
 
-pub const Driver = struct {
-    name: []const u8,
-    type: []const u8,
-    compatible: []const u8,
-    resources: Resources,
-};
+    const driver = findDriver(compatible[0]).?;
+    std.log.debug("Found compatible driver '{s}'", .{ driver.name });
+    // TODO: fix, this should be from the DTS
+    const device_paddr = 0x9000000;
+    const irq_number = 33;
+    const irq_trigger: Interrupt.Trigger = .level;
 
-pub const Component = struct {
-    name: []const u8,
-    type: []const u8,
-    resources: Resources,
-};
-
-pub fn createDriver(sdf: *SystemDescription, driver: Driver, device_paddr: usize) !Pd {
-    // const program_image = ProgramImage.create(driver.name ++ ".elf");
-    const program_image = ProgramImage.create("uart.elf");
     // TODO: deal with passive, priority, and budgets
-    var pd = Pd.create(sdf, driver.name, program_image);
+    var pd = Pd.create(sdf, device.name, image);
     // Create all the memory regions
     var num_regions: usize = 0;
     for (driver.resources.shared_regions) |region| {
@@ -178,11 +202,9 @@ pub fn createDriver(sdf: *SystemDescription, driver: Driver, device_paddr: usize
 
     // Create all the IRQs
     for (driver.resources.irqs) |driver_irq| {
-        // TODO: irq trigger should come from DTS
-        const irq = SystemDescription.Interrupt.create(driver_irq.irq, .level, driver_irq.id);
+        const irq = SystemDescription.Interrupt.create(irq_number, irq_trigger, driver_irq.id);
+        std.log.debug("irq: {any}", .{ irq });
         try pd.addInterrupt(irq);
     }
     // Create all the channels?
-
-    return pd;
 }
