@@ -89,13 +89,13 @@ pub const SystemDescription = struct {
 
             pub fn fromInt(page_size: usize, arch: Arch) !PageSize {
                 switch (arch) {
-                    .aarch64, .riscv64 => return switch (page_size) {
+                    .aarch64, .riscv64, .x86_64 => return switch (page_size) {
                         0x1000 => .small,
                         0x200000 => .large,
                         0x40000000 => .huge,
                         else => return error.InvalidPageSize,
                     },
-                    .aarch32, .riscv32 => return switch (page_size) {
+                    .aarch32, .riscv32, .ia32 => return switch (page_size) {
                         0x1000 => .small,
                         0x400000 => .large,
                         0x40000000 => .huge,
