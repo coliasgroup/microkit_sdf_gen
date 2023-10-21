@@ -323,8 +323,6 @@ pub const SystemDescription = struct {
             defer sdf.allocator.free(top);
             _ = try writer.write(top);
 
-            // TODO: handle period, budget, priority, passive
-
             const inner_indent = try allocPrint(sdf.allocator, "\n{s}    ", .{ indent });
             defer sdf.allocator.free(inner_indent);
             // Add program image (if we have one)
@@ -354,7 +352,6 @@ pub const SystemDescription = struct {
             for (pd.irqs.items) |irq| {
                 _ = try writer.write(inner_indent);
                 try irq.toXml(sdf, writer, pd.next_avail_id);
-                // xml = try allocPrint(sdf.allocator, "{s}\n{s}{s}", .{ xml, inner_indent, try irq.toXml(sdf.allocator, pd.next_avail_id) });
                 pd.next_avail_id += 1;
             }
 

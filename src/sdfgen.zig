@@ -15,44 +15,6 @@ const Map = SystemDescription.Map;
 const Irq = SystemDescription.Interrupt;
 const Channel = SystemDescription.Channel;
 
-const DeviceTree = struct {
-    /// You will notice all of this is architecture specific. Why? Because
-    /// device trees are also architecture specific. The way interrupts are
-    /// described is different on ARM compared to RISC-V.
-    const ArmIrqType = enum {
-        spi,
-        ppi,
-        extended_spi,
-        extended_ppi,
-    };
-
-    pub fn armIrqType(irq_type: usize) !ArmIrqType {
-        return switch (irq_type) {
-            0x0 => .spi,
-            0x1 => .ppi,
-            0x2 => .extended_spi,
-            0x3 => .extended_ppi,
-            else => return error.InvalidArmIrqTypeValue,
-        };
-    }
-
-    pub fn armIrqNumber(number: usize, irq_type: ArmIrqType) usize {
-        return switch (irq_type) {
-            .spi => number + 32,
-            .ppi => number, // TODO: check this
-            .extended_spi, .extended_ppi => @panic("Unexpected IRQ type"),
-        };
-    }
-
-    pub fn armIrqTrigger(trigger: usize) !Irq.Trigger {
-        return switch (trigger) {
-            0x1 => return .edge,
-            0x4 => return .level,
-            else => return error.InvalidTriggerValue,
-        };
-    }
-};
-
 const MicrokitBoard = enum {
     qemu_arm_virt,
     odroidc4,
@@ -86,7 +48,7 @@ const MicrokitBoard = enum {
     pub fn uartNode(b: MicrokitBoard) []const u8 {
         return switch (b) {
             .qemu_arm_virt => "pl011@9000000",
-            .odroidc4 => "bus@ff800000/serial@3000",
+            .odroidc4 => "serial@3000",
         };
     }
 };
@@ -441,12 +403,27 @@ fn virtio(sdf: *SystemDescription) !void {
 /// Takes in the root DTB node
 fn abstractions(sdf: *SystemDescription, blob: *dtb.Node) !void {
     const image = ProgramImage.create("uart_driver.elf");
+    var pd = Pd.create(sdf, "uart_driver", image);
+    try sdf.addProtectionDomain(&pd);
 
     // TODO: does this assume the uart node is at at the root level?
     // TODO: error checking
-    const uart_node = blob.child(board.uartNode()).?;
 
-    try sddf.createDriver(sdf, image, uart_node);
+    var uart_node: ?*dtb.Node = undefined;
+    if (board == .odroidc4) {
+        const soc_node = blob.child("soc").?;
+        const bus_node = soc_node.child("bus@ff800000").?;
+        uart_node = bus_node.child("serial@3000");
+    } else {
+        uart_node = blob.child(board.uartNode());
+    }
+
+    if (uart_node == null) {
+        std.log.err("Could not find UART node '{s}'", .{ board.uartNode() });
+        std.process.exit(1);
+    }
+
+    try sddf.createDriver(sdf, &pd, uart_node.?);
 
     const xml = try sdf.toXml();
     std.debug.print("{s}", .{ xml });
@@ -456,6 +433,7 @@ pub fn main() !void {
     // An arena allocator makes much more sense for our purposes, all we're doing is doing a bunch
     // of allocations in a linear fashion and then just tearing everything down. This has better
     // performance than something like the General Purpose Allocator.
+    // TODO: have a build argument that swaps the allocator.
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     const allocator = arena.allocator();
     defer arena.deinit();
@@ -503,23 +481,16 @@ pub fn main() !void {
     // TODO: the allocator should already be known by the DTB...
     defer blob.deinit(allocator);
 
-    const pl011 = blob.child(board.uartNode()).?;
-    const interrupts = pl011.prop(.Interrupts).?;
-    std.log.debug("interrupts are {any}", .{ interrupts });
-
-    const irq_type = try DeviceTree.armIrqType(interrupts[0][0]);
-    const irq_number = DeviceTree.armIrqNumber(interrupts[0][1], irq_type);
-    const irq_trigger = DeviceTree.armIrqTrigger(interrupts[0][2]);
-
-    std.log.debug("irq type: {any}", .{ irq_type });
-    std.log.debug("software irq no: {any}", .{ irq_number });
-    std.log.debug("trigger: {any}", .{ irq_trigger });
-
+    // Before doing any kind of XML generation we should probe sDDF for
+    // configuration files etc
     try sddf.probe(allocator, sddf_path);
+
     const compatible_drivers = try sddf.compatibleDrivers(allocator);
     defer allocator.free(compatible_drivers);
+
+    std.debug.print("sDDF drivers found:\n", .{});
     for (compatible_drivers) |driver| {
-        std.debug.print("{s}\n", .{ driver });
+        std.debug.print("   - {s}\n", .{ driver });
     }
 
     // Now that we have a list of compatible drivers, we need to find what actual

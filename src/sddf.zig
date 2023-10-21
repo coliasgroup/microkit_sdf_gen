@@ -9,6 +9,7 @@ const Map = SystemDescription.Map;
 const Pd = SystemDescription.ProtectionDomain;
 const ProgramImage = Pd.ProgramImage;
 const Interrupt = SystemDescription.Interrupt;
+const Channel = SystemDescription.Channel;
 
 ///
 /// Expected sDDF repository layout:
@@ -27,12 +28,16 @@ var drivers: std.ArrayList(Config.Driver) = undefined;
 
 const CONFIG_FILE = "config.json";
 
-pub fn findDriver(compatible: []const u8) ?Config.Driver {
+pub fn findDriver(compatibles: []const []const u8) ?Config.Driver {
     // TODO: assumes probe has been called
     for (drivers.items) |driver| {
-        if (std.mem.eql(u8, driver.compatible, compatible)) {
-            // We have found a compatible driver
-            return driver;
+        for (compatibles) |compatible| {
+            for (driver.compatible) |driver_compatible| {
+                if (std.mem.eql(u8, driver_compatible, compatible)) {
+                    // We have found a compatible driver
+                    return driver;
+                }
+            }
         }
     }
 
@@ -40,9 +45,15 @@ pub fn findDriver(compatible: []const u8) ?Config.Driver {
 }
 
 pub fn compatibleDrivers(allocator: Allocator) ![]const []const u8 {
-    var array = try std.ArrayList([]const u8).initCapacity(allocator, drivers.items.len);
+    var num_compatible: usize = 0;
     for (drivers.items) |driver| {
-        array.appendAssumeCapacity(driver.compatible);
+        num_compatible += driver.compatible.len;
+    }
+    var array = try std.ArrayList([]const u8).initCapacity(allocator, num_compatible);
+    for (drivers.items) |driver| {
+        for (driver.compatible) |compatible| {
+            array.appendAssumeCapacity(compatible);
+        }
     }
 
     return try array.toOwnedSlice();
@@ -59,7 +70,7 @@ pub fn probe(allocator: Allocator, path: []const u8) !void {
     var sddf = try std.fs.cwd().openDir(path, .{});
     defer sddf.close();
 
-    const device_classes = comptime std.meta.fields(DeviceClasses);
+    const device_classes = comptime std.meta.fields(DeviceClass);
     inline for (device_classes) |device_class| {
         // Search for all the drivers. For each device class we need
         // to iterate through each directory and find the config file
@@ -69,28 +80,33 @@ pub fn probe(allocator: Allocator, path: []const u8) !void {
         std.log.info("searching through: 'drivers/{s}'", .{ device_class.name });
         while (try iter.next()) |entry| {
             // Under this directory, we should find the configuration file
-            std.log.info("reading 'drivers/{s}/{s}'", .{ entry.name, CONFIG_FILE });
             const config_path = std.fmt.allocPrint(allocator, "{s}/config.json", .{ entry.name }) catch @panic("OOM");
             defer allocator.free(config_path);
+            // Attempt to open the configuration file. It is realistic to not
+            // have every driver to have a configuration file associated with
+            // it, especially during the development of sDDF.
             const config_file = device_class_dir.dir.openFile(config_path, .{}) catch |e| {
                 switch (e) {
                     error.FileNotFound => {
-                        std.log.warn("Could not find config file at '{s}', skipping...", .{ config_path });
+                        std.log.info("could not find config file at '{s}', skipping...", .{ config_path });
                         continue;
                     },
                     else => return e,
                 }
             };
             defer config_file.close();
+            std.log.info("reading 'drivers/{s}/{s}'", .{ entry.name, CONFIG_FILE });
             const config_size = (try config_file.stat()).size;
             const config = try config_file.reader().readAllAlloc(allocator, config_size);
             std.debug.assert(config.len == config_size);
             // TODO: we have no information if the parsing fails. We need to do some error output if
             // it the input is malformed.
-            const json = try std.json.parseFromSlice(Config.Driver, allocator, config, .{});
-            // std.debug.print("{}\n", .{ std.json.fmt(json.value, .{ .whitespace = .indent_2 }) });
+            // TODO: should probably free the memory at some point
+            // We are using an ArenaAllocator so calling parseFromSliceLeaky instead of parseFromSlice
+            // is recommended.
+            const json = try std.json.parseFromSliceLeaky(Config.DriverJson, allocator, config, .{});
 
-            try drivers.append(json.value);
+            try drivers.append(Config.Driver.fromJson(json, device_class.name));
         }
         // Look for all the configuration files inside each of the
         // device class sub-directories.
@@ -102,9 +118,19 @@ pub fn probe(allocator: Allocator, path: []const u8) !void {
 /// You could instead have something in the repisitory to list the
 /// device classes or organise the repository differently, but I do
 /// not see the need for that kind of complexity at this time.
-const DeviceClasses = enum {
+const DeviceClass = enum {
     network,
-    serial
+    serial,
+
+    pub fn fromStr(str: []const u8) DeviceClass {
+        if (std.mem.eql(u8, str, "network")) {
+            return .network;
+        } else if (std.mem.eql(u8, str, "serial")) {
+            return .serial;
+        } else {
+            @panic("Unexpected device class string given");
+        }
+    }
 };
 
 pub const Config = struct {
@@ -120,9 +146,11 @@ pub const Config = struct {
         size: usize,
     };
 
+    /// The actual IRQ number that gets registered with seL4
+    /// is something we can determine from the device tree.
     const Irq = struct {
         name: []const u8,
-        id: usize,
+        channel_id: usize,
     };
 
     const Resources = struct {
@@ -131,10 +159,28 @@ pub const Config = struct {
         irqs: []const Irq,
     };
 
+    /// In the case of drivers there is some extra information we want
+    /// to store that is not specified in the JSON configuration.
+    /// For example, the device class that the driver belongs to.
     pub const Driver = struct {
         name: []const u8,
-        type: []const u8,
-        compatible: []const u8,
+        class: DeviceClass,
+        compatible: []const []const u8,
+        resources: Resources,
+
+        pub fn fromJson(json: DriverJson, class: []const u8) Driver {
+            return .{
+                .name = json.name,
+                .class = DeviceClass.fromStr(class),
+                .compatible = json.compatible,
+                .resources = json.resources,
+            };
+        }
+    };
+
+    pub const DriverJson = struct {
+        name: []const u8,
+        compatible: []const []const u8,
         resources: Resources,
     };
 
@@ -145,29 +191,128 @@ pub const Config = struct {
     };
 };
 
+const DeviceTree = struct {
+    /// You will notice all of this is architecture specific. Why? Because
+    /// device trees are also architecture specific. The way interrupts are
+    /// described is different on ARM compared to RISC-V.
+    const ArmIrqType = enum {
+        spi,
+        ppi,
+        extended_spi,
+        extended_ppi,
+    };
+
+    pub fn armIrqType(irq_type: usize) !ArmIrqType {
+        return switch (irq_type) {
+            0x0 => .spi,
+            0x1 => .ppi,
+            0x2 => .extended_spi,
+            0x3 => .extended_ppi,
+            else => return error.InvalidArmIrqTypeValue,
+        };
+    }
+
+    pub fn armIrqNumber(number: usize, irq_type: ArmIrqType) usize {
+        return switch (irq_type) {
+            .spi => number + 32,
+            .ppi => number, // TODO: check this
+            .extended_spi, .extended_ppi => @panic("Unexpected IRQ type"),
+        };
+    }
+
+    pub fn armIrqTrigger(trigger: usize) !Interrupt.Trigger {
+        return switch (trigger) {
+            0x1 => return .edge,
+            0x4 => return .level,
+            else => return error.InvalidTriggerValue,
+        };
+    }
+};
+
+/// Create the memory regions, mappings, and channels in order to connect a
+/// multiplexor with a driver
+pub fn connectDriverWithMux(sdf: *SystemDescription, driver: *Pd, mux: *Pd) !void {
+    // The goal here is to map in the memory regions for communicating with the driver into the multiplexor.
+
+    // Let's say we have the example of the serial driver.
+    // For a TX MUX, We need TX used, TX free, TX data. These memory regions would have already been created from
+    // creating the driver and just need to be mapped into the MUX's address space.
+    // One of the issues is that we do not know what kind of multiplexor is involved.
+
+    // TODO: we assume that a single channel is sufficient. We also assume that pp does not need to be true
+    const channel = Channel.create(driver, mux);
+    try sdf.addChannel(channel);
+}
+
+/// Create the memory regions, mappings, and channels in order to connect a
+/// multiplexor with a client
+// pub fn connectMuxWithClient()
+
 /// Given the DTB node for the device and the SDF program image, we can figure
 /// all the resources that need to be added to the system description.
-pub fn createDriver(sdf: *SystemDescription, image: ProgramImage, device: *dtb.Node) !void {
+pub fn createDriver(sdf: *SystemDescription, pd: *Pd, device: *dtb.Node) !void {
     // First thing to do is find the driver configuration for the device given.
     // The way we do that is by searching for the compatible string described in the DTB node.
     const compatible = device.prop(.Compatible).?;
 
-    // It is expected for a lot of devices to 
+    // TODO: It is expected for a lot of devices to have multiple compatible strings,
+    // we need to deal with that here.
     std.log.debug("Creating driver for device: '{s}'", .{ device.name });
     std.log.debug("Compatible with:", .{});
     for (compatible) |c| {
         std.log.debug("     '{s}'", .{ c });
     }
 
-    const driver = findDriver(compatible[0]).?;
+    const driver = findDriver(compatible).?;
     std.log.debug("Found compatible driver '{s}'", .{ driver.name });
     // TODO: fix, this should be from the DTS
-    const device_paddr = 0x9000000;
-    const irq_number = 33;
-    const irq_trigger: Interrupt.Trigger = .level;
 
-    // TODO: deal with passive, priority, and budgets
-    var pd = Pd.create(sdf, device.name, image);
+    const device_reg = device.prop(.Reg).?;
+    const interrupts = device.prop(.Interrupts).?;
+    // TODO: casting from u128 to usize
+    var device_paddr: usize = @intCast(device_reg[0][0]);
+
+    // Why is this logic needed? Well it turns out device trees are great and the
+    // region of memory that a device occupies in physical memory is... not in the
+    // 'reg' property of the device's node in the tree. So here what we do is, as
+    // long as there is a parent node, we look and see if it has a memory address
+    // and add it to the device's declared 'address'. This needs to be done because
+    // some device trees have nodes which are offsets of the parent nodes, this is
+    // common with buses. For example, with the Odroid-C4 the main UART is 0x3000
+    // offset of the parent bus. We are only interested in the full physical address,
+    // hence this logic.
+    var parent_node_maybe: ?*dtb.Node = device.parent;
+    while (parent_node_maybe) |parent_node| : (parent_node_maybe = parent_node.parent) {
+        const parent_node_reg = parent_node.prop(.Reg);
+        if (parent_node_reg) |reg| {
+            device_paddr += @intCast(reg[0][0]);
+        }
+    }
+
+    // TODO: handle multiple interrupts. This is not as simple as just looking
+    // at the device tree, coordination with the driver configuration is needed.
+    std.debug.assert(interrupts.len == 1);
+    std.debug.assert(driver.resources.irqs.len == 1);
+
+    // For each set of interrupt values in the device tree 'interrupts' property
+    // we expect three entries.
+    //      1st is the IRQ type.
+    //      2nd is the IRQ number.
+    //      3rd is the IRQ trigger.
+    // Note that this is specific to the ARM architecture. Fucking DTS people couldn't
+    // make it easy to distinguish based on architecture. :((
+    for (interrupts) |interrupt| {
+        std.debug.assert(interrupt.len == 3);
+    }
+
+    // IRQ device tree handling is currently ARM specific.
+    std.debug.assert(sdf.arch == .aarch64 or sdf.arch == .aarch32);
+
+    // Determine the IRQ trigger and (software-observable) number based on the device tree.
+    const irq_type = try DeviceTree.armIrqType(interrupts[0][0]);
+    const irq_number = DeviceTree.armIrqNumber(interrupts[0][1], irq_type);
+    const irq_trigger = try DeviceTree.armIrqTrigger(interrupts[0][2]);
+
     // Create all the memory regions
     var num_regions: usize = 0;
     for (driver.resources.shared_regions) |region| {
@@ -202,9 +347,7 @@ pub fn createDriver(sdf: *SystemDescription, image: ProgramImage, device: *dtb.N
 
     // Create all the IRQs
     for (driver.resources.irqs) |driver_irq| {
-        const irq = SystemDescription.Interrupt.create(irq_number, irq_trigger, driver_irq.id);
-        std.log.debug("irq: {any}", .{ irq });
+        const irq = SystemDescription.Interrupt.create(irq_number, irq_trigger, driver_irq.channel_id);
         try pd.addInterrupt(irq);
     }
-    // Create all the channels?
 }
