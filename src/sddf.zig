@@ -86,6 +86,7 @@ pub fn probe(allocator: Allocator, path: []const u8) !void {
     inline for (device_classes) |device_class| {
         // Search for all the drivers. For each device class we need
         // to iterate through each directory and find the config file
+        // TODO: handle this gracefully
         var device_class_dir = try sddf.openIterableDir("drivers/" ++ device_class.name, .{});
         defer device_class_dir.close();
         var iter = device_class_dir.iterate();
