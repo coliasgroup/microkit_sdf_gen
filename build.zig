@@ -8,8 +8,6 @@ pub fn build(b: *std.Build) void {
 
     const lib = b.addStaticLibrary(.{
         .name = "microkit_sdf_gen",
-        // In this case the main source file is merely a path, however, in more
-        // complicated build scripts, this could be a generated file.
         .root_source_file = .{ .path = "src/sdf.zig" },
         .target = target,
         .optimize = optimize,
@@ -23,8 +21,9 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
-    const dtbzig_module = dtbzig_dep.module("dtb");
-    sdfgen.addModule("dtb", dtbzig_module);
+    // We want to be able to import the 'dtb.zig' library as a module.
+    const dtb_module = dtbzig_dep.module("dtb");
+    sdfgen.addModule("dtb", dtb_module);
 
     const sdfgen_cmd = b.addRunArtifact(sdfgen);
     if (b.args) |args| {
