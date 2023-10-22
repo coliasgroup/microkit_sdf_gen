@@ -228,13 +228,14 @@ pub const Config = struct {
             serial,
 
             pub fn fromStr(str: []const u8) Class {
-                if (std.mem.eql(u8, str, "network")) {
-                    return .network;
-                } else if (std.mem.eql(u8, str, "serial")) {
-                    return .serial;
-                } else {
-                    @panic("Unexpected device class string given");
+                inline for (std.meta.fields(Class)) |field| {
+                    if (std.mem.eql(u8, str, field.name)) {
+                        return @enumFromInt(field.value);
+                    }
                 }
+
+                // TODO: don't panic
+                @panic("Unexpected device class string given");
             }
         };
 

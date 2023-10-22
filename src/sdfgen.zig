@@ -20,13 +20,13 @@ const MicrokitBoard = enum {
     odroidc4,
 
     pub fn fromStr(str: []const u8) !MicrokitBoard {
-        if (std.mem.eql(u8, "qemu_arm_virt", str)) {
-            return .qemu_arm_virt;
-        } else if (std.mem.eql(u8, "odroidc4", str)) {
-            return .odroidc4;
-        } else {
-            return error.BoardNotFound;
+        inline for (std.meta.fields(MicrokitBoard)) |field| {
+            if (std.mem.eql(u8, str, field.name)) {
+                return @enumFromInt(field.value);
+            }
         }
+
+        return error.BoardNotFound;
     }
 
     pub fn arch(b: MicrokitBoard) SystemDescription.Arch {
@@ -58,15 +58,13 @@ const Example = enum {
     abstractions,
 
     pub fn fromStr(str: []const u8) !Example {
-        // TODO: this has to be manually when we add a new example which
-        // is annoying and should be avoided.
-        if (std.mem.eql(u8, "virtio", str)) {
-            return .virtio;
-        } else if (std.mem.eql(u8, "abstractions", str)) {
-            return .abstractions;
-        } else {
-            return error.ExampleNotFound;
+        inline for (std.meta.fields(Example)) |field| {
+            if (std.mem.eql(u8, str, field.name)) {
+                return @enumFromInt(field.value);
+            }
         }
+
+        return error.ExampleNotFound;
     }
 
     pub fn generate(e: Example, sdf: *SystemDescription, blob: *dtb.Node) !void {
