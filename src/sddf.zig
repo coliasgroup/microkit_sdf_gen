@@ -25,12 +25,18 @@ const Channel = SystemDescription.Channel;
 ///
 
 var drivers: std.ArrayList(Config.Driver) = undefined;
+var classes: std.ArrayList(Config.DeviceClass) = undefined;
 
-const CONFIG_FILE = "config.json";
+const CONFIG_FILENAME = "config.json";
 
+/// Assumes probe() has been called
 pub fn findDriver(compatibles: []const []const u8) ?Config.Driver {
-    // TODO: assumes probe has been called
     for (drivers.items) |driver| {
+        // This is yet another point of weirdness with device trees. It is often
+        // the case that there are multiple compatible strings for a device and
+        // accompying driver. So we get the user to provide a list of compatible
+        // strings, and we check for a match with any of the compatible strings
+        // of a driver.
         for (compatibles) |compatible| {
             for (driver.compatible) |driver_compatible| {
                 if (std.mem.eql(u8, driver_compatible, compatible)) {
@@ -44,7 +50,10 @@ pub fn findDriver(compatibles: []const []const u8) ?Config.Driver {
     return null;
 }
 
+/// Assumes probe() has been called
 pub fn compatibleDrivers(allocator: Allocator) ![]const []const u8 {
+    // We already know how many drivers exist as well as all their compatible
+    // strings, so we know exactly how large the array needs to be.
     var num_compatible: usize = 0;
     for (drivers.items) |driver| {
         num_compatible += driver.compatible.len;
@@ -64,13 +73,16 @@ pub fn compatibleDrivers(allocator: Allocator) ![]const []const u8 {
 /// through whenever we want to create a driver to the system description.
 pub fn probe(allocator: Allocator, path: []const u8) !void {
     drivers = std.ArrayList(Config.Driver).init(allocator);
+    // TODO: we could init capacity with number of DeviceClassType fields
+    classes = std.ArrayList(Config.DeviceClass).init(allocator);
 
     std.log.info("starting sDDF probe", .{});
     // TODO: what if we get an absolute path?
+    std.log.info("opening sDDF root dir '{s}'", .{ path });
     var sddf = try std.fs.cwd().openDir(path, .{});
     defer sddf.close();
 
-    const device_classes = comptime std.meta.fields(DeviceClass);
+    const device_classes = comptime std.meta.fields(Config.DeviceClass.Class);
     inline for (device_classes) |device_class| {
         // Search for all the drivers. For each device class we need
         // to iterate through each directory and find the config file
@@ -95,43 +107,44 @@ pub fn probe(allocator: Allocator, path: []const u8) !void {
                 }
             };
             defer config_file.close();
-            std.log.info("reading 'drivers/{s}/{s}'", .{ entry.name, CONFIG_FILE });
+            std.log.info("reading 'drivers/{s}/{s}'", .{ entry.name, CONFIG_FILENAME });
             const config_size = (try config_file.stat()).size;
             const config = try config_file.reader().readAllAlloc(allocator, config_size);
+            // TODO; free config? we'd have to dupe the json data when populating our data structures
             std.debug.assert(config.len == config_size);
             // TODO: we have no information if the parsing fails. We need to do some error output if
             // it the input is malformed.
             // TODO: should probably free the memory at some point
             // We are using an ArenaAllocator so calling parseFromSliceLeaky instead of parseFromSlice
             // is recommended.
-            const json = try std.json.parseFromSliceLeaky(Config.DriverJson, allocator, config, .{});
+            const json = try std.json.parseFromSliceLeaky(Config.Driver.Json, allocator, config, .{});
 
             try drivers.append(Config.Driver.fromJson(json, device_class.name));
         }
-        // Look for all the configuration files inside each of the
-        // device class sub-directories.
-    }
-}
+        // Look for all the configuration files inside each of the device class
+        // sub-directories.
+        const class_config_path = std.fmt.allocPrint(allocator, "{s}/config.json", .{ device_class.name }) catch @panic("OOM");
+        defer allocator.free(class_config_path);
+        if (sddf.openFile(class_config_path, .{})) |class_config_file| {
+            defer class_config_file.close();
 
-/// These are the sDDF device classes that we expect to exist in the
-/// repository and will be searched through.
-/// You could instead have something in the repisitory to list the
-/// device classes or organise the repository differently, but I do
-/// not see the need for that kind of complexity at this time.
-const DeviceClass = enum {
-    network,
-    serial,
+            const config_size = (try class_config_file.stat()).size;
+            const config = try class_config_file.reader().readAllAlloc(allocator, config_size);
 
-    pub fn fromStr(str: []const u8) DeviceClass {
-        if (std.mem.eql(u8, str, "network")) {
-            return .network;
-        } else if (std.mem.eql(u8, str, "serial")) {
-            return .serial;
-        } else {
-            @panic("Unexpected device class string given");
+            const json = try std.json.parseFromSliceLeaky(Config.DeviceClass.Json, allocator, config, .{});
+            try classes.append(Config.DeviceClass.fromJson(json, device_class.name));
+        } else |err| {
+            switch (err) {
+                error.FileNotFound => {
+                    std.log.info("could not find class config file at '{s}', skipping...", .{ class_config_path });
+                },
+                else => {
+                    std.log.info("error accessing config file ({}) at '{s}', skipping...", .{ err, class_config_path });
+                }
+            }
         }
     }
-};
+}
 
 pub const Config = struct {
     const Region = struct {
@@ -153,41 +166,81 @@ pub const Config = struct {
         channel_id: usize,
     };
 
-    const Resources = struct {
-        device_regions: []const Region,
-        shared_regions: []const Region,
-        irqs: []const Irq,
-    };
-
     /// In the case of drivers there is some extra information we want
     /// to store that is not specified in the JSON configuration.
     /// For example, the device class that the driver belongs to.
     pub const Driver = struct {
         name: []const u8,
-        class: DeviceClass,
+        class: DeviceClass.Class,
         compatible: []const []const u8,
         resources: Resources,
 
-        pub fn fromJson(json: DriverJson, class: []const u8) Driver {
+        const Resources = struct {
+            device_regions: []const Region,
+            shared_regions: []const Region,
+            irqs: []const Irq,
+        };
+
+        pub const Json = struct {
+            name: []const u8,
+            compatible: []const []const u8,
+            resources: Resources,
+        };
+
+        pub fn fromJson(json: Json, class: []const u8) Driver {
             return .{
                 .name = json.name,
-                .class = DeviceClass.fromStr(class),
+                .class = DeviceClass.Class.fromStr(class),
                 .compatible = json.compatible,
                 .resources = json.resources,
             };
         }
     };
 
-    pub const DriverJson = struct {
-        name: []const u8,
-        compatible: []const []const u8,
-        resources: Resources,
-    };
-
     pub const Component = struct {
         name: []const u8,
         type: []const u8,
+        // resources: Resources,
+    };
+
+    pub const DeviceClass = struct {
+        class: Class,
         resources: Resources,
+
+        const Json = struct {
+            resources: Resources,
+        };
+
+        pub fn fromJson(json: Json, class: []const u8) DeviceClass {
+            return .{
+                .class = DeviceClass.Class.fromStr(class),
+                .resources = json.resources,
+            };
+        }
+
+        /// These are the sDDF device classes that we expect to exist in the
+        /// repository and will be searched through.
+        /// You could instead have something in the repisitory to list the
+        /// device classes or organise the repository differently, but I do
+        /// not see the need for that kind of complexity at this time.
+        const Class = enum {
+            network,
+            serial,
+
+            pub fn fromStr(str: []const u8) Class {
+                if (std.mem.eql(u8, str, "network")) {
+                    return .network;
+                } else if (std.mem.eql(u8, str, "serial")) {
+                    return .serial;
+                } else {
+                    @panic("Unexpected device class string given");
+                }
+            }
+        };
+
+        const Resources = struct {
+            regions: []const Region,
+        };
     };
 };
 
