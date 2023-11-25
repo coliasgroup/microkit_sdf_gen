@@ -67,5 +67,4 @@ test "PD + MR + mappings + channel" {
     defer sdf.destroy();
 
     try std.testing.expectEqualStrings(expected, output);
-    // std.debug.assert(std.mem.eql(u8, expected, output));
 }
