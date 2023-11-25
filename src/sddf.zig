@@ -245,17 +245,15 @@ pub const Config = struct {
 };
 
 const DeviceTree = struct {
-    /// You will notice all of this is architecture specific. Why? Because
-    /// device trees are also architecture specific. The way interrupts are
-    /// described is different on ARM compared to RISC-V.
-    const ArmIrqType = enum {
+    /// Functionality relating the the ARM Generic Interrupt Controller.
+    const ArmGicIrqType = enum {
         spi,
         ppi,
         extended_spi,
         extended_ppi,
     };
 
-    pub fn armIrqType(irq_type: usize) !ArmIrqType {
+    pub fn armGicIrqType(irq_type: usize) !ArmGicIrqType {
         return switch (irq_type) {
             0x0 => .spi,
             0x1 => .ppi,
@@ -265,7 +263,7 @@ const DeviceTree = struct {
         };
     }
 
-    pub fn armIrqNumber(number: usize, irq_type: ArmIrqType) usize {
+    pub fn armGicIrqNumber(number: usize, irq_type: ArmGicIrqType) usize {
         return switch (irq_type) {
             .spi => number + 32,
             .ppi => number, // TODO: check this
@@ -273,7 +271,7 @@ const DeviceTree = struct {
         };
     }
 
-    pub fn armIrqTrigger(trigger: usize) !Interrupt.Trigger {
+    pub fn armGicIrqTrigger(trigger: usize) !Interrupt.Trigger {
         return switch (trigger) {
             0x1 => return .edge,
             0x4 => return .level,
@@ -362,9 +360,9 @@ pub fn createDriver(sdf: *SystemDescription, pd: *Pd, device: *dtb.Node) !void {
     std.debug.assert(sdf.arch == .aarch64 or sdf.arch == .aarch32);
 
     // Determine the IRQ trigger and (software-observable) number based on the device tree.
-    const irq_type = try DeviceTree.armIrqType(interrupts[0][0]);
-    const irq_number = DeviceTree.armIrqNumber(interrupts[0][1], irq_type);
-    const irq_trigger = try DeviceTree.armIrqTrigger(interrupts[0][2]);
+    const irq_type = try DeviceTree.armGicIrqType(interrupts[0][0]);
+    const irq_number = DeviceTree.armGicIrqNumber(interrupts[0][1], irq_type);
+    const irq_trigger = try DeviceTree.armGicIrqTrigger(interrupts[0][2]);
 
     // Create all the memory regions
     var num_regions: usize = 0;
@@ -375,8 +373,8 @@ pub fn createDriver(sdf: *SystemDescription, pd: *Pd, device: *dtb.Node) !void {
         try sdf.addMemoryRegion(mr);
 
         const perms = Map.Permissions.fromString(region.perms);
-        // TODO: hack in terms of vaddr determination
-        const map = Map.create(mr, 0x5_000_000 + 0x1_000_000 * num_regions, perms, region.cached, region.setvar_vaddr);
+        const vaddr = pd.getMapableVaddr(mr.size);
+        const map = Map.create(mr, vaddr, perms, region.cached, region.setvar_vaddr);
         try pd.addMap(map);
 
         num_regions += 1;
@@ -391,8 +389,8 @@ pub fn createDriver(sdf: *SystemDescription, pd: *Pd, device: *dtb.Node) !void {
         try sdf.addMemoryRegion(mr);
 
         const perms = Map.Permissions.fromString(region.perms);
-        // TODO: hack in terms of vaddr determination
-        const map = Map.create(mr, 0x5_000_000 + 0x1_000_000 * num_regions, perms, region.cached, region.setvar_vaddr);
+        const vaddr = pd.getMapableVaddr(mr.size);
+        const map = Map.create(mr, vaddr, perms, region.cached, region.setvar_vaddr);
         try pd.addMap(map);
 
         num_regions += 1;

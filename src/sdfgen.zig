@@ -399,21 +399,26 @@ fn virtio(sdf: *SystemDescription) !void {
 }
 
 /// Takes in the root DTB node
+/// TODO: there was an issue using the DTB that QEMU dumps. Most likely
+/// something wrong with dtb.zig dependency. Need to investigate.
 fn abstractions(sdf: *SystemDescription, blob: *dtb.Node) !void {
     const image = ProgramImage.create("uart_driver.elf");
     var pd = Pd.create(sdf, "uart_driver", image);
     try sdf.addProtectionDomain(&pd);
 
-    // TODO: does this assume the uart node is at at the root level?
-    // TODO: error checking
-
     var uart_node: ?*dtb.Node = undefined;
-    if (board == .odroidc4) {
-        const soc_node = blob.child("soc").?;
-        const bus_node = soc_node.child("bus@ff800000").?;
-        uart_node = bus_node.child("serial@3000");
-    } else {
-        uart_node = blob.child(board.uartNode());
+    // TODO: We would probably want some helper functionality that just takes
+    // the full node name such as "/soc/bus@ff8000000/serial@3000" and would
+    // find the DTB node info that we need. For now, this fine.
+    switch (board) {
+        .odroidc4 => {
+            const soc_node = blob.child("soc").?;
+            const bus_node = soc_node.child("bus@ff800000").?;
+            uart_node = bus_node.child("serial@3000");
+        },
+        .qemu_arm_virt => {
+            uart_node = blob.child(board.uartNode());
+        },
     }
 
     if (uart_node == null) {

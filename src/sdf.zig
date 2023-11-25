@@ -3,8 +3,7 @@ const ArrayList = std.ArrayList;
 const Allocator = std.mem.Allocator;
 const allocPrint = std.fmt.allocPrint;
 
-// TODO: for addresses should we use the word size of the *target* machine?
-// TODO: should passing a virual address to a mapping be necessary?
+// TODO: for addresses should we use the word size of the *target* machine, rather than 'usize' for everything?
 // TODO: indent stuff could be done better
 
 pub const SystemDescription = struct {
@@ -65,14 +64,14 @@ pub const SystemDescription = struct {
             _ = try writer.write(final_xml);
         }
 
-        // TODO: consider other architectures
         pub const PageSize = enum(usize) {
             small,
             large,
             huge,
 
             pub fn toSize(page_size: PageSize, arch: Arch) usize {
-                // TODO: on RISC-V we are assuming that it's Sv39.
+                // TODO: on RISC-V we are assuming that it's Sv39. For example if you
+                // had a 64-bit system with Sv32, the page sizes would be different...
                 switch (arch) {
                     .aarch64, .riscv64, .x86_64 => return switch (page_size) {
                         .small => 0x1000,
@@ -239,6 +238,7 @@ pub const SystemDescription = struct {
         /// Program ELF
         program_image: ?ProgramImage,
         /// Scheduling parameters
+        /// The policy here is to follow the default values that Microkit uses.
         priority: u8 = 100,
         budget: usize = 100,
         period: usize = 100,
@@ -296,11 +296,29 @@ pub const SystemDescription = struct {
         }
 
         pub fn addInterrupt(pd: *ProtectionDomain, interrupt: Interrupt) !void {
+            // TODO: should check that the IRQ number does not already exist!
             try pd.irqs.append(interrupt);
         }
 
         pub fn addChild(pd: *ProtectionDomain, child: *ProtectionDomain) !void {
             try pd.child_pds.append(child);
+        }
+
+        pub fn getMapableVaddr(pd: *ProtectionDomain, _: usize) usize {
+            // TODO: should make sure we don't have a way of giving an invalid vaddr back (e.g on 32-bit systems this is more of a concern)
+
+            // The approach for this is fairly simple and naive, we just loop
+            // over all the maps and find the largest next available address.
+            // We could extend this in the future to actually look for space
+            // between mappings in the case they are not just sorted.
+            var next_vaddr: usize = 0x1_000_000;
+            for (pd.maps.items) |map| {
+                if (map.vaddr >= next_vaddr) {
+                    next_vaddr = map.vaddr + map.mr.size;
+                }
+            }
+
+            return next_vaddr;
         }
 
         pub fn toXml(pd: *ProtectionDomain, sdf: *SystemDescription, writer: ArrayList(u8).Writer, indent: []const u8, id: ?usize) !void {
@@ -395,7 +413,12 @@ pub const SystemDescription = struct {
 
     pub const Interrupt = struct {
         fixed_id: ?usize = null,
+        /// IRQ number that will be registered with seL4. That means that this
+        /// number needs to map onto what seL4 observes (e.g the numbers in the
+        /// device tree do not necessarily map onto what seL4 sees on ARM).
         irq: usize,
+        // TODO: there is a potential edge-case. There exist platforms
+        // supported by seL4 that do not allow for an IRQ trigger to be set.
         trigger: Trigger,
 
         pub const Trigger = enum { edge, level };
@@ -456,7 +479,8 @@ pub const SystemDescription = struct {
         const writer = sdf.xml_data.writer();
         _ = try writer.write("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<system>\n");
 
-        const indent = " " ** 4;
+        // Use 4-space indent for the XML
+        const indent = "    ";
         for (sdf.mrs.items) |mr| {
             try mr.toXml(sdf, writer, indent, sdf.arch);
         }
