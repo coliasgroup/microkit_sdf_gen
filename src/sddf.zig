@@ -87,7 +87,7 @@ pub fn probe(allocator: Allocator, path: []const u8) !void {
         // Search for all the drivers. For each device class we need
         // to iterate through each directory and find the config file
         // TODO: handle this gracefully
-        var device_class_dir = try sddf.openIterableDir("drivers/" ++ device_class.name, .{});
+        var device_class_dir = try sddf.openDir("drivers/" ++ device_class.name, .{ .iterate = true });
         defer device_class_dir.close();
         var iter = device_class_dir.iterate();
         std.log.info("searching through: 'drivers/{s}'", .{ device_class.name });
@@ -98,7 +98,7 @@ pub fn probe(allocator: Allocator, path: []const u8) !void {
             // Attempt to open the configuration file. It is realistic to not
             // have every driver to have a configuration file associated with
             // it, especially during the development of sDDF.
-            const config_file = device_class_dir.dir.openFile(config_path, .{}) catch |e| {
+            const config_file = device_class_dir.openFile(config_path, .{}) catch |e| {
                 switch (e) {
                     error.FileNotFound => {
                         std.log.info("could not find config file at '{s}', skipping...", .{ config_path });

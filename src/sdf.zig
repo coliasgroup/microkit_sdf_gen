@@ -51,7 +51,7 @@ pub const SystemDescription = struct {
         }
 
         pub fn toXml(mr: MemoryRegion, sdf: *SystemDescription, writer: ArrayList(u8).Writer, indent: []const u8, arch: Arch) !void {
-            var xml = try allocPrint(sdf.allocator, "{s}<memory_region name=\"{s}\" size=\"0x{x}\" page_size=\"0x{x}\"", .{ indent, mr.name, mr.size, mr.page_size.toSize(arch) });
+            const xml = try allocPrint(sdf.allocator, "{s}<memory_region name=\"{s}\" size=\"0x{x}\" page_size=\"0x{x}\"", .{ indent, mr.name, mr.size, mr.page_size.toSize(arch) });
             defer sdf.allocator.free(xml);
 
             var final_xml: []const u8 = undefined;
