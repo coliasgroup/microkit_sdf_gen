@@ -39,7 +39,7 @@ const MicrokitBoard = enum {
         comptime var i: usize = 0;
         const fields = @typeInfo(@This()).Enum.fields;
         inline while (i < fields.len) : (i += 1) {
-            std.debug.print("{s}\n", .{ fields[i].name });
+            std.debug.print("{s}\n", .{fields[i].name});
         }
     }
 
@@ -78,7 +78,7 @@ const Example = enum {
         comptime var i: usize = 0;
         const fields = @typeInfo(@This()).Enum.fields;
         inline while (i < fields.len) : (i += 1) {
-            std.debug.print("{s}\n", .{ fields[i].name });
+            std.debug.print("{s}\n", .{fields[i].name});
         }
     }
 };
@@ -183,7 +183,7 @@ fn parseArgs(args: []const []const u8, allocator: Allocator) !void {
                 std.process.exit(1);
             }
             xml_out_path = args[arg_i];
-            std.debug.print("xml_out_path is: {s}\n", .{ xml_out_path });
+            std.debug.print("xml_out_path is: {s}\n", .{xml_out_path});
         } else if (std.mem.eql(u8, arg, "--board")) {
             arg_i += 1;
             if (arg_i >= args.len) {
@@ -191,7 +191,7 @@ fn parseArgs(args: []const []const u8, allocator: Allocator) !void {
                 std.process.exit(1);
             }
             board = MicrokitBoard.fromStr(args[arg_i]) catch {
-                std.debug.print("Invalid board '{s}' given\n", .{ args[arg_i] });
+                std.debug.print("Invalid board '{s}' given\n", .{args[arg_i]});
                 std.process.exit(1);
             };
             board_given = true;
@@ -202,7 +202,7 @@ fn parseArgs(args: []const []const u8, allocator: Allocator) !void {
                 std.process.exit(1);
             }
             example = Example.fromStr(args[arg_i]) catch {
-                std.debug.print("Invalid example '{s}' given\n", .{ args[arg_i] });
+                std.debug.print("Invalid example '{s}' given\n", .{args[arg_i]});
                 std.process.exit(1);
             };
             example_given = true;
@@ -417,14 +417,14 @@ fn abstractions(sdf: *SystemDescription, blob: *dtb.Node) !void {
     }
 
     if (uart_node == null) {
-        std.log.err("Could not find UART node '{s}'", .{ board.uartNode() });
+        std.log.err("Could not find UART node '{s}'", .{board.uartNode()});
         std.process.exit(1);
     }
 
     try sddf.createDriver(sdf, &pd, uart_node.?);
 
     const xml = try sdf.toXml();
-    std.debug.print("{s}", .{ xml });
+    std.debug.print("{s}", .{xml});
 }
 
 pub fn main() !void {
@@ -444,13 +444,13 @@ pub fn main() !void {
     std.fs.cwd().access(sddf_path, .{}) catch |err| {
         switch (err) {
             error.FileNotFound => {
-                std.debug.print("Path to sDDF '{s}' does not exist\n", .{ sddf_path });
+                std.debug.print("Path to sDDF '{s}' does not exist\n", .{sddf_path});
                 std.process.exit(1);
             },
             else => {
                 std.debug.print("Could not access sDDF directory '{s}' due to error: {}\n", .{ sddf_path, err });
                 std.process.exit(1);
-            }
+            },
         }
     };
 
@@ -460,13 +460,13 @@ pub fn main() !void {
     std.fs.cwd().access(board_dtb_path, .{}) catch |err| {
         switch (err) {
             error.FileNotFound => {
-                std.debug.print("Path to board DTB '{s}' does not exist\n", .{ board_dtb_path });
+                std.debug.print("Path to board DTB '{s}' does not exist\n", .{board_dtb_path});
                 std.process.exit(1);
             },
             else => {
                 std.debug.print("Could not access DTB directory '{s}' due to error: {}\n", .{ board_dtb_path, err });
                 std.process.exit(1);
-            }
+            },
         }
     };
 
@@ -488,7 +488,7 @@ pub fn main() !void {
 
     std.debug.print("sDDF drivers found:\n", .{});
     for (compatible_drivers) |driver| {
-        std.debug.print("   - {s}\n", .{ driver });
+        std.debug.print("   - {s}\n", .{driver});
     }
 
     // Now that we have a list of compatible drivers, we need to find what actual
