@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  build_linux_x64:
+    name: Build and run (Linux x64)
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        with:
+          submodules: 'true'
+      - name: Install Nix
+        uses: cachix/install-nix-action@v22
+        with:
+          nix_path: nixpkgs=channel:nixos-unstable
+      - name: Build
+        run: nix shell 'github:mitchellh/zig-overlay#master' --command zig build
+      - name: Test
+        run: nix shell 'github:mitchellh/zig-overlay#master' --command zig build test
+  build_macos_64:
+    name: Build and run (macOS x64)
+    runs-on: macos-12
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        with:
+          submodules: 'true'
+      - name: Install Nix
+        uses: cachix/install-nix-action@v22
+        with:
+          nix_path: nixpkgs=channel:nixos-unstable
+      - name: Build
+        run: nix shell 'github:mitchellh/zig-overlay#master' --command zig build
+      - name: Test
+        run: nix shell 'github:mitchellh/zig-overlay#master' --command zig build test
+
