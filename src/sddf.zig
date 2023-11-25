@@ -23,7 +23,6 @@ const Channel = SystemDescription.Channel;
 /// device class and aa directory for each device class inside
 /// 'drivers/'.
 ///
-
 var drivers: std.ArrayList(Config.Driver) = undefined;
 var classes: std.ArrayList(Config.DeviceClass) = undefined;
 
@@ -77,8 +76,7 @@ pub fn probe(allocator: Allocator, path: []const u8) !void {
     classes = std.ArrayList(Config.DeviceClass).init(allocator);
 
     std.log.info("starting sDDF probe", .{});
-    // TODO: what if we get an absolute path?
-    std.log.info("opening sDDF root dir '{s}'", .{ path });
+    std.log.info("opening sDDF root dir '{s}'", .{path});
     var sddf = try std.fs.cwd().openDir(path, .{});
     defer sddf.close();
 
@@ -90,10 +88,10 @@ pub fn probe(allocator: Allocator, path: []const u8) !void {
         var device_class_dir = try sddf.openDir("drivers/" ++ device_class.name, .{ .iterate = true });
         defer device_class_dir.close();
         var iter = device_class_dir.iterate();
-        std.log.info("searching through: 'drivers/{s}'", .{ device_class.name });
+        std.log.info("searching through: 'drivers/{s}'", .{device_class.name});
         while (try iter.next()) |entry| {
             // Under this directory, we should find the configuration file
-            const config_path = std.fmt.allocPrint(allocator, "{s}/config.json", .{ entry.name }) catch @panic("OOM");
+            const config_path = std.fmt.allocPrint(allocator, "{s}/config.json", .{entry.name}) catch @panic("OOM");
             defer allocator.free(config_path);
             // Attempt to open the configuration file. It is realistic to not
             // have every driver to have a configuration file associated with
@@ -101,7 +99,7 @@ pub fn probe(allocator: Allocator, path: []const u8) !void {
             const config_file = device_class_dir.openFile(config_path, .{}) catch |e| {
                 switch (e) {
                     error.FileNotFound => {
-                        std.log.info("could not find config file at '{s}', skipping...", .{ config_path });
+                        std.log.info("could not find config file at '{s}', skipping...", .{config_path});
                         continue;
                     },
                     else => return e,
@@ -124,7 +122,7 @@ pub fn probe(allocator: Allocator, path: []const u8) !void {
         }
         // Look for all the configuration files inside each of the device class
         // sub-directories.
-        const class_config_path = std.fmt.allocPrint(allocator, "{s}/config.json", .{ device_class.name }) catch @panic("OOM");
+        const class_config_path = std.fmt.allocPrint(allocator, "{s}/config.json", .{device_class.name}) catch @panic("OOM");
         defer allocator.free(class_config_path);
         if (sddf.openFile(class_config_path, .{})) |class_config_file| {
             defer class_config_file.close();
@@ -137,11 +135,11 @@ pub fn probe(allocator: Allocator, path: []const u8) !void {
         } else |err| {
             switch (err) {
                 error.FileNotFound => {
-                    std.log.info("could not find class config file at '{s}', skipping...", .{ class_config_path });
+                    std.log.info("could not find class config file at '{s}', skipping...", .{class_config_path});
                 },
                 else => {
                     std.log.info("error accessing config file ({}) at '{s}', skipping...", .{ err, class_config_path });
-                }
+                },
             }
         }
     }
@@ -312,14 +310,14 @@ pub fn createDriver(sdf: *SystemDescription, pd: *Pd, device: *dtb.Node) !void {
 
     // TODO: It is expected for a lot of devices to have multiple compatible strings,
     // we need to deal with that here.
-    std.log.debug("Creating driver for device: '{s}'", .{ device.name });
+    std.log.debug("Creating driver for device: '{s}'", .{device.name});
     std.log.debug("Compatible with:", .{});
     for (compatible) |c| {
-        std.log.debug("     '{s}'", .{ c });
+        std.log.debug("     '{s}'", .{c});
     }
 
     const driver = findDriver(compatible).?;
-    std.log.debug("Found compatible driver '{s}'", .{ driver.name });
+    std.log.debug("Found compatible driver '{s}'", .{driver.name});
     // TODO: fix, this should be from the DTS
 
     const device_reg = device.prop(.Reg).?;

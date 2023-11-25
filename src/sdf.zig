@@ -195,7 +195,7 @@ pub const SystemDescription = struct {
         maps: ArrayList(Map),
 
         pub fn create(sdf: *SystemDescription, name: []const u8) VirtualMachine {
-            return VirtualMachine {
+            return VirtualMachine{
                 .name = name,
                 .maps = ArrayList(Map).init(sdf.allocator),
             };
@@ -218,7 +218,7 @@ pub const SystemDescription = struct {
             _ = try writer.write(first_xml);
 
             // Add memory region mappings as child nodes
-            const inner_indent = try allocPrint(sdf.allocator, "{s}    ", .{ indent });
+            const inner_indent = try allocPrint(sdf.allocator, "{s}    ", .{indent});
             defer sdf.allocator.free(inner_indent);
             for (vm.maps.items) |map| {
                 _ = try writer.write(inner_indent);
@@ -228,7 +228,7 @@ pub const SystemDescription = struct {
             const closing_tag =
                 \\ {s}<virtual_machine />
             ;
-            const closing_xml = try allocPrint(sdf.allocator, closing_tag, .{ indent });
+            const closing_xml = try allocPrint(sdf.allocator, closing_tag, .{indent});
             defer sdf.allocator.free(closing_xml);
             _ = try writer.write(closing_xml);
         }
@@ -261,7 +261,7 @@ pub const SystemDescription = struct {
             }
 
             pub fn toXml(program_image: *const ProgramImage, sdf: *SystemDescription, writer: ArrayList(u8).Writer) !void {
-                const xml = try allocPrint(sdf.allocator, "<program_image path=\"{s}\" />", .{ program_image.path });
+                const xml = try allocPrint(sdf.allocator, "<program_image path=\"{s}\" />", .{program_image.path});
                 defer sdf.allocator.free(xml);
                 _ = try writer.write(xml);
             }
@@ -314,16 +314,14 @@ pub const SystemDescription = struct {
             defer sdf.allocator.free(attributes_xml);
             var top: []const u8 = undefined;
             if (id) |id_val| {
-                top = try allocPrint(sdf.allocator,
-                    "{s}<protection_domain name=\"{s}\" id=\"{}\" {s}>", .{ indent, pd.name, id_val, attributes_xml });
+                top = try allocPrint(sdf.allocator, "{s}<protection_domain name=\"{s}\" id=\"{}\" {s}>", .{ indent, pd.name, id_val, attributes_xml });
             } else {
-                top = try allocPrint(sdf.allocator,
-                    "{s}<protection_domain name=\"{s}\" {s}>", .{ indent, pd.name, attributes_xml });
+                top = try allocPrint(sdf.allocator, "{s}<protection_domain name=\"{s}\" {s}>", .{ indent, pd.name, attributes_xml });
             }
             defer sdf.allocator.free(top);
             _ = try writer.write(top);
 
-            const inner_indent = try allocPrint(sdf.allocator, "\n{s}    ", .{ indent });
+            const inner_indent = try allocPrint(sdf.allocator, "\n{s}    ", .{indent});
             defer sdf.allocator.free(inner_indent);
             // Add program image (if we have one)
             if (pd.program_image) |program_image| {
@@ -337,7 +335,7 @@ pub const SystemDescription = struct {
             }
             // Add child PDs
             for (pd.child_pds.items) |child_pd| {
-                const child_pd_xml = try allocPrint(sdf.allocator, "\n{s}", .{ inner_indent });
+                const child_pd_xml = try allocPrint(sdf.allocator, "\n{s}", .{inner_indent});
                 defer sdf.allocator.free(child_pd_xml);
                 try child_pd.toXml(sdf, writer, inner_indent, pd.next_avail_id);
                 _ = try writer.write(child_pd_xml);
@@ -355,7 +353,7 @@ pub const SystemDescription = struct {
                 pd.next_avail_id += 1;
             }
 
-            const bottom = try allocPrint(sdf.allocator, "\n{s}</protection_domain>\n", .{ indent });
+            const bottom = try allocPrint(sdf.allocator, "\n{s}</protection_domain>\n", .{indent});
             defer sdf.allocator.free(bottom);
             _ = try writer.write(bottom);
         }
@@ -422,7 +420,7 @@ pub const SystemDescription = struct {
 
     pub fn create(allocator: Allocator, arch: Arch) !SystemDescription {
         var xml_data = ArrayList(u8).init(allocator);
-        return SystemDescription {
+        return SystemDescription{
             .allocator = allocator,
             .xml_data = xml_data,
             .xml = xml_data.writer(),
