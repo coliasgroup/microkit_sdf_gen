@@ -21,7 +21,7 @@ pub const SystemDescription = struct {
     channels: ArrayList(Channel),
 
     /// Supported architectures by seL4
-    pub const Arch = enum {
+    pub const Arch = enum(c_int) {
         aarch32,
         aarch64,
         riscv32,
@@ -475,7 +475,7 @@ pub const SystemDescription = struct {
         try sdf.pds.append(pd);
     }
 
-    pub fn toXml(sdf: *SystemDescription) ![]const u8 {
+    pub fn toXml(sdf: *SystemDescription) ![:0]const u8 {
         const writer = sdf.xml_data.writer();
         _ = try writer.write("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<system>\n");
 
@@ -491,9 +491,11 @@ pub const SystemDescription = struct {
             try ch.toXml(sdf, writer);
         }
 
-        _ = try writer.write("</system>\n");
+        // Given that this is library code, it is better for us to provide a zero-terminated
+        // array of bytes for consumption by langauges like C.
+        _ = try writer.write("</system>\n" ++ "\x00");
 
-        return sdf.xml_data.items;
+        return sdf.xml_data.items[0..sdf.xml_data.items.len-1:0];
     }
 
     /// Export the necessary #defines for channel IDs, IRQ IDs and child
