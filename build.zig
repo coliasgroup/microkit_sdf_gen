@@ -55,6 +55,7 @@ pub fn build(b: *std.Build) !void {
         .target = target,
         .optimize = optimize,
     });
+    pysdfgen.linker_allow_shlib_undefined = true;
     pysdfgen.addIncludePath(.{ .path = "/usr/include/python3.10" });
     pysdfgen.addModule("sdf", modsdf);
     pysdfgen.linkLibC();
