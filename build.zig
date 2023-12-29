@@ -66,4 +66,27 @@ pub fn build(b: *std.Build) !void {
     const pysdfgen_step = b.step("pysdfgen", "Library for the Python sdfgen module");
     const pysdfgen_install = b.addInstallFileWithDir(pysdfgen.getOutputSource(), .lib, pysdfgen_bin);
     pysdfgen_step.dependOn(&pysdfgen_install.step);
+
+    const libsdfgen = b.addStaticLibrary(.{
+        .name = "sdfgen",
+        .root_source_file = .{ .path = "src/c/c.zig" },
+        .target = target,
+        .optimize = optimize,
+    });
+    libsdfgen.addModule("sdf", modsdf);
+
+    const c_example_step = b.step("c", "Example of using libsdfgen with C");
+    const c_example = b.addExecutable(.{
+        .name = "c_example",
+        .root_source_file = .{ .path = "c/example.c" },
+        .target = target,
+        .optimize = optimize,
+    });
+    c_example.linkLibrary(libsdfgen);
+    c_example.addIncludePath(.{ .path = "src/c" });
+    const c_example_cmd = b.addRunArtifact(c_example);
+
+    c_example_step.dependOn(&c_example_cmd.step);
+    const c_example_install = b.addInstallArtifact(c_example, .{});
+    c_example_step.dependOn(&c_example_install.step);
 }
