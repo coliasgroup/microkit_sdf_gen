@@ -23,7 +23,7 @@ serve. This obviously depends on the system designer, and could easily be someth
 for different configurations of the same system. The Microkit SDF offers no way to pass down this
 kind of information. For the example described, an easy 'solution' would be to pass some kind of
 compile-time parameter (e.g a #define in C) for the number of clients. However imagine now you
-have the same system with two configurations`, with two clients and one with three, this requires
+have the same system with two configurations, with two clients and one with three, this requires
 two separate SDF files even though they are very similar systems and the code remains identical
 expect for the compile-time parameter. This problem ultimately hampers experimentation.
 
