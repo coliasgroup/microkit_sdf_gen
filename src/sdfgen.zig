@@ -67,10 +67,10 @@ const Example = enum {
         return error.ExampleNotFound;
     }
 
-    pub fn generate(e: Example, sdf: *SystemDescription, blob: *dtb.Node) !void {
+    pub fn generate(e: Example, allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !void {
         switch (e) {
             .virtio => try virtio(sdf),
-            .abstractions => try abstractions(sdf, blob),
+            .abstractions => try abstractions(allocator, sdf, blob),
         }
     }
 
@@ -401,10 +401,10 @@ fn virtio(sdf: *SystemDescription) !void {
 /// Takes in the root DTB node
 /// TODO: there was an issue using the DTB that QEMU dumps. Most likely
 /// something wrong with dtb.zig dependency. Need to investigate.
-fn abstractions(sdf: *SystemDescription, blob: *dtb.Node) !void {
+fn abstractions(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !void {
     const image = ProgramImage.create("uart_driver.elf");
-    var pd = Pd.create(sdf, "uart_driver", image);
-    try sdf.addProtectionDomain(&pd);
+    var driver = Pd.create(sdf, "uart_driver", image);
+    try sdf.addProtectionDomain(&driver);
 
     var uart_node: ?*dtb.Node = undefined;
     // TODO: We would probably want some helper functionality that just takes
@@ -426,7 +426,32 @@ fn abstractions(sdf: *SystemDescription, blob: *dtb.Node) !void {
         std.process.exit(1);
     }
 
-    try sddf.createDriver(sdf, &pd, uart_node.?);
+    var serial_system = try sddf.SerialSystem.init(allocator, sdf, 0x200000);
+    serial_system.addDriver(&driver, uart_node.?);
+
+    // const clients = [_][]const u8{ "client1", "client2", "client3" };
+
+    const mux_rx_image = ProgramImage.create("mux_rx.elf");
+    var mux_rx = Pd.create(sdf, "mux_rx", mux_rx_image);
+    try sdf.addProtectionDomain(&mux_rx);
+
+    const mux_tx_image = ProgramImage.create("mux_tx.elf");
+    var mux_tx = Pd.create(sdf, "mux_tx", mux_tx_image);
+    try sdf.addProtectionDomain(&mux_tx);
+
+    serial_system.addMultiplexors(&mux_rx, &mux_tx);
+
+    const client1_image = ProgramImage.create("client1.elf");
+    var client1_pd = Pd.create(sdf, "client1", client1_image);
+    try serial_system.addClient(&client1_pd);
+    try sdf.addProtectionDomain(&client1_pd);
+
+    const client2_image = ProgramImage.create("client2.elf");
+    var client2_pd = Pd.create(sdf, "client2", client2_image);
+    try serial_system.addClient(&client2_pd);
+    try sdf.addProtectionDomain(&client2_pd);
+
+    try serial_system.connect();
 
     const xml = try sdf.toXml();
     std.debug.print("{s}", .{xml});
@@ -506,5 +531,5 @@ pub fn main() !void {
     // now we will keep the device tree as the source of truth.
 
     var sdf = try SystemDescription.create(allocator, board.arch());
-    try example.generate(&sdf, blob);
+    try example.generate(allocator, &sdf, blob);
 }

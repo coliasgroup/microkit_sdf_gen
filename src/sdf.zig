@@ -102,6 +102,15 @@ pub const SystemDescription = struct {
                     },
                 }
             }
+
+            pub fn optimal(sdf: *SystemDescription, region_size: usize) PageSize {
+                // @ivanv: would be better if we did some meta programming in case the
+                // number of elements in PageSize change
+                if (region_size % PageSize.huge.toSize(sdf.arch) == 0) return .huge;
+                if (region_size % PageSize.large.toSize(sdf.arch) == 0) return .large;
+
+                return .small;
+            }
         };
     };
 
