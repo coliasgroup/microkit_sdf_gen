@@ -3,8 +3,8 @@
     .version = "0.1.0",
     .dependencies = .{
         .dtbzig = .{
-            .url = "https://github.com/Ivan-Velickovic/dtb.zig/archive/701d309607a1f096b0aea24d9f6339a2a4721607.tar.gz",
-            .hash = "1220ad1e1c97ccb40e6c85b0c9026d2ce1c4fea3484f66fdeb0115b640e881a1929a"
+            .url = "https://github.com/Ivan-Velickovic/dtb.zig/archive/f328b7f3b0af55c084cf6405f4329c0ac72bd84d.tar.gz",
+            .hash = "12202bb98ee40d684b96e59be82589e0d5b3a0f6b352a8013daf15c2d8e48bf8a671"
         }
     },
     .paths = .{

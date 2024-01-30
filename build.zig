@@ -23,7 +23,7 @@ pub fn build(b: *std.Build) !void {
 
     // We want to be able to import the 'dtb.zig' library as a module.
     const dtb_module = dtbzig_dep.module("dtb");
-    sdfgen.addModule("dtb", dtb_module);
+    sdfgen.root_module.addImport("dtb", dtb_module);
 
     const sdfgen_cmd = b.addRunArtifact(sdfgen);
     if (b.args) |args| {
@@ -46,7 +46,7 @@ pub fn build(b: *std.Build) !void {
     const test_step = b.step("test", "Run tests");
     test_step.dependOn(&run_main_tests.step);
 
-    const modsdf = b.addModule("sdf", .{ .source_file = .{ .path = "src/sdf.zig" } });
+    const modsdf = b.addModule("sdf", .{ .root_source_file = .{ .path = "src/sdf.zig" } });
 
     const pysdfgen_bin = b.option([]const u8, "pysdfgen-emit", "Name of pysdfgen library") orelse "pysdfgen.so";
     const pysdfgen = b.addSharedLibrary(.{
@@ -57,14 +57,14 @@ pub fn build(b: *std.Build) !void {
     });
     pysdfgen.linker_allow_shlib_undefined = true;
     pysdfgen.addIncludePath(.{ .path = "/usr/include/python3.10" });
-    pysdfgen.addModule("sdf", modsdf);
+    pysdfgen.root_module.addImport("sdf", modsdf);
     pysdfgen.linkLibC();
     // TODO: should probably check if the library exists first...
     pysdfgen.linkSystemLibrary("python3");
     b.installArtifact(pysdfgen);
 
     const pysdfgen_step = b.step("pysdfgen", "Library for the Python sdfgen module");
-    const pysdfgen_install = b.addInstallFileWithDir(pysdfgen.getOutputSource(), .lib, pysdfgen_bin);
+    const pysdfgen_install = b.addInstallFileWithDir(pysdfgen.getEmittedBin(), .lib, pysdfgen_bin);
     pysdfgen_step.dependOn(&pysdfgen_install.step);
 
     const libsdfgen = b.addStaticLibrary(.{
@@ -73,7 +73,7 @@ pub fn build(b: *std.Build) !void {
         .target = target,
         .optimize = optimize,
     });
-    libsdfgen.addModule("sdf", modsdf);
+    libsdfgen.root_module.addImport("sdf", modsdf);
 
     const c_example_step = b.step("c", "Example of using libsdfgen with C");
     const c_example = b.addExecutable(.{
