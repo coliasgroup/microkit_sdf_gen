@@ -326,6 +326,7 @@ pub const SerialSystem = struct {
         for (regions) |region| {
             const mr_name = std.fmt.allocPrint(system.allocator, "serial_driver_rx_{s}", .{ region }) catch @panic("OOM");
             const mr = Mr.create(system.sdf, mr_name, system.region_size, null, system.page_size);
+            try system.sdf.addMemoryRegion(mr);
             const perms: Map.Permissions = .{ .read = true, .write = true };
             // @ivanv: vaddr has invariant that needs to be checked
             const mux_vaddr = system.mux_rx.getMapableVaddr(mr.size);
@@ -342,6 +343,7 @@ pub const SerialSystem = struct {
         for (regions) |region| {
             const mr_name = std.fmt.allocPrint(system.allocator, "serial_driver_tx_{s}", .{ region }) catch @panic("OOM");
             const mr = Mr.create(system.sdf, mr_name, system.region_size, null, system.page_size);
+            try system.sdf.addMemoryRegion(mr);
             const perms: Map.Permissions = .{ .read = true, .write = true };
             // @ivanv: vaddr has invariant that needs to be checked
             const mux_vaddr = system.mux_tx.getMapableVaddr(mr.size);
@@ -358,6 +360,7 @@ pub const SerialSystem = struct {
         for (regions) |region| {
             const mr_name = std.fmt.allocPrint(system.allocator, "serial_mux_rx_{s}_{s}", .{ region, client.name }) catch @panic("OOM");
             const mr = Mr.create(system.sdf, mr_name, system.region_size, null, system.page_size);
+            try system.sdf.addMemoryRegion(mr);
             const perms: Map.Permissions = .{ .read = true, .write = true };
             // @ivanv: vaddr has invariant that needs to be checked
             const mux_vaddr = system.mux_rx.getMapableVaddr(mr.size);
@@ -374,6 +377,7 @@ pub const SerialSystem = struct {
         for (regions) |region| {
             const mr_name = std.fmt.allocPrint(system.allocator, "serial_mux_tx_{s}_{s}", .{ region, client.name }) catch @panic("OOM");
             const mr = Mr.create(system.sdf, mr_name, system.region_size, null, system.page_size);
+            try system.sdf.addMemoryRegion(mr);
             const perms: Map.Permissions = .{ .read = true, .write = true };
             // @ivanv: vaddr has invariant that needs to be checked
             const mux_vaddr = system.mux_tx.getMapableVaddr(mr.size);
