@@ -1,6 +1,7 @@
 const std = @import("std");
 const builtin = @import("builtin");
 const mod_sdf = @import("sdf.zig");
+const mod_vmm = @import("vmm.zig");
 const sddf = @import("sddf.zig");
 const dtb = @import("dtb");
 const ArrayList = std.ArrayList;
@@ -14,6 +15,8 @@ const Mr = SystemDescription.MemoryRegion;
 const Map = SystemDescription.Map;
 const Irq = SystemDescription.Interrupt;
 const Channel = SystemDescription.Channel;
+
+const VirtualMachineSystem = mod_vmm.VirtualMachineSystem;
 
 const MicrokitBoard = enum {
     qemu_arm_virt,
@@ -55,6 +58,7 @@ const MicrokitBoard = enum {
 
 const Example = enum {
     virtio,
+    virtio_blk,
     abstractions,
 
     pub fn fromStr(str: []const u8) !Example {
@@ -71,6 +75,7 @@ const Example = enum {
         switch (e) {
             .virtio => try virtio(sdf),
             .abstractions => try abstractions(allocator, sdf, blob),
+            .virtio_blk => try virtio_blk(allocator, sdf, blob),
         }
     }
 
@@ -450,6 +455,73 @@ fn abstractions(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) 
     var client2_pd = Pd.create(sdf, "client2", client2_image);
     try serial_system.addClient(&client2_pd);
     try sdf.addProtectionDomain(&client2_pd);
+
+    try serial_system.connect();
+
+    const xml = try sdf.toXml();
+    std.debug.print("{s}", .{xml});
+}
+
+fn virtio_blk(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !void {
+    // UART driver
+    // serial muxes
+    // two clients which as VMMs
+    // block driver VM
+    const image = ProgramImage.create("uart_driver.elf");
+    var driver = Pd.create(sdf, "uart_driver", image);
+    try sdf.addProtectionDomain(&driver);
+
+    var uart_node: ?*dtb.Node = undefined;
+    // TODO: We would probably want some helper functionality that just takes
+    // the full node name such as "/soc/bus@ff8000000/serial@3000" and would
+    // find the DTB node info that we need. For now, this fine.
+    switch (board) {
+        .odroidc4 => {
+            const soc_node = blob.child("soc").?;
+            const bus_node = soc_node.child("bus@ff800000").?;
+            uart_node = bus_node.child("serial@3000");
+        },
+        .qemu_arm_virt => {
+            uart_node = blob.child(board.uartNode());
+        },
+    }
+
+    if (uart_node == null) {
+        std.log.err("Could not find UART node '{s}'", .{board.uartNode()});
+        std.process.exit(1);
+    }
+
+    const client1_vmm_image = ProgramImage.create("client_vmm_1.elf");
+    var client1_vmm = Pd.create(sdf, "client_vmm_1", client1_vmm_image);
+    var client1_vm = Vm.create(sdf, "client_vm_1");
+    const client2_vmm_image = ProgramImage.create("client_vmm_2.elf");
+    var client2_vmm = Pd.create(sdf, "client_vmm_2", client2_vmm_image);
+    var client2_vm = Vm.create(sdf, "client_vm_2");
+
+    const blk_driver_vmm_image = ProgramImage.create("blk_driver_vmm.elf");
+    var blk_driver_vmm = Pd.create(sdf, "blk_driver_vmm", blk_driver_vmm_image);
+    var blk_driver_vm = Vm.create(sdf, "blk_linux");
+
+    var vm_system = VirtualMachineSystem.init(allocator, sdf);
+    try vm_system.add(&client1_vmm, &client1_vm, blob);
+    try vm_system.add(&client2_vmm, &client2_vm, blob);
+    try vm_system.add(&blk_driver_vmm, &blk_driver_vm, blob);
+
+    try vm_system.connect();
+
+    // Creating serial sub system
+    var serial_system = try sddf.SerialSystem.init(allocator, sdf, 0x200000);
+    serial_system.addDriver(&driver, uart_node.?);
+
+    const mux_rx_image = ProgramImage.create("mux_rx.elf");
+    var mux_rx = Pd.create(sdf, "mux_rx", mux_rx_image);
+    try sdf.addProtectionDomain(&mux_rx);
+
+    const mux_tx_image = ProgramImage.create("mux_tx.elf");
+    var mux_tx = Pd.create(sdf, "mux_tx", mux_tx_image);
+    try sdf.addProtectionDomain(&mux_tx);
+
+    serial_system.addMultiplexors(&mux_rx, &mux_tx);
 
     try serial_system.connect();
 
