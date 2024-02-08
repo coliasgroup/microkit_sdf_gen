@@ -362,7 +362,7 @@ pub const SerialSystem = struct {
 
     fn rxConnectClient(system: *SerialSystem, client: *Pd) !void {
         for (REGIONS) |region| {
-            const mr_name = std.fmt.allocPrint(system.allocator, "serial_mux_rx_{s}_{s}", .{ region, client.name }) catch @panic("OOM");
+            const mr_name = std.fmt.allocPrint(system.allocator, "serial_mux_rx_{s}_{s}", .{ client.name, region }) catch @panic("OOM");
             const mr = Mr.create(system.sdf, mr_name, system.region_size, null, system.page_size);
             try system.sdf.addMemoryRegion(mr);
             const perms: Map.Permissions = .{ .read = true, .write = true };
@@ -379,7 +379,7 @@ pub const SerialSystem = struct {
 
     fn txConnectClient(system: *SerialSystem, client: *Pd) !void {
         for (REGIONS) |region| {
-            const mr_name = std.fmt.allocPrint(system.allocator, "serial_mux_tx_{s}_{s}", .{ region, client.name }) catch @panic("OOM");
+            const mr_name = std.fmt.allocPrint(system.allocator, "serial_mux_tx_{s}_{s}", .{ client.name, region }) catch @panic("OOM");
             const mr = Mr.create(system.sdf, mr_name, system.region_size, null, system.page_size);
             try system.sdf.addMemoryRegion(mr);
             const perms: Map.Permissions = .{ .read = true, .write = true };
@@ -396,6 +396,11 @@ pub const SerialSystem = struct {
 
     pub fn connect(system: *SerialSystem) !void {
         var sdf = system.sdf;
+
+        if (system.mux_rx == undefined or system.mux_tx == undefined) {
+            // TODO: support single-client case
+            @panic("cannot connect system without multiplexors");
+        }
 
         // 1. Create all the channels
         // 1.1 Create channels between driver and multiplexors
