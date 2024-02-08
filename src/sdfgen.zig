@@ -60,6 +60,7 @@ const Example = enum {
     virtio,
     virtio_blk,
     abstractions,
+    gdb,
 
     pub fn fromStr(str: []const u8) !Example {
         inline for (std.meta.fields(Example)) |field| {
@@ -76,6 +77,7 @@ const Example = enum {
             .virtio => try virtio(sdf),
             .abstractions => try abstractions(allocator, sdf, blob),
             .virtio_blk => try virtio_blk(allocator, sdf, blob),
+            .gdb => try gdb(allocator, sdf, blob),
         }
     }
 
@@ -457,6 +459,52 @@ fn abstractions(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) 
     try sdf.addProtectionDomain(&client2_pd);
 
     try serial_system.connect();
+
+    const xml = try sdf.toXml();
+    std.debug.print("{s}", .{xml});
+}
+
+fn gdb(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !void {
+    var uart_node: ?*dtb.Node = undefined;
+    // TODO: We would probably want some helper functionality that just takes
+    // the full node name such as "/soc/bus@ff8000000/serial@3000" and would
+    // find the DTB node info that we need. For now, this fine.
+    switch (board) {
+        .odroidc4 => {
+            const soc_node = blob.child("soc").?;
+            const bus_node = soc_node.child("bus@ff800000").?;
+            uart_node = bus_node.child("serial@3000");
+        },
+        .qemu_arm_virt => {
+            uart_node = blob.child(board.uartNode());
+        },
+    }
+
+    if (uart_node == null) {
+        std.log.err("Could not find UART node '{s}'", .{board.uartNode()});
+        std.process.exit(1);
+    }
+
+    const uart_driver_image = ProgramImage.create("uart_driver.elf");
+    var uart_driver = Pd.create(sdf, "uart_driver", uart_driver_image);
+    try sdf.addProtectionDomain(&uart_driver);
+
+    var serial_system = try sddf.SerialSystem.init(allocator, sdf, 0x200000);
+    serial_system.addDriver(&uart_driver, uart_node.?);
+
+    const debugger_image = ProgramImage.create("debugger.elf");
+    var debugger = Pd.create(sdf, "debugger", debugger_image);
+    try sdf.addProtectionDomain(&debugger);
+
+    const ping_image = ProgramImage.create("ping.elf");
+    var ping = Pd.create(sdf, "ping", ping_image);
+    const pong_image = ProgramImage.create("pong.elf");
+    var pong = Pd.create(sdf, "pong", pong_image);
+
+    const debug_pds = [_]*Pd{ &ping, &pong };
+    for (debug_pds) |pd| {
+        try debugger.addChild(pd);
+    }
 
     const xml = try sdf.toXml();
     std.debug.print("{s}", .{xml});
