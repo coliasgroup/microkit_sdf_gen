@@ -465,47 +465,39 @@ fn abstractions(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) 
 }
 
 fn gdb(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !void {
-    var uart_node: ?*dtb.Node = undefined;
-    // TODO: We would probably want some helper functionality that just takes
-    // the full node name such as "/soc/bus@ff8000000/serial@3000" and would
-    // find the DTB node info that we need. For now, this fine.
-    switch (board) {
-        .odroidc4 => {
-            const soc_node = blob.child("soc").?;
-            const bus_node = soc_node.child("bus@ff800000").?;
-            uart_node = bus_node.child("serial@3000");
-        },
-        .qemu_arm_virt => {
-            uart_node = blob.child(board.uartNode());
-        },
-    }
+    const uart_node = switch (board) {
+        .odroidc4 => blob.child("soc").?.child("bus@ff800000").?.child("serial@3000"),
+        .qemu_arm_virt => blob.child(board.uartNode()),
+    };
 
-    if (uart_node == null) {
-        std.log.err("Could not find UART node '{s}'", .{board.uartNode()});
-        std.process.exit(1);
-    }
-
-    const uart_driver_image = ProgramImage.create("uart_driver.elf");
-    var uart_driver = Pd.create(sdf, "uart_driver", uart_driver_image);
+    var uart_driver = Pd.create(sdf, "uart_driver", ProgramImage.create("uart_driver.elf"));
     try sdf.addProtectionDomain(&uart_driver);
 
     var serial_system = try sddf.SerialSystem.init(allocator, sdf, 0x200000);
     serial_system.addDriver(&uart_driver, uart_node.?);
 
-    const debugger_image = ProgramImage.create("debugger.elf");
-    var debugger = Pd.create(sdf, "debugger", debugger_image);
+    var debugger = Pd.create(sdf, "debugger", ProgramImage.create("debugger.elf"));
     try sdf.addProtectionDomain(&debugger);
 
-    const ping_image = ProgramImage.create("ping.elf");
-    var ping = Pd.create(sdf, "ping", ping_image);
-    const pong_image = ProgramImage.create("pong.elf");
-    var pong = Pd.create(sdf, "pong", pong_image);
+    var ping = Pd.create(sdf, "ping", ProgramImage.create("ping.elf"));
+    var pong = Pd.create(sdf, "pong", ProgramImage.create("pong.elf"));
 
     const debug_pds = [_]*Pd{ &ping, &pong };
     for (debug_pds) |pd| {
         try debugger.addChild(pd);
     }
 
+    try sdf.addChannel(Channel.create(&ping, &pong));
+
+    var mux_rx = Pd.create(sdf, "mux_rx", ProgramImage.create("mux_rx.elf"));
+    try sdf.addProtectionDomain(&mux_rx);
+    var mux_tx = Pd.create(sdf, "mux_tx", ProgramImage.create("mux_tx.elf"));
+    try sdf.addProtectionDomain(&mux_tx);
+    serial_system.addMultiplexors(&mux_rx, &mux_tx);
+
+    try serial_system.addClient(&debugger);
+
+    try serial_system.connect();
     const xml = try sdf.toXml();
     std.debug.print("{s}", .{xml});
 }
