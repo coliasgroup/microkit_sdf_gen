@@ -72,7 +72,6 @@ pub const VirtualMachineSystem = struct {
             }
             try sdf.addProtectionDomain(vmm);
         }
-
     }
 };
 

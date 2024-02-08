@@ -280,8 +280,10 @@ const DeviceTree = struct {
     }
 };
 
-const regions = [_][]const u8{ "data", "used", "free" };
-
+/// TODO: these functions do very little error checking
+/// TODO: we also make one major assumption, and that is that we will
+/// always connect with multiplexors and not have a direct Driver <-> Client
+/// connection
 pub const SerialSystem = struct {
     allocator: Allocator,
     sdf: *SystemDescription,
@@ -292,6 +294,8 @@ pub const SerialSystem = struct {
     mux_rx: *Pd,
     mux_tx: *Pd,
     clients: std.ArrayList(*Pd),
+
+    const REGIONS = [_][]const u8{ "data", "used", "free" };
 
     pub fn init(allocator: Allocator, sdf: *SystemDescription, region_size: usize) !SerialSystem {
         const page_size = SystemDescription.MemoryRegion.PageSize.optimal(sdf, region_size);
@@ -323,7 +327,7 @@ pub const SerialSystem = struct {
     }
 
     fn rxConnectDriver(system: *SerialSystem) !void {
-        for (regions) |region| {
+        for (REGIONS) |region| {
             const mr_name = std.fmt.allocPrint(system.allocator, "serial_driver_rx_{s}", .{ region }) catch @panic("OOM");
             const mr = Mr.create(system.sdf, mr_name, system.region_size, null, system.page_size);
             try system.sdf.addMemoryRegion(mr);
@@ -340,7 +344,7 @@ pub const SerialSystem = struct {
     }
 
     fn txConnectDriver(system: *SerialSystem) !void {
-        for (regions) |region| {
+        for (REGIONS) |region| {
             const mr_name = std.fmt.allocPrint(system.allocator, "serial_driver_tx_{s}", .{ region }) catch @panic("OOM");
             const mr = Mr.create(system.sdf, mr_name, system.region_size, null, system.page_size);
             try system.sdf.addMemoryRegion(mr);
@@ -357,7 +361,7 @@ pub const SerialSystem = struct {
     }
 
     fn rxConnectClient(system: *SerialSystem, client: *Pd) !void {
-        for (regions) |region| {
+        for (REGIONS) |region| {
             const mr_name = std.fmt.allocPrint(system.allocator, "serial_mux_rx_{s}_{s}", .{ region, client.name }) catch @panic("OOM");
             const mr = Mr.create(system.sdf, mr_name, system.region_size, null, system.page_size);
             try system.sdf.addMemoryRegion(mr);
@@ -374,7 +378,7 @@ pub const SerialSystem = struct {
     }
 
     fn txConnectClient(system: *SerialSystem, client: *Pd) !void {
-        for (regions) |region| {
+        for (REGIONS) |region| {
             const mr_name = std.fmt.allocPrint(system.allocator, "serial_mux_tx_{s}_{s}", .{ region, client.name }) catch @panic("OOM");
             const mr = Mr.create(system.sdf, mr_name, system.region_size, null, system.page_size);
             try system.sdf.addMemoryRegion(mr);
@@ -415,25 +419,6 @@ pub const SerialSystem = struct {
         }
     }
 };
-
-/// Create the memory regions, mappings, and channels in order to connect a
-/// multiplexor with a driver
-pub fn connectDriverWithMux(sdf: *SystemDescription, driver: *Pd, mux: *Pd) !void {
-    // The goal here is to map in the memory regions for communicating with the driver into the multiplexor.
-
-    // Let's say we have the example of the serial driver.
-    // For a TX MUX, We need TX used, TX free, TX data. These memory regions would have already been created from
-    // creating the driver and just need to be mapped into the MUX's address space.
-    // One of the issues is that we do not know what kind of multiplexor is involved.
-
-    // TODO: we assume that a single channel is sufficient. We also assume that pp does not need to be true
-    const channel = Channel.create(driver, mux);
-    try sdf.addChannel(channel);
-}
-
-/// Create the memory regions, mappings, and channels in order to connect a
-/// multiplexor with a client
-// pub fn connectMuxWithClient()
 
 /// Given the DTB node for the device and the SDF program image, we can figure
 /// all the resources that need to be added to the system description.
