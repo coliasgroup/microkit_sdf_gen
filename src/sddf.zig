@@ -334,11 +334,13 @@ pub const SerialSystem = struct {
             const perms: Map.Permissions = .{ .read = true, .write = true };
             // @ivanv: vaddr has invariant that needs to be checked
             const mux_vaddr = system.mux_rx.getMapableVaddr(mr.size);
-            const mux_map = Map.create(mr, mux_vaddr, perms, true, null);
+            const mux_setvar_vaddr = std.fmt.allocPrint(system.allocator, "rx_{s}_driver", .{ region }) catch @panic("OOM");
+            const mux_map = Map.create(mr, mux_vaddr, perms, true, mux_setvar_vaddr);
             try system.mux_rx.addMap(mux_map);
 
             const driver_vaddr = system.driver.getMapableVaddr(mr.size);
-            const driver_map = Map.create(mr, driver_vaddr, perms, true, null);
+            const driver_setvar_vaddr = std.fmt.allocPrint(system.allocator, "rx_{s}", .{ region }) catch @panic("OOM");
+            const driver_map = Map.create(mr, driver_vaddr, perms, true, driver_setvar_vaddr);
             try system.driver.addMap(driver_map);
         }
     }
@@ -351,11 +353,13 @@ pub const SerialSystem = struct {
             const perms: Map.Permissions = .{ .read = true, .write = true };
             // @ivanv: vaddr has invariant that needs to be checked
             const mux_vaddr = system.mux_tx.getMapableVaddr(mr.size);
-            const mux_map = Map.create(mr, mux_vaddr, perms, true, null);
+            const mux_setvar_vaddr = std.fmt.allocPrint(system.allocator, "tx_{s}_driver", .{ region }) catch @panic("OOM");
+            const mux_map = Map.create(mr, mux_vaddr, perms, true, mux_setvar_vaddr);
             try system.mux_tx.addMap(mux_map);
 
             const driver_vaddr = system.driver.getMapableVaddr(mr.size);
-            const driver_map = Map.create(mr, driver_vaddr, perms, true, null);
+            const driver_setvar_vaddr = std.fmt.allocPrint(system.allocator, "tx_{s}", .{ region }) catch @panic("OOM");
+            const driver_map = Map.create(mr, driver_vaddr, perms, true, driver_setvar_vaddr);
             try system.driver.addMap(driver_map);
         }
     }

@@ -185,12 +185,20 @@ pub const SystemDescription = struct {
             const mr_str =
                 \\{s}<map mr="{s}" vaddr="0x{x}" perms="{s}" cached="{s}" />
             ;
+            const mr_str_with_setvar =
+                \\{s}<map mr="{s}" vaddr="0x{x}" perms="{s}" cached="{s}" setvar_vaddr="{s}" />
+            ;
             // TODO: use null terminated pointer from Zig?
             var perms = [_]u8{0} ** 4;
             const i = map.perms.toString(&perms);
 
             const cached = if (map.cached) "true" else "false";
-            const xml = try allocPrint(sdf.allocator, mr_str, .{ separator, map.mr.name, map.vaddr, perms[0..i], cached });
+            var xml: []const u8 = undefined;
+            if (map.setvar_vaddr) |setvar_vaddr| {
+                xml = try allocPrint(sdf.allocator, mr_str_with_setvar, .{ separator, map.mr.name, map.vaddr, perms[0..i], cached, setvar_vaddr });
+            } else {
+                xml = try allocPrint(sdf.allocator, mr_str, .{ separator, map.mr.name, map.vaddr, perms[0..i], cached });
+            }
             defer sdf.allocator.free(xml);
 
             _ = try writer.write(xml);
