@@ -500,6 +500,9 @@ fn gdb(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !void {
     try serial_system.connect();
     const xml = try sdf.toXml();
     std.debug.print("{s}", .{xml});
+
+    const mux_rx_header = try sdf.exportCHeader(&mux_rx);
+    std.debug.print("{s}\n", .{ mux_rx_header });
 }
 
 fn virtio_blk(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !void {

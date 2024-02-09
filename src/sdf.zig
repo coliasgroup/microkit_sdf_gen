@@ -506,19 +506,19 @@ pub const SystemDescription = struct {
 
     /// Export the necessary #defines for channel IDs, IRQ IDs and child
     /// PD IDs.
-    pub fn exportCHeader(sdf: *SystemDescription, allocator: Allocator, pd: *ProtectionDomain) ![]const u8 {
-        var header = try allocPrint(allocator, "", .{});
+    pub fn exportCHeader(sdf: *SystemDescription, pd: *ProtectionDomain) ![]const u8 {
+        var header = try allocPrint(sdf.allocator, "", .{});
         for (sdf.channels.items) |ch| {
-            if (ch.pd1 == pd) {
-                header = try allocPrint(allocator, "{s}#define CHANNEL {}\n", .{ header, ch.pd1_end_id });
-            } else if (ch.pd2 == pd) {
-                header = try allocPrint(allocator, "{s}#define CHANNEL {}\n", .{ header, ch.pd2_end_id });
-            }
+            if (ch.pd1 != pd and ch.pd2 != pd) continue;
+
+            const ch_id = if (ch.pd1 == pd) ch.pd1_end_id else ch.pd2_end_id;
+            const ch_pd_name = if (ch.pd1 == pd) ch.pd2.name else ch.pd1.name;
+            header = try allocPrint(sdf.allocator, "{s}#define {s}_CH {}\n", .{ header, ch_pd_name, ch_id });
         }
-        for (pd.irqs.items) |irq| {
-            header = try allocPrint(allocator, "{s}#define IRQ {}\n", .{ header, irq.irq });
-            header = try allocPrint(allocator, "{s}#define IRQ_CH {}\n", .{ header, irq.id });
-        }
+        // for (pd.irqs.items) |irq| {
+        //     header = try allocPrint(sdf.allocator, "{s}#define IRQ {}\n", .{ header, irq.irq });
+        //     header = try allocPrint(sdf.allocator, "{s}#define IRQ_CH {}\n", .{ header, irq.id });
+        // }
 
         return header;
     }
