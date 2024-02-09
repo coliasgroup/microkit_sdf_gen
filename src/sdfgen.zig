@@ -489,9 +489,9 @@ fn gdb(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !void {
 
     try sdf.addChannel(Channel.create(&ping, &pong));
 
-    var mux_rx = Pd.create(sdf, "mux_rx", ProgramImage.create("mux_rx.elf"));
+    var mux_rx = Pd.create(sdf, "serial_mux_rx", ProgramImage.create("serial_mux_rx.elf"));
     try sdf.addProtectionDomain(&mux_rx);
-    var mux_tx = Pd.create(sdf, "mux_tx", ProgramImage.create("mux_tx.elf"));
+    var mux_tx = Pd.create(sdf, "serial_mux_tx", ProgramImage.create("serial_mux_tx.elf"));
     try sdf.addProtectionDomain(&mux_tx);
     serial_system.addMultiplexors(&mux_rx, &mux_tx);
 
@@ -503,6 +503,9 @@ fn gdb(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !void {
 
     const mux_rx_header = try sdf.exportCHeader(&mux_rx);
     std.debug.print("{s}\n", .{ mux_rx_header });
+
+    const debugger_header = try sdf.exportCHeader(&debugger);
+    std.debug.print("DEBUGGER HEADER:\n{s}\n", .{ debugger_header });
 }
 
 fn virtio_blk(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !void {

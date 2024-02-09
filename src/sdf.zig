@@ -14,10 +14,13 @@ pub const SystemDescription = struct {
     xml_data: ArrayList(u8),
     /// We use the Writer standard library API to add to this xml_data array
     xml: ArrayList(u8).Writer,
-    /// There are some architecture specific options (right now just PageSize)
+    /// There are some architecture specific options
     arch: Arch,
+    /// Protection Domains that should be exported
     pds: ArrayList(*ProtectionDomain),
+    /// Memory Regions that should be exported
     mrs: ArrayList(MemoryRegion),
+    /// Channels that should be exported
     channels: ArrayList(Channel),
 
     /// Supported architectures by seL4
@@ -26,7 +29,7 @@ pub const SystemDescription = struct {
         aarch64,
         riscv32,
         riscv64,
-        ia32,
+        x86,
         x86_64,
     };
 
@@ -78,7 +81,7 @@ pub const SystemDescription = struct {
                         .large => 0x200000,
                         .huge => 0x40000000,
                     },
-                    .aarch32, .riscv32, .ia32 => return switch (page_size) {
+                    .aarch32, .riscv32, .x86 => return switch (page_size) {
                         .small => 0x1000,
                         .large => 0x400000,
                         .huge => 0x40000000,
@@ -94,7 +97,7 @@ pub const SystemDescription = struct {
                         0x40000000 => .huge,
                         else => return error.InvalidPageSize,
                     },
-                    .aarch32, .riscv32, .ia32 => return switch (page_size) {
+                    .aarch32, .riscv32, .x86 => return switch (page_size) {
                         0x1000 => .small,
                         0x400000 => .large,
                         0x40000000 => .huge,
@@ -269,7 +272,7 @@ pub const SystemDescription = struct {
             path: []const u8,
 
             pub fn create(path: []const u8) ProgramImage {
-                return ProgramImage{ .path = path };
+                return .{ .path = path };
             }
 
             pub fn toXml(program_image: *const ProgramImage, sdf: *SystemDescription, writer: ArrayList(u8).Writer, separator: []const u8) !void {
