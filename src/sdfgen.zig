@@ -269,11 +269,11 @@ fn virtio(sdf: *SystemDescription) !void {
     const uart_driver_image = ProgramImage.create("uart_driver.elf");
     var uart_driver = Pd.create(sdf, "uart_driver", uart_driver_image);
     uart_driver.priority = 100;
-    try sdf.addProtectionDomain(&uart_driver);
+    sdf.addProtectionDomain(&uart_driver);
 
     const uart_mr = Mr.create(sdf, "uart", Uart.size(board), Uart.paddr(board), .small);
-    try sdf.addMemoryRegion(uart_mr);
-    try uart_driver.addMap(Map.create(uart_mr, 0x5_000_000, .{ .read = true, .write = true }, false, "uart_base"));
+    sdf.addMemoryRegion(uart_mr);
+    uart_driver.addMap(Map.create(uart_mr, 0x5_000_000, .{ .read = true, .write = true }, false, "uart_base"));
 
     const uart_irq = Irq.create(Uart.irq(board), Uart.trigger(board), null);
     try uart_driver.addInterrupt(uart_irq);
@@ -282,102 +282,102 @@ fn virtio(sdf: *SystemDescription) !void {
     const serial_mux_rx_image = ProgramImage.create("serial_mux_rx.elf");
     var serial_mux_rx = Pd.create(sdf, "serial_mux_rx", serial_mux_rx_image);
     serial_mux_rx.priority = 98;
-    try sdf.addProtectionDomain(&serial_mux_rx);
+    sdf.addProtectionDomain(&serial_mux_rx);
 
     // 3. Create MUX TX
     const serial_mux_tx_image = ProgramImage.create("serial_mux_tx.elf");
     var serial_mux_tx = Pd.create(sdf, "serial_mux_tx", serial_mux_tx_image);
     serial_mux_tx.priority = 99;
-    try sdf.addProtectionDomain(&serial_mux_tx);
+    sdf.addProtectionDomain(&serial_mux_tx);
 
     // 4. Create native serial device
     const serial_tester_image = ProgramImage.create("serial_tester.elf");
     var serial_tester = Pd.create(sdf, "serial_tester", serial_tester_image);
     serial_tester.priority = 97;
-    try sdf.addProtectionDomain(&serial_tester);
+    sdf.addProtectionDomain(&serial_tester);
 
     // 5. Connect UART driver and MUX RX
     const rx_free = Mr.create(sdf, "rx_free_driver", SDDF_BUF_SIZE, null, .large);
     const rx_used = Mr.create(sdf, "rx_used_driver", SDDF_BUF_SIZE, null, .large);
     const rx_data = Mr.create(sdf, "rx_data_driver", SDDF_BUF_SIZE, null, .large);
-    try sdf.addMemoryRegion(rx_free);
-    try sdf.addMemoryRegion(rx_used);
-    try sdf.addMemoryRegion(rx_data);
+    sdf.addMemoryRegion(rx_free);
+    sdf.addMemoryRegion(rx_used);
+    sdf.addMemoryRegion(rx_data);
 
     const rx_free_map = Map.create(rx_free, 0x20_000_000, .{ .read = true, .write = true }, true, "rx_free");
     const rx_used_map = Map.create(rx_used, 0x20_200_000, .{ .read = true, .write = true }, true, "rx_used");
     const rx_data_map = Map.create(rx_data, 0x20_400_000, .{ .read = true, .write = true }, true, null);
 
-    try serial_mux_rx.addMap(rx_free_map);
-    try serial_mux_rx.addMap(rx_used_map);
-    try serial_mux_rx.addMap(rx_data_map);
-    try uart_driver.addMap(rx_free_map);
-    try uart_driver.addMap(rx_used_map);
-    try uart_driver.addMap(rx_data_map);
+    serial_mux_rx.addMap(rx_free_map);
+    serial_mux_rx.addMap(rx_used_map);
+    serial_mux_rx.addMap(rx_data_map);
+    uart_driver.addMap(rx_free_map);
+    uart_driver.addMap(rx_used_map);
+    uart_driver.addMap(rx_data_map);
 
     const uart_mux_rx_channel = Channel.create(&uart_driver, &serial_mux_rx);
-    try sdf.addChannel(uart_mux_rx_channel);
+    sdf.addChannel(uart_mux_rx_channel);
 
     // 6. Connect UART driver and MUX TX
     const tx_free = Mr.create(sdf, "tx_free_driver", SDDF_BUF_SIZE, null, .large);
     const tx_used = Mr.create(sdf, "tx_used_driver", SDDF_BUF_SIZE, null, .large);
     const tx_data = Mr.create(sdf, "tx_data_driver", SDDF_BUF_SIZE, null, .large);
-    try sdf.addMemoryRegion(tx_free);
-    try sdf.addMemoryRegion(tx_used);
-    try sdf.addMemoryRegion(tx_data);
+    sdf.addMemoryRegion(tx_free);
+    sdf.addMemoryRegion(tx_used);
+    sdf.addMemoryRegion(tx_data);
 
     const tx_free_map = Map.create(tx_free, 0x40_000_000, .{ .read = true, .write = true }, true, "tx_free");
     const tx_used_map = Map.create(tx_used, 0x40_200_000, .{ .read = true, .write = true }, true, "tx_used");
     const tx_data_map = Map.create(tx_data, 0x40_400_000, .{ .read = true, .write = true }, true, null);
 
-    try serial_mux_tx.addMap(tx_free_map);
-    try serial_mux_tx.addMap(tx_used_map);
-    try serial_mux_tx.addMap(tx_data_map);
-    try uart_driver.addMap(tx_free_map);
-    try uart_driver.addMap(tx_used_map);
-    try uart_driver.addMap(tx_data_map);
+    serial_mux_tx.addMap(tx_free_map);
+    serial_mux_tx.addMap(tx_used_map);
+    serial_mux_tx.addMap(tx_data_map);
+    uart_driver.addMap(tx_free_map);
+    uart_driver.addMap(tx_used_map);
+    uart_driver.addMap(tx_data_map);
 
     const uart_mux_tx_ch = Channel.create(&uart_driver, &serial_mux_tx);
-    try sdf.addChannel(uart_mux_tx_ch);
+    sdf.addChannel(uart_mux_tx_ch);
 
     // 7. Connect MUX RX and serial tester
     const rx_free_serial_tester = Mr.create(sdf, "rx_free_serial_tester", SDDF_BUF_SIZE, null, .large);
     const rx_used_serial_tester = Mr.create(sdf, "rx_used_serial_tester", SDDF_BUF_SIZE, null, .large);
     const rx_data_serial_tester = Mr.create(sdf, "rx_data_serial_tester", SDDF_BUF_SIZE, null, .large);
-    try sdf.addMemoryRegion(rx_free_serial_tester);
-    try sdf.addMemoryRegion(rx_used_serial_tester);
-    try sdf.addMemoryRegion(rx_data_serial_tester);
+    sdf.addMemoryRegion(rx_free_serial_tester);
+    sdf.addMemoryRegion(rx_used_serial_tester);
+    sdf.addMemoryRegion(rx_data_serial_tester);
 
     const rx_free_serial_tester_map = Map.create(rx_free_serial_tester, 0x60_000_000, .{ .read = true, .write = true }, true, null);
     const rx_used_serial_tester_map = Map.create(rx_used_serial_tester, 0x60_200_000, .{ .read = true, .write = true }, true, null);
     const rx_data_serial_tester_map = Map.create(rx_data_serial_tester, 0x60_400_000, .{ .read = true, .write = true }, true, null);
-    try serial_mux_rx.addMap(rx_free_serial_tester_map);
-    try serial_mux_rx.addMap(rx_used_serial_tester_map);
-    try serial_mux_rx.addMap(rx_data_serial_tester_map);
-    try serial_tester.addMap(rx_free_serial_tester_map);
-    try serial_tester.addMap(rx_used_serial_tester_map);
-    try serial_tester.addMap(rx_data_serial_tester_map);
+    serial_mux_rx.addMap(rx_free_serial_tester_map);
+    serial_mux_rx.addMap(rx_used_serial_tester_map);
+    serial_mux_rx.addMap(rx_data_serial_tester_map);
+    serial_tester.addMap(rx_free_serial_tester_map);
+    serial_tester.addMap(rx_used_serial_tester_map);
+    serial_tester.addMap(rx_data_serial_tester_map);
 
     const serial_mux_rx_tester_ch = Channel.create(&serial_mux_rx, &serial_tester);
-    try sdf.addChannel(serial_mux_rx_tester_ch);
+    sdf.addChannel(serial_mux_rx_tester_ch);
 
     // 8. Connect MUX TX and serial tester
     const tx_free_serial_tester = Mr.create(sdf, "tx_free_serial_tester", SDDF_BUF_SIZE, null, .large);
     const tx_used_serial_tester = Mr.create(sdf, "tx_used_serial_tester", SDDF_BUF_SIZE, null, .large);
     const tx_data_serial_tester = Mr.create(sdf, "tx_data_serial_tester", SDDF_BUF_SIZE, null, .large);
-    try sdf.addMemoryRegion(tx_free_serial_tester);
-    try sdf.addMemoryRegion(tx_used_serial_tester);
-    try sdf.addMemoryRegion(tx_data_serial_tester);
+    sdf.addMemoryRegion(tx_free_serial_tester);
+    sdf.addMemoryRegion(tx_used_serial_tester);
+    sdf.addMemoryRegion(tx_data_serial_tester);
 
     const tx_free_serial_tester_map = Map.create(tx_free_serial_tester, 0x80_000_000, .{ .read = true, .write = true }, true, null);
     const tx_used_serial_tester_map = Map.create(tx_used_serial_tester, 0x80_200_000, .{ .read = true, .write = true }, true, null);
     const tx_data_serial_tester_map = Map.create(tx_data_serial_tester, 0x80_400_000, .{ .read = true, .write = true }, true, null);
-    try serial_mux_tx.addMap(tx_free_serial_tester_map);
-    try serial_mux_tx.addMap(tx_used_serial_tester_map);
-    try serial_mux_tx.addMap(tx_data_serial_tester_map);
-    try serial_tester.addMap(tx_free_serial_tester_map);
-    try serial_tester.addMap(tx_used_serial_tester_map);
-    try serial_tester.addMap(tx_data_serial_tester_map);
+    serial_mux_tx.addMap(tx_free_serial_tester_map);
+    serial_mux_tx.addMap(tx_used_serial_tester_map);
+    serial_mux_tx.addMap(tx_data_serial_tester_map);
+    serial_tester.addMap(tx_free_serial_tester_map);
+    serial_tester.addMap(tx_used_serial_tester_map);
+    serial_tester.addMap(tx_data_serial_tester_map);
 
     // 9. Create the virtual machine and virtual-machine-monitor
     const vmm_image = ProgramImage.create("vmm.elf");
@@ -385,17 +385,17 @@ fn virtio(sdf: *SystemDescription) !void {
 
     var guest = Vm.create(sdf, "linux");
     const guest_ram = Mr.create(sdf, "guest_ram", GUEST_RAM_SIZE, null, .large);
-    try sdf.addMemoryRegion(guest_ram);
+    sdf.addMemoryRegion(guest_ram);
 
     const guest_ram_map = Map.create(guest_ram, guestRamVaddr(board), .{ .read = true, .execute = true }, true, null);
-    try guest.addMap(guest_ram_map);
+    guest.addMap(guest_ram_map);
 
     // Then we add the virtual machine to the VMM
     const guest_ram_map_vmm = Map.create(guest_ram, guestRamVaddr(board), .{ .read = true }, true, null);
-    try vmm.addMap(guest_ram_map_vmm);
+    vmm.addMap(guest_ram_map_vmm);
     try vmm.addVirtualMachine(&guest);
 
-    try sdf.addProtectionDomain(&vmm);
+    sdf.addProtectionDomain(&vmm);
 
     // TODO: we have to do this here because otherwise we'll look everything on the stack.. yuck
     // This is something that ultimately needs to be fixed in sdf.zig
@@ -411,7 +411,7 @@ fn virtio(sdf: *SystemDescription) !void {
 fn abstractions(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !void {
     const image = ProgramImage.create("uart_driver.elf");
     var driver = Pd.create(sdf, "uart_driver", image);
-    try sdf.addProtectionDomain(&driver);
+    sdf.addProtectionDomain(&driver);
 
     var uart_node: ?*dtb.Node = undefined;
     // TODO: We would probably want some helper functionality that just takes
@@ -440,23 +440,23 @@ fn abstractions(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) 
 
     const mux_rx_image = ProgramImage.create("mux_rx.elf");
     var mux_rx = Pd.create(sdf, "mux_rx", mux_rx_image);
-    try sdf.addProtectionDomain(&mux_rx);
+    sdf.addProtectionDomain(&mux_rx);
 
     const mux_tx_image = ProgramImage.create("mux_tx.elf");
     var mux_tx = Pd.create(sdf, "mux_tx", mux_tx_image);
-    try sdf.addProtectionDomain(&mux_tx);
+    sdf.addProtectionDomain(&mux_tx);
 
     serial_system.addMultiplexors(&mux_rx, &mux_tx);
 
     const client1_image = ProgramImage.create("client1.elf");
     var client1_pd = Pd.create(sdf, "client1", client1_image);
-    try serial_system.addClient(&client1_pd);
-    try sdf.addProtectionDomain(&client1_pd);
+    serial_system.addClient(&client1_pd);
+    sdf.addProtectionDomain(&client1_pd);
 
     const client2_image = ProgramImage.create("client2.elf");
     var client2_pd = Pd.create(sdf, "client2", client2_image);
-    try serial_system.addClient(&client2_pd);
-    try sdf.addProtectionDomain(&client2_pd);
+    serial_system.addClient(&client2_pd);
+    sdf.addProtectionDomain(&client2_pd);
 
     try serial_system.connect();
 
@@ -471,13 +471,13 @@ fn gdb(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !void {
     };
 
     var uart_driver = Pd.create(sdf, "uart_driver", ProgramImage.create("uart_driver.elf"));
-    try sdf.addProtectionDomain(&uart_driver);
+    sdf.addProtectionDomain(&uart_driver);
 
     var serial_system = try sddf.SerialSystem.init(allocator, sdf, 0x200000);
     serial_system.addDriver(&uart_driver, uart_node.?);
 
     var debugger = Pd.create(sdf, "debugger", ProgramImage.create("debugger.elf"));
-    try sdf.addProtectionDomain(&debugger);
+    sdf.addProtectionDomain(&debugger);
 
     var ping = Pd.create(sdf, "ping", ProgramImage.create("ping.elf"));
     var pong = Pd.create(sdf, "pong", ProgramImage.create("pong.elf"));
@@ -487,15 +487,15 @@ fn gdb(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !void {
         try debugger.addChild(pd);
     }
 
-    try sdf.addChannel(Channel.create(&ping, &pong));
+    sdf.addChannel(Channel.create(&ping, &pong));
 
     var mux_rx = Pd.create(sdf, "serial_mux_rx", ProgramImage.create("serial_mux_rx.elf"));
-    try sdf.addProtectionDomain(&mux_rx);
+    sdf.addProtectionDomain(&mux_rx);
     var mux_tx = Pd.create(sdf, "serial_mux_tx", ProgramImage.create("serial_mux_tx.elf"));
-    try sdf.addProtectionDomain(&mux_tx);
+    sdf.addProtectionDomain(&mux_tx);
     serial_system.addMultiplexors(&mux_rx, &mux_tx);
 
-    try serial_system.addClient(&debugger);
+    serial_system.addClient(&debugger);
 
     try serial_system.connect();
     const xml = try sdf.toXml();
@@ -515,7 +515,7 @@ fn virtio_blk(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !v
     // block driver VM
     const image = ProgramImage.create("uart_driver.elf");
     var driver = Pd.create(sdf, "uart_driver", image);
-    try sdf.addProtectionDomain(&driver);
+    sdf.addProtectionDomain(&driver);
 
     var uart_node: ?*dtb.Node = undefined;
     // TODO: We would probably want some helper functionality that just takes
@@ -561,11 +561,11 @@ fn virtio_blk(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !v
 
     const mux_rx_image = ProgramImage.create("mux_rx.elf");
     var mux_rx = Pd.create(sdf, "mux_rx", mux_rx_image);
-    try sdf.addProtectionDomain(&mux_rx);
+    sdf.addProtectionDomain(&mux_rx);
 
     const mux_tx_image = ProgramImage.create("mux_tx.elf");
     var mux_tx = Pd.create(sdf, "mux_tx", mux_tx_image);
-    try sdf.addProtectionDomain(&mux_tx);
+    sdf.addProtectionDomain(&mux_tx);
 
     serial_system.addMultiplexors(&mux_rx, &mux_tx);
 

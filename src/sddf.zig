@@ -322,79 +322,79 @@ pub const SerialSystem = struct {
         system.mux_tx = mux_tx;
     }
 
-    pub fn addClient(system: *SerialSystem, client: *Pd) !void {
-        try system.clients.append(client);
+    pub fn addClient(system: *SerialSystem, client: *Pd) void {
+        system.clients.append(client) catch @panic("Could not add client to SerialSystem");
     }
 
-    fn rxConnectDriver(system: *SerialSystem) !void {
+    fn rxConnectDriver(system: *SerialSystem) void {
         for (REGIONS) |region| {
             const mr_name = std.fmt.allocPrint(system.allocator, "serial_driver_rx_{s}", .{ region }) catch @panic("OOM");
             const mr = Mr.create(system.sdf, mr_name, system.region_size, null, system.page_size);
-            try system.sdf.addMemoryRegion(mr);
+            system.sdf.addMemoryRegion(mr);
             const perms: Map.Permissions = .{ .read = true, .write = true };
             // @ivanv: vaddr has invariant that needs to be checked
             const mux_vaddr = system.mux_rx.getMapableVaddr(mr.size);
             const mux_setvar_vaddr = std.fmt.allocPrint(system.allocator, "rx_{s}_driver", .{ region }) catch @panic("OOM");
             const mux_map = Map.create(mr, mux_vaddr, perms, true, mux_setvar_vaddr);
-            try system.mux_rx.addMap(mux_map);
+            system.mux_rx.addMap(mux_map);
 
             const driver_vaddr = system.driver.getMapableVaddr(mr.size);
             const driver_setvar_vaddr = std.fmt.allocPrint(system.allocator, "rx_{s}", .{ region }) catch @panic("OOM");
             const driver_map = Map.create(mr, driver_vaddr, perms, true, driver_setvar_vaddr);
-            try system.driver.addMap(driver_map);
+            system.driver.addMap(driver_map);
         }
     }
 
-    fn txConnectDriver(system: *SerialSystem) !void {
+    fn txConnectDriver(system: *SerialSystem) void {
         for (REGIONS) |region| {
             const mr_name = std.fmt.allocPrint(system.allocator, "serial_driver_tx_{s}", .{ region }) catch @panic("OOM");
             const mr = Mr.create(system.sdf, mr_name, system.region_size, null, system.page_size);
-            try system.sdf.addMemoryRegion(mr);
+            system.sdf.addMemoryRegion(mr);
             const perms: Map.Permissions = .{ .read = true, .write = true };
             // @ivanv: vaddr has invariant that needs to be checked
             const mux_vaddr = system.mux_tx.getMapableVaddr(mr.size);
             const mux_setvar_vaddr = std.fmt.allocPrint(system.allocator, "tx_{s}_driver", .{ region }) catch @panic("OOM");
             const mux_map = Map.create(mr, mux_vaddr, perms, true, mux_setvar_vaddr);
-            try system.mux_tx.addMap(mux_map);
+            system.mux_tx.addMap(mux_map);
 
             const driver_vaddr = system.driver.getMapableVaddr(mr.size);
             const driver_setvar_vaddr = std.fmt.allocPrint(system.allocator, "tx_{s}", .{ region }) catch @panic("OOM");
             const driver_map = Map.create(mr, driver_vaddr, perms, true, driver_setvar_vaddr);
-            try system.driver.addMap(driver_map);
+            system.driver.addMap(driver_map);
         }
     }
 
-    fn rxConnectClient(system: *SerialSystem, client: *Pd) !void {
+    fn rxConnectClient(system: *SerialSystem, client: *Pd) void {
         for (REGIONS) |region| {
             const mr_name = std.fmt.allocPrint(system.allocator, "serial_mux_rx_{s}_{s}", .{ client.name, region }) catch @panic("OOM");
             const mr = Mr.create(system.sdf, mr_name, system.region_size, null, system.page_size);
-            try system.sdf.addMemoryRegion(mr);
+            system.sdf.addMemoryRegion(mr);
             const perms: Map.Permissions = .{ .read = true, .write = true };
             // @ivanv: vaddr has invariant that needs to be checked
             const mux_vaddr = system.mux_rx.getMapableVaddr(mr.size);
             const mux_map = Map.create(mr, mux_vaddr, perms, true, null);
-            try system.mux_rx.addMap(mux_map);
+            system.mux_rx.addMap(mux_map);
 
             const client_vaddr = client.getMapableVaddr(mr.size);
             const client_map = Map.create(mr, client_vaddr, perms, true, null);
-            try client.addMap(client_map);
+            client.addMap(client_map);
         }
     }
 
-    fn txConnectClient(system: *SerialSystem, client: *Pd) !void {
+    fn txConnectClient(system: *SerialSystem, client: *Pd) void {
         for (REGIONS) |region| {
             const mr_name = std.fmt.allocPrint(system.allocator, "serial_mux_tx_{s}_{s}", .{ client.name, region }) catch @panic("OOM");
             const mr = Mr.create(system.sdf, mr_name, system.region_size, null, system.page_size);
-            try system.sdf.addMemoryRegion(mr);
+            system.sdf.addMemoryRegion(mr);
             const perms: Map.Permissions = .{ .read = true, .write = true };
             // @ivanv: vaddr has invariant that needs to be checked
             const mux_vaddr = system.mux_tx.getMapableVaddr(mr.size);
             const mux_map = Map.create(mr, mux_vaddr, perms, true, null);
-            try system.mux_tx.addMap(mux_map);
+            system.mux_tx.addMap(mux_map);
 
             const client_vaddr = client.getMapableVaddr(mr.size);
             const client_map = Map.create(mr, client_vaddr, perms, true, null);
-            try client.addMap(client_map);
+            client.addMap(client_map);
         }
     }
 
@@ -411,20 +411,20 @@ pub const SerialSystem = struct {
         try createDriver(sdf, system.driver, system.device);
         const ch_driver_mux_tx = Channel.create(system.driver, system.mux_tx);
         const ch_driver_mux_rx = Channel.create(system.driver, system.mux_rx);
-        try sdf.addChannel(ch_driver_mux_tx);
-        try sdf.addChannel(ch_driver_mux_rx);
+        sdf.addChannel(ch_driver_mux_tx);
+        sdf.addChannel(ch_driver_mux_rx);
         // 1.2 Create channels between multiplexors and clients
         for (system.clients.items) |client| {
             const ch_mux_tx_client = Channel.create(system.mux_tx, client);
             const ch_mux_rx_client = Channel.create(system.mux_rx, client);
-            try sdf.addChannel(ch_mux_tx_client);
-            try sdf.addChannel(ch_mux_rx_client);
+            sdf.addChannel(ch_mux_tx_client);
+            sdf.addChannel(ch_mux_rx_client);
         }
-        try system.rxConnectDriver();
-        try system.txConnectDriver();
+        system.rxConnectDriver();
+        system.txConnectDriver();
         for (system.clients.items) |client| {
-            try system.rxConnectClient(client);
-            try system.txConnectClient(client);
+            system.rxConnectClient(client);
+            system.txConnectClient(client);
         }
     }
 };
@@ -513,12 +513,12 @@ pub fn createDriver(sdf: *SystemDescription, pd: *Pd, device: *dtb.Node) !void {
         const page_size = try Mr.PageSize.fromInt(region.page_size, sdf.arch);
         const mr_name = std.fmt.allocPrint(sdf.allocator, "{s}_{s}", .{ driver.name, region.name }) catch @panic("OOM");
         const mr = Mr.create(sdf, mr_name, region.size, device_paddr, page_size);
-        try sdf.addMemoryRegion(mr);
+        sdf.addMemoryRegion(mr);
 
         const perms = Map.Permissions.fromString(region.perms);
         const vaddr = pd.getMapableVaddr(mr.size);
         const map = Map.create(mr, vaddr, perms, region.cached, region.setvar_vaddr);
-        try pd.addMap(map);
+        pd.addMap(map);
     }
 
     // Create all the IRQs

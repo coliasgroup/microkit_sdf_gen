@@ -42,7 +42,7 @@ pub const VirtualMachineSystem = struct {
         }
         // TODO; get this information from the DTB of the guest
         const gic_vcpu = Mr.create(sdf, "gic_vcpu", 0x1000, 0x8040000, .small);
-        try sdf.addMemoryRegion(gic_vcpu);
+        sdf.addMemoryRegion(gic_vcpu);
         // TODO: I think this mapping stays the same so we only need to create it once
         // TODO: get the vaddr information from DTB
         const gic_vcpu_perms: Map.Permissions = .{ .read = true, .write = true };
@@ -58,19 +58,19 @@ pub const VirtualMachineSystem = struct {
                 // TODO: get RAM size from the memory node from DTB
                 const guest_ram_size = 1024 * 1024 * 256;
                 const guest_ram_mr = Mr.create(sdf, guest_mr_name, guest_ram_size, null, Mr.PageSize.optimal(sdf, guest_ram_size));
-                try sdf.addMemoryRegion(guest_ram_mr);
+                sdf.addMemoryRegion(guest_ram_mr);
                 // TODO: vaddr should come from the memory node from DTB
                 const vm_guest_ram_perms: Map.Permissions = .{ .read = true, .write = true, .execute = true };
                 const vmm_guest_ram_perms: Map.Permissions = .{ .read = true, .write = true };
                 const vm_guest_ram_map = Map.create(guest_ram_mr, memory_paddr, vm_guest_ram_perms, true, null);
                 const vmm_guest_ram_map = Map.create(guest_ram_mr, memory_paddr, vmm_guest_ram_perms, true, "guest_ram_vaddr");
-                try vmm.addMap(vmm_guest_ram_map);
-                try vm.addMap(vm_guest_ram_map);
-                try vm.addMap(gic_vcpu_map);
+                vmm.addMap(vmm_guest_ram_map);
+                vm.addMap(vm_guest_ram_map);
+                vm.addMap(gic_vcpu_map);
             } else {
                 return error.VmmMissingVm;
             }
-            try sdf.addProtectionDomain(vmm);
+            sdf.addProtectionDomain(vmm);
         }
     }
 };

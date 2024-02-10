@@ -222,8 +222,8 @@ pub const SystemDescription = struct {
             };
         }
 
-        pub fn addMap(vm: *VirtualMachine, map: Map) !void {
-            try vm.maps.append(map);
+        pub fn addMap(vm: *VirtualMachine, map: Map) void {
+            vm.maps.append(map) catch @panic("Could not add Map to VirtualMachine");
         }
 
         pub fn destroy(vm: *VirtualMachine) void {
@@ -314,8 +314,8 @@ pub const SystemDescription = struct {
             pd.vm = vm;
         }
 
-        pub fn addMap(pd: *ProtectionDomain, map: Map) !void {
-            try pd.maps.append(map);
+        pub fn addMap(pd: *ProtectionDomain, map: Map) void {
+            pd.maps.append(map) catch @panic("Could not add Map to ProtectionDomain");
         }
 
         pub fn addInterrupt(pd: *ProtectionDomain, interrupt: Interrupt) !void {
@@ -480,16 +480,16 @@ pub const SystemDescription = struct {
         sdf.xml_data.deinit();
     }
 
-    pub fn addChannel(sdf: *SystemDescription, channel: Channel) !void {
-        try sdf.channels.append(channel);
+    pub fn addChannel(sdf: *SystemDescription, channel: Channel) void {
+        sdf.channels.append(channel) catch @panic("Could not add Channel to SystemDescription");
     }
 
-    pub fn addMemoryRegion(sdf: *SystemDescription, mr: MemoryRegion) !void {
-        try sdf.mrs.append(mr);
+    pub fn addMemoryRegion(sdf: *SystemDescription, mr: MemoryRegion) void {
+        sdf.mrs.append(mr) catch @panic("Could not add MemoryRegion to SystemDescription");
     }
 
-    pub fn addProtectionDomain(sdf: *SystemDescription, pd: *ProtectionDomain) !void {
-        try sdf.pds.append(pd);
+    pub fn addProtectionDomain(sdf: *SystemDescription, pd: *ProtectionDomain) void {
+        sdf.pds.append(pd) catch @panic("Could not add ProtectionDomain to SystemDescription");
     }
 
     pub fn toXml(sdf: *SystemDescription) ![:0]const u8 {
