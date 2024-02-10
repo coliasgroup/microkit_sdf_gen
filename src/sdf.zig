@@ -320,6 +320,8 @@ pub const SystemDescription = struct {
 
         pub fn addInterrupt(pd: *ProtectionDomain, interrupt: Interrupt) !void {
             // TODO: should check that the IRQ number does not already exist!
+            // TODO: we have a maximum number of interrupts! we should be checking
+            // that we do not exceed the maximum number of channel IDs
             try pd.irqs.append(interrupt);
         }
 
