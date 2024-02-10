@@ -280,6 +280,46 @@ const DeviceTree = struct {
     }
 };
 
+pub const TimerSystem = struct {
+    allocator: Allocator,
+    sdf: *SystemDescription,
+    /// Protection Domain that will act as the driver for the timer
+    driver: *Pd,
+    /// Device Tree node for the timer device
+    device: *dtb.Node,
+    /// Client PDs serviced by the timer driver
+    clients: std.ArrayList(*Pd),
+
+    pub fn init(allocator: Allocator, sdf: *SystemDescription, driver: *Pd, device: *dtb.Node) !TimerSystem {
+        // First we have to set some properties on the driver. It is currently our policy that every timer
+        // driver should be passive.
+        driver.passive = true;
+        // Clients also communicate to the driver via PPC
+        driver.pp = true;
+
+        return .{
+            .allocator = allocator,
+            .sdf = sdf,
+            .driver = driver,
+            .device = device,
+            .clients = std.ArrayList(*Pd).init(allocator),
+        };
+    }
+
+    pub fn addClient(system: *SystemDescription, client: *Pd) void {
+        system.clients.append(client) catch @panic("Could not add client to TimerSystem");
+    }
+
+    pub fn connect(system: *SystemDescription) !void {
+        try createDriver(system.sdf, system.driver, system.device);
+        for (system.clients.items) |client| {
+            // In order to connect a client we simply have to create a channel between
+            // each client and the driver.
+            system.sdf.addChannel(Channel.create(system.driver, client));
+        }
+    }
+};
+
 /// TODO: these functions do very little error checking
 /// TODO: we also make one major assumption, and that is that we will
 /// always connect with multiplexors and not have a direct Driver <-> Client
