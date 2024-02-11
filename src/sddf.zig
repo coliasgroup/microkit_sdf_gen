@@ -290,7 +290,7 @@ pub const TimerSystem = struct {
     /// Client PDs serviced by the timer driver
     clients: std.ArrayList(*Pd),
 
-    pub fn init(allocator: Allocator, sdf: *SystemDescription, driver: *Pd, device: *dtb.Node) !TimerSystem {
+    pub fn init(allocator: Allocator, sdf: *SystemDescription, driver: *Pd, device: *dtb.Node) TimerSystem {
         // First we have to set some properties on the driver. It is currently our policy that every timer
         // driver should be passive.
         driver.passive = true;
@@ -306,11 +306,11 @@ pub const TimerSystem = struct {
         };
     }
 
-    pub fn addClient(system: *SystemDescription, client: *Pd) void {
+    pub fn addClient(system: *TimerSystem, client: *Pd) void {
         system.clients.append(client) catch @panic("Could not add client to TimerSystem");
     }
 
-    pub fn connect(system: *SystemDescription) !void {
+    pub fn connect(system: *TimerSystem) !void {
         try createDriver(system.sdf, system.driver, system.device);
         for (system.clients.items) |client| {
             // In order to connect a client we simply have to create a channel between
@@ -337,7 +337,7 @@ pub const SerialSystem = struct {
 
     const REGIONS = [_][]const u8{ "data", "used", "free" };
 
-    pub fn init(allocator: Allocator, sdf: *SystemDescription, region_size: usize) !SerialSystem {
+    pub fn init(allocator: Allocator, sdf: *SystemDescription, region_size: usize) SerialSystem {
         const page_size = SystemDescription.MemoryRegion.PageSize.optimal(sdf, region_size);
         return .{
             .allocator = allocator,
@@ -352,12 +352,12 @@ pub const SerialSystem = struct {
         };
     }
 
-    pub fn addDriver(system: *SerialSystem, driver: *Pd, device: *dtb.Node) void {
+    pub fn setDriver(system: *SerialSystem, driver: *Pd, device: *dtb.Node) void {
         system.driver = driver;
         system.device = device;
     }
 
-    pub fn addMultiplexors(system: *SerialSystem, mux_rx: *Pd, mux_tx: *Pd) void {
+    pub fn setMultiplexors(system: *SerialSystem, mux_rx: *Pd, mux_tx: *Pd) void {
         system.mux_rx = mux_rx;
         system.mux_tx = mux_tx;
     }
@@ -484,7 +484,9 @@ pub fn createDriver(sdf: *SystemDescription, pd: *Pd, device: *dtb.Node) !void {
         std.log.debug("     '{s}'", .{c});
     }
 
-    const driver = findDriver(compatible).?;
+    // Get the driver based on the compatible string are given, assuming we can
+    // find it.
+    const driver = if (findDriver(compatible)) |d| d else return error.UnknownDevice;
     std.log.debug("Found compatible driver '{s}'", .{driver.name});
     // TODO: fix, this should be from the DTS
 

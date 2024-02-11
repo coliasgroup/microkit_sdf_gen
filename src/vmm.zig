@@ -34,6 +34,13 @@ pub const VirtualMachineSystem = struct {
         try vmm.addVirtualMachine(vm);
     }
 
+    /// A currently naive approach to adding passthrough for a particular device
+    /// to a virtual machine.
+    /// This adds the required interrupts to be given to the VMM, and the 
+    pub fn addPassthrough(_: *VirtualMachineSystem, ) !void {
+        
+    }
+
     pub fn connect(system: *VirtualMachineSystem) !void {
         var sdf = system.sdf;
         if (sdf.arch != .aarch64) {
