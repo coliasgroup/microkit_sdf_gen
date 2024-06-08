@@ -48,24 +48,24 @@ pub fn build(b: *std.Build) !void {
 
     const modsdf = b.addModule("sdf", .{ .root_source_file = b.path("src/sdf.zig") } );
 
-    const pysdfgen_bin = b.option([]const u8, "pysdfgen-emit", "Name of pysdfgen library") orelse "pysdfgen.so";
-    const pysdfgen = b.addSharedLibrary(.{
-        .name = "pysdfgen",
-        .root_source_file = b.path("python/sdfgen_module.zig"),
-        .target = target,
-        .optimize = optimize,
-    });
-    pysdfgen.linker_allow_shlib_undefined = true;
-    pysdfgen.addIncludePath(.{ .cwd_relative = "/usr/include/python3.10" });
-    pysdfgen.root_module.addImport("sdf", modsdf);
-    pysdfgen.linkLibC();
+    // const pysdfgen_bin = b.option([]const u8, "pysdfgen-emit", "Name of pysdfgen library") orelse "pysdfgen.so";
+    // const pysdfgen = b.addSharedLibrary(.{
+    //     .name = "pysdfgen",
+    //     .root_source_file = b.path("python/sdfgen_module.zig"),
+    //     .target = target,
+    //     .optimize = optimize,
+    // });
+    // pysdfgen.linker_allow_shlib_undefined = true;
+    // pysdfgen.addIncludePath(.{ .cwd_relative = "/usr/include/python3.10" });
+    // pysdfgen.root_module.addImport("sdf", modsdf);
+    // pysdfgen.linkLibC();
     // TODO: should probably check if the library exists first...
-    pysdfgen.linkSystemLibrary("python3");
-    b.installArtifact(pysdfgen);
+    // pysdfgen.linkSystemLibrary("python3");
+    // b.installArtifact(pysdfgen);
 
-    const pysdfgen_step = b.step("pysdfgen", "Library for the Python sdfgen module");
-    const pysdfgen_install = b.addInstallFileWithDir(pysdfgen.getEmittedBin(), .lib, pysdfgen_bin);
-    pysdfgen_step.dependOn(&pysdfgen_install.step);
+    // const pysdfgen_step = b.step("pysdfgen", "Library for the Python sdfgen module");
+    // const pysdfgen_install = b.addInstallFileWithDir(pysdfgen.getEmittedBin(), .lib, pysdfgen_bin);
+    // pysdfgen_step.dependOn(&pysdfgen_install.step);
 
     const libsdfgen = b.addStaticLibrary(.{
         .name = "sdfgen",
