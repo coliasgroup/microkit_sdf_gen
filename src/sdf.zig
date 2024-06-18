@@ -311,6 +311,7 @@ pub const SystemDescription = struct {
 
         pub fn destroy(pd: *ProtectionDomain) void {
             pd.maps.deinit();
+            pd.child_pds.deinit();
             for (pd.child_pds.items) |child_pd| {
                 child_pd.destroy();
             }
