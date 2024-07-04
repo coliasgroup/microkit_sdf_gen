@@ -10,6 +10,7 @@ const Pd = SystemDescription.ProtectionDomain;
 const Mr = SystemDescription.MemoryRegion;
 const Vm = SystemDescription.VirtualMachine;
 const Map = SystemDescription.Map;
+const Irq = SystemDescription.Interrupt;
 const Channel = SystemDescription.Channel;
 const ProgramImage = Pd.ProgramImage;
 
@@ -176,6 +177,18 @@ fn parsePDFromJson(sdf: *SystemDescription, node_config: anytype) !*Pd {
         pd_new.addMap(map_new);
     }
 
+    const irq_configs = node_config.get("irqs").?.array;
+    i = 0;
+    while (i < irq_configs.items.len) : (i += 1) {
+        const irq_config = irq_configs.items[i].object;
+        const irq_new = parseIrqFromJson(irq_config) catch |err| {
+            return err;
+        };
+        pd_new.addInterrupt(irq_new) catch |err| {
+            return err;
+        };
+    }
+
     const pd_copy = try sdf.allocator.create(Pd);
     // defer pd_copy.destroy();
 
@@ -217,6 +230,22 @@ fn parseMRFromJson(sdf: *SystemDescription, mr_config: anytype) !Mr {
     const mr_new = Mr.create(sdf, name, size, phys_addr, .small);
 
     return mr_new;
+}
+
+fn parseIrqFromJson(irq_config: anytype) !Irq {
+    const irq_num: usize = @intCast(irq_config.get("irq").?.integer);
+    const id: usize = @intCast(irq_config.get("id_").?.integer);
+    const trigger_str = irq_config.get("trigger").?.string;
+    var trigger : Irq.Trigger = .edge;
+    if (std.mem.eql(u8, trigger_str, "level")) {
+        trigger = .level;
+    } else if (std.mem.eql(u8, trigger_str, "edge")) {
+        trigger = .edge;
+    } else {
+        return error.InvalidTrigger;
+    }
+    const irq_new = Irq.create(irq_num, trigger, id);
+    return irq_new;
 }
 
 fn parseMapFromJson(sdf: *SystemDescription, map_config: anytype) !Map {
