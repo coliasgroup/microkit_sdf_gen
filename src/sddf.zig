@@ -1,4 +1,5 @@
 const std = @import("std");
+const builtin = @import("builtin");
 const mod_sdf = @import("sdf.zig");
 const dtb = @import("dtb");
 const Allocator = std.mem.Allocator;
@@ -506,7 +507,7 @@ pub fn createDriver(sdf: *SystemDescription, pd: *Pd, device: *dtb.Node) !void {
 
     // TODO: It is expected for a lot of devices to have multiple compatible strings,
     // we need to deal with that here.
-    if (!builtin.target.target.cpu.arch.isWasm()) {
+    if (!builtin.target.cpu.arch.isWasm()) {
         std.log.debug("Creating driver for device: '{s}'", .{device.name});
         std.log.debug("Compatible with:", .{});
         for (compatible) |c| {

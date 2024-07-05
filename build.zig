@@ -97,7 +97,7 @@ pub fn build(b: *std.Build) !void {
     });
     const wasm = b.addExecutable(.{
         .name = "gui_sdfgen",
-        .root_source_file = .{ .path = "src/gui_sdfgen.zig" },
+        .root_source_file = b.path("src/gui_sdfgen.zig"),
         .target = wasm_target,
         .optimize = .Debug,
         .strip = false,
