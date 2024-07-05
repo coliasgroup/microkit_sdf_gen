@@ -506,12 +506,13 @@ pub fn createDriver(sdf: *SystemDescription, pd: *Pd, device: *dtb.Node) !void {
 
     // TODO: It is expected for a lot of devices to have multiple compatible strings,
     // we need to deal with that here.
-    // std.log.debug("Creating driver for device: '{s}'", .{device.name});
-    // std.log.debug("Compatible with:", .{});
-    // for (compatible) |c| {
-    //     std.log.debug("     '{s}'", .{c});
-    // }
-
+    if (!builtin.target.target.cpu.arch.isWasm()) {
+        std.log.debug("Creating driver for device: '{s}'", .{device.name});
+        std.log.debug("Compatible with:", .{});
+        for (compatible) |c| {
+            std.log.debug("     '{s}'", .{c});
+        }
+    }
     // Get the driver based on the compatible string are given, assuming we can
     // find it.
     const driver = if (findDriver(compatible)) |d| d else return error.UnknownDevice;
