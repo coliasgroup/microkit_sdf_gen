@@ -517,7 +517,9 @@ pub fn createDriver(sdf: *SystemDescription, pd: *Pd, device: *dtb.Node) !void {
     // Get the driver based on the compatible string are given, assuming we can
     // find it.
     const driver = if (findDriver(compatible)) |d| d else return error.UnknownDevice;
-    // std.log.debug("Found compatible driver '{s}'", .{driver.name});
+    if (!builtin.target.cpu.arch.isWasm()) {
+        std.log.debug("Found compatible driver '{s}'", .{driver.name});
+    }
     // TODO: fix, this should be from the DTS
 
     const device_reg = device.prop(.Reg).?;
