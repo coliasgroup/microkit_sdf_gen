@@ -224,8 +224,19 @@ fn parseChannelFromJson(sdf: *SystemDescription, channel_config: anytype) !Chann
 
 fn parseMRFromJson(sdf: *SystemDescription, mr_config: anytype) !Mr {
     const name = mr_config.get("name").?.string;
+
     const size: usize = @intCast(mr_config.get("size").?.integer);
-    const phys_addr: usize = @intCast(mr_config.get("phys_addr").?.integer);
+    // const phys_addr: usize = @intCast(mr_config.get("phys_addr").?.integer);
+    var phys_addr: ?usize = null;
+    if (mr_config.get("phys_addr")) |phys_addr_json| {
+        switch (phys_addr_json) {
+            .integer => {
+                phys_addr = @intCast(phys_addr_json.integer);
+            },
+            .null => {},
+            else => @panic("Invalid phys_addr JSON"),
+        }
+    }
     // const page_size: Mr.PageSize = @intCast(mr_config.get("page_size").?.integer);
     const mr_new = Mr.create(sdf, name, size, phys_addr, .small);
 
