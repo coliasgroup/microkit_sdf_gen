@@ -456,26 +456,6 @@ export fn jsonToXml(input_ptr: [*]const u8, input_len: usize, result_ptr: [*]u8)
     return printMsg(result_ptr, xml);
 }
 
-const Object = struct {
-    name: []const u8,
-    compatibles: std.ArrayList([]const u8),
-};
-
-fn arrayToString(comptime T: type, array: []const T, allocator: *std.mem.Allocator) ![]u8 {
-    var writer = std.io.fixedBufferStream([]u8).writer();
-    try writer.print("[", .{});
-    for (array, 0..) |item, i| {
-        if (i != 0) {
-            try writer.print(", ", .{});
-        }
-        try writer.print("{any}", .{item});
-    }
-    try writer.print("]", .{});
-
-    const str = try allocator.dupe([]const u8, writer.toSliceConst());
-    return str;
-}
-
 fn getDtJson(allocator: Allocator, blob: *dtb.Node, writer: anytype) !void {
     _ = try writer.write("{");
     const json_string = try std.fmt.allocPrint(allocator, "\"name\":\"{s}\",\"compatibles\":", .{blob.name});
