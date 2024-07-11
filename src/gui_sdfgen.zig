@@ -13,6 +13,7 @@ const Map = SystemDescription.Map;
 const Irq = SystemDescription.Interrupt;
 const Channel = SystemDescription.Channel;
 const ProgramImage = Pd.ProgramImage;
+const DeviceTree = sddf.DeviceTree;
 
 var dtbs_path: []const u8 = "dtbs";
 var board: MicrokitBoard = undefined;
@@ -453,4 +454,119 @@ export fn jsonToXml(input_ptr: [*]const u8, input_len: usize, result_ptr: [*]u8)
     // };
 
     return printMsg(result_ptr, xml);
+}
+
+const Object = struct {
+    name: []const u8,
+    compatibles: std.ArrayList([]const u8),
+};
+
+fn arrayToString(comptime T: type, array: []const T, allocator: *std.mem.Allocator) ![]u8 {
+    var writer = std.io.fixedBufferStream([]u8).writer();
+    try writer.print("[", .{});
+    for (array, 0..) |item, i| {
+        if (i != 0) {
+            try writer.print(", ", .{});
+        }
+        try writer.print("{any}", .{item});
+    }
+    try writer.print("]", .{});
+
+    const str = try allocator.dupe([]const u8, writer.toSliceConst());
+    return str;
+}
+
+fn getDtJson(allocator: Allocator, blob: *dtb.Node, writer: anytype) !void {
+    _ = try writer.write("{");
+    const json_string = try std.fmt.allocPrint(allocator, "\"name\":\"{s}\",\"compatibles\":", .{blob.name});
+    defer allocator.free(json_string);
+
+    _ = try writer.write(json_string);
+
+    _ = try writer.write("[");
+    if (blob.prop(.Compatible)) |compatibles| {
+        for (compatibles, 0..) |compatible, i| {
+            if (i != 0) {
+               _ =  try writer.write(", ");
+            }
+            const compatible_string = try std.fmt.allocPrint(allocator, "\"{s}\"", .{compatible});
+            defer allocator.free(compatible_string);
+            _ = try writer.write(compatible_string);
+        }
+    }
+    _ = try writer.write("]");
+
+    if (blob.children.len == 0) {
+        if (blob.prop(.Interrupts)) |interrupts| {
+            if (interrupts.len == 1 and interrupts[0].len == 3) {
+                _ = try writer.write(", \"irq\":{");
+                const irq_type = try DeviceTree.armGicIrqType(interrupts[0][0]);
+                const irq_number = DeviceTree.armGicIrqNumber(interrupts[0][1], irq_type);
+
+                // const irq_trigger = try DeviceTree.armGicIrqTrigger(interrupts[0][2]);
+                // const irq_string = try std.fmt.allocPrint(allocator, "\"irq_number\": {any}, \"irq_trigger\": {any}", .{ irq_number, irq_trigger });
+                const irq_string = try std.fmt.allocPrint(allocator, "\"irq_number\": {any}, \"irq_trigger\": {any}", .{ irq_number, interrupts[0][2] });
+                defer allocator.free(irq_string);
+                _ = try writer.write(irq_string);
+
+                _ = try writer.write("}");
+            }
+        }
+    }
+
+    _ = try writer.write(",\"children\":[");
+    for (blob.children, 0..) |child, i| {
+        if (i != 0) {
+            _ = try writer.write(", ");
+        }
+        getDtJson(allocator, child, writer) catch |err| {
+            return err;
+        };
+    }
+    _ = try writer.write("]}");
+}
+
+export fn getDeviceTree(input_ptr: [*]const u8, input_len: usize, result_ptr: [*]u8) usize {
+    const input = input_ptr[0..input_len];
+    const allocator = std.heap.wasm_allocator;
+    const parsed = std.json.parseFromSlice(std.json.Value, allocator, input, .{}) catch {
+        return printMsg(result_ptr, "Invalid JSON string!");
+    };
+    defer parsed.deinit();
+
+    const object = parsed.value.object;
+    const blob_bytes = object.get("dtb").?.array;
+
+    // We take the 64-bit integer array of the DTB from JS and convert it to an
+    // array of bytes.
+    var dtb_bytes = std.ArrayList(u8).initCapacity(allocator, blob_bytes.items.len + 1) catch {
+        return printMsg(result_ptr, "Failed to allocate memory for DTB bytes");
+    };
+    defer dtb_bytes.deinit();
+    var i: usize = 0;
+    while (i < blob_bytes.items.len) : (i += 1) {
+        dtb_bytes.append(@intCast(blob_bytes.items[i].integer)) catch {
+            return printMsg(result_ptr, "Failed to read DTB bytes");
+        };
+    }
+
+    // Add final terminal byte
+    dtb_bytes.append(0) catch {
+        return 202;
+    };
+
+    const blob = dtb.parse(allocator, dtb_bytes.items) catch {
+        return printMsg(result_ptr, "DTB parsing error");
+    };
+    defer blob.deinit(allocator);
+
+    var dt_data = std.ArrayList(u8).init(allocator);
+    defer dt_data.deinit();
+
+    getDtJson(allocator, blob, dt_data.writer()) catch {
+        return printMsg(result_ptr, "Failed to parse DTB children ");
+    };
+
+
+    return printMsg(result_ptr, dt_data.items[0..dt_data.items.len]);
 }

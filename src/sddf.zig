@@ -273,7 +273,7 @@ pub const Config = struct {
     };
 };
 
-const DeviceTree = struct {
+pub const DeviceTree = struct {
     /// Functionality relating the the ARM Generic Interrupt Controller.
     const ArmGicIrqType = enum {
         spi,
@@ -517,7 +517,7 @@ pub fn createDriver(sdf: *SystemDescription, pd: *Pd, device: *dtb.Node) !void {
     // Get the driver based on the compatible string are given, assuming we can
     // find it.
     const driver = if (findDriver(compatible)) |d| d else return error.UnknownDevice;
-    if (!builtin.target.cpu.arch.isWasm()) {
+    if(!builtin.target.cpu.arch.isWasm()) {
         std.log.debug("Found compatible driver '{s}'", .{driver.name});
     }
     // TODO: fix, this should be from the DTS
