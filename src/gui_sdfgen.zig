@@ -271,7 +271,17 @@ fn parseMapFromJson(sdf: *SystemDescription, map_config: anytype) !Map {
     const perm_w = map_config.get("perm_w").?.bool;
     const perm_x = map_config.get("perm_x").?.bool;
     const cached = map_config.get("cached").?.bool;
-    const setvar_vaddr = map_config.get("setvar_vaddr").?.string;
+    var setvar_vaddr: ?[]const u8 = null;
+    if (map_config.get("setvar_vaddr")) |setvar_vaddr_json| {
+        switch (setvar_vaddr_json) {
+            .string => {
+                setvar_vaddr = setvar_vaddr_json.string;
+            },
+            .null => {},
+            else => @panic("Invalid setvar_vaddr JSON"),
+        }
+    }
+
     const map = Map.create(mr, vaddr, .{ .read = perm_r, .write = perm_w, .execute = perm_x }, cached, setvar_vaddr);
     return map;
 }
