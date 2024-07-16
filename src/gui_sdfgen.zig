@@ -8,6 +8,7 @@ const Allocator = std.mem.Allocator;
 const SystemDescription = mod_sdf.SystemDescription;
 const Pd = SystemDescription.ProtectionDomain;
 const Mr = SystemDescription.MemoryRegion;
+const PageSize = Mr.PageSize;
 const Vm = SystemDescription.VirtualMachine;
 const Map = SystemDescription.Map;
 const Irq = SystemDescription.Interrupt;
@@ -312,7 +313,6 @@ fn parseSddfSubsystemFromJson(sdf: *SystemDescription, subsystem_config: anytype
         const mux_rx = getPDByName(sdf, mux_rx_name) catch {
             return error.PdCannotBeFound;
         };
-
         serial_system.setMultiplexors(mux_rx, mux_tx);
 
         const client1_pd = getPDByName(sdf, client1_name) catch {
@@ -456,11 +456,23 @@ export fn jsonToXml(input_ptr: [*]const u8, input_len: usize, result_ptr: [*]u8)
     return printMsg(result_ptr, xml);
 }
 
+fn getPageSizeOptionsJson(board_str: []const u8, writer: anytype) !void {
+    board = try MicrokitBoard.fromStr(board_str);
+    const arch = board.arch();
+
+    inline for (std.meta.fields(PageSize), 0..) |field, i| {
+        if (i != 0) {
+            _ = try writer.write(", ");
+        }
+        const page_size: PageSize = @enumFromInt(field.value);
+        try writer.print("{{\"label\":\"{s}\",\"value\":{}}}", .{field.name, page_size.toSize(arch)});
+    }
+}
+
 fn getDtJson(allocator: Allocator, blob: *dtb.Node, writer: anytype) !void {
     _ = try writer.write("{");
     const json_string = try std.fmt.allocPrint(allocator, "\"name\":\"{s}\",\"compatibles\":", .{blob.name});
     defer allocator.free(json_string);
-
     _ = try writer.write(json_string);
 
     _ = try writer.write("[");
@@ -506,7 +518,7 @@ fn getDtJson(allocator: Allocator, blob: *dtb.Node, writer: anytype) !void {
     _ = try writer.write("]}");
 }
 
-export fn getDeviceTree(input_ptr: [*]const u8, input_len: usize, result_ptr: [*]u8) usize {
+export fn fetchInitInfo(input_ptr: [*]const u8, input_len: usize, result_ptr: [*]u8) usize {
     const input = input_ptr[0..input_len];
     const allocator = std.heap.wasm_allocator;
     const parsed = std.json.parseFromSlice(std.json.Value, allocator, input, .{}) catch {
@@ -540,13 +552,31 @@ export fn getDeviceTree(input_ptr: [*]const u8, input_len: usize, result_ptr: [*
     };
     defer blob.deinit(allocator);
 
-    var dt_data = std.ArrayList(u8).init(allocator);
-    defer dt_data.deinit();
 
-    getDtJson(allocator, blob, dt_data.writer()) catch {
+    var board_info = std.ArrayList(u8).init(allocator);
+    defer board_info.deinit();
+
+    board_info.writer().print("{{\"page_size\":[", .{}) catch {
+        return printMsg(result_ptr, "Failed to parse DTB children ");
+    };
+
+    const board_str = object.get("board").?.string;
+    getPageSizeOptionsJson(board_str, board_info.writer()) catch {
+        return printMsg(result_ptr, "Failed to parse DTB children ");
+    };
+
+    board_info.writer().print("],\"device_tree\":", .{}) catch {
+        return printMsg(result_ptr, "Failed to parse DTB children ");
+    };
+
+    getDtJson(allocator, blob, board_info.writer()) catch {
+        return printMsg(result_ptr, "Failed to parse DTB children ");
+    };
+
+    board_info.writer().print("}}", .{}) catch {
         return printMsg(result_ptr, "Failed to parse DTB children ");
     };
 
 
-    return printMsg(result_ptr, dt_data.items[0..dt_data.items.len]);
+    return printMsg(result_ptr, board_info.items[0..board_info.items.len]);
 }
