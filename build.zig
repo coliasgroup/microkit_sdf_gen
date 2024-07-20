@@ -104,8 +104,8 @@ pub fn build(b: *std.Build) !void {
     });
 
     wasm.root_module.addImport("dtb", dtb_module);
-    wasm.rdynamic = true;
     wasm.entry = .disabled;
+    wasm.root_module.export_symbol_names = &.{ "fetchInitInfo", "jsonToXml" };
 
     const wasm_step = b.step("wasm", "build wasm");
 
