@@ -2,9 +2,10 @@
     .name = "sdfgen",
     .version = "0.1.0",
     .dependencies = .{
-        .dtbzig = .{
-            .path = "dtb.zig"
-        }
+        .@"dtb.zig" = .{
+            .url = "https://github.com/kivikakk/dtb.zig/archive/9e240a57f94114b9548a3e7b211db6ffa5f90cca.tar.gz",
+            .hash = "12200693ffde4a6b45ab9e858fdca7fe42b87cd44c09add20201412892ed391c6c08"
+        },
     },
     .paths = .{
         "build.zig",

@@ -4,7 +4,7 @@ pub fn build(b: *std.Build) !void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    const dtbzig_dep = b.dependency("dtbzig", .{});
+    const dtbzig_dep = b.dependency("dtb.zig", .{});
 
     const lib = b.addStaticLibrary(.{
         .name = "microkit_sdf_gen",

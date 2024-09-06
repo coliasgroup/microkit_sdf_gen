@@ -150,6 +150,10 @@ pub const SystemDescription = struct {
             write: bool = false,
             execute: bool = false,
 
+            pub const r = .{ .read = true };
+            pub const rw = .{ .read = true, .write = true };
+            pub const rwx = .{ .read = true, .write = true, .execute = true };
+
             pub fn toString(perms: Permissions, buf: *[4]u8) usize {
                 var i: u8 = 0;
                 if (perms.read) {
@@ -403,7 +407,7 @@ pub const SystemDescription = struct {
         }
 
         // TODO: get rid of this extra arg?
-        pub fn getMapableVaddr(pd: *ProtectionDomain, mr: *const MemoryRegion) usize {
+        pub fn getMapVaddr(pd: *ProtectionDomain, mr: *const MemoryRegion) usize {
             // TODO: should make sure we don't have a way of giving an invalid vaddr back (e.g on 32-bit systems this is more of a concern)
 
             // The approach for this is fairly simple and naive, we just loop

@@ -617,18 +617,29 @@ fn webserver(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !vo
     var micropython = Pd.create(sdf, "micropython", ProgramImage.create("micropython.elf"));
     sdf.addProtectionDomain(&micropython);
 
-    var nfs = Pd.create(sdf, "nfs", ProgramImage.create("nfs.elf"));
-    sdf.addProtectionDomain(&nfs);
-
-    const fs = lionsos.FileSystem.init(allocator, sdf, &nfs, &micropython, .{});
+    var fatfs = Pd.create(sdf, "fatfs", ProgramImage.create("fatfs.elf"));
+    sdf.addProtectionDomain(&fatfs);
 
     var timer_system = sddf.TimerSystem.init(allocator, sdf, &timer_driver, timer_node);
     timer_system.addClient(&micropython);
-    timer_system.addClient(&nfs);
+    // timer_system.addClient(&nfs);
 
     var serial_system = sddf.SerialSystem.init(allocator, sdf, uart_node, &uart_driver, &serial_virt_tx, null, .{ .rx = false });
     serial_system.addClient(&micropython);
-    serial_system.addClient(&nfs);
+    // serial_system.addClient(&nfs);
+
+    const blk_node = switch (board) {
+        .odroidc4 => @panic("no block for odroidc4"),
+        .qemu_virt_aarch64 => blob.child("virtio_mmio@a002000").?,
+    };
+
+    var blk_driver = Pd.create(sdf, "blk_driver", ProgramImage.create("blk_driver.elf"));
+    sdf.addProtectionDomain(&blk_driver);
+    var blk_virt = Pd.create(sdf, "blk_virt", ProgramImage.create("blk_virt.elf"));
+    sdf.addProtectionDomain(&blk_virt);
+
+    var blk_system = sddf.BlockSystem.init(allocator, sdf, blk_node, &blk_driver, &blk_virt, .{});
+    blk_system.addClient(&fatfs);
 
     const eth_node = switch (board) {
         .odroidc4 => blob.child("soc").?.child("ethernet@ff3f0000").?,
@@ -639,11 +650,11 @@ fn webserver(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !vo
 
     var eth_copy_mp = Pd.create(sdf, "eth_copy_mp", ProgramImage.create("copy.elf"));
     sdf.addProtectionDomain(&eth_copy_mp);
-    var eth_copy_nfs = Pd.create(sdf, "eth_copy_nfs", ProgramImage.create("copy.elf"));
-    sdf.addProtectionDomain(&eth_copy_nfs);
+    // var eth_copy_nfs = Pd.create(sdf, "eth_copy_nfs", ProgramImage.create("copy.elf"));
+    // sdf.addProtectionDomain(&eth_copy_nfs);
 
     var eth_system = sddf.NetworkSystem.init(allocator, sdf, eth_node, &eth_driver, &eth_virt_rx, &eth_virt_tx, .{});
-    eth_system.addClientWithCopier(&nfs, &eth_copy_nfs);
+    // eth_system.addClientWithCopier(&nfs, &eth_copy_nfs);
     eth_system.addClientWithCopier(&micropython, &eth_copy_mp);
 
     eth_driver.priority = 110;
@@ -658,9 +669,9 @@ fn webserver(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !vo
     eth_virt_tx.budget = 100;
     eth_virt_tx.period = 500;
 
-    eth_copy_nfs.priority = 99;
-    eth_copy_nfs.budget = 100;
-    eth_copy_nfs.period = 500;
+    // eth_copy_nfs.priority = 99;
+    // eth_copy_nfs.budget = 100;
+    // eth_copy_nfs.period = 500;
 
     eth_copy_mp.priority = 97;
     eth_copy_mp.budget = 20000;
@@ -670,8 +681,8 @@ fn webserver(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !vo
 
     uart_driver.priority = 100;
 
-    nfs.priority = 98;
-    nfs.stack_size = 0x10000;
+    // nfs.priority = 98;
+    // nfs.stack_size = 0x10000;
 
     micropython.priority = 1;
 
@@ -682,6 +693,15 @@ fn webserver(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !vo
     try eth_system.connect();
     try timer_system.connect();
     try serial_system.connect();
+    _ = try blk_system.connect();
+
+    const fatfs_metadata = Mr.create(sdf, "fatfs_metadata", 0x200_000, null, .large);
+    std.debug.print("metadata vaddr {x}\n", .{ fatfs.getMapVaddr(&fatfs_metadata) });
+    // TODO: fix
+    fatfs.addMap(Map.create(fatfs_metadata, 0x40_000_000, .rw, true, "fs_metadata"));
+    sdf.addMemoryRegion(fatfs_metadata);
+
+    const fs = lionsos.FileSystem.init(allocator, sdf, &fatfs, &micropython, .{});
     fs.connect();
 
     try sdf.print();
