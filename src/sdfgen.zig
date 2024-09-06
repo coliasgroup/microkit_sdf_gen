@@ -3,6 +3,7 @@ const builtin = @import("builtin");
 const mod_sdf = @import("sdf.zig");
 const mod_vmm = @import("vmm.zig");
 const sddf = @import("sddf.zig");
+const lionsos = @import("lionsos.zig");
 const dtb = @import("dtb");
 const ArrayList = std.ArrayList;
 const Allocator = std.mem.Allocator;
@@ -19,7 +20,7 @@ const Channel = SystemDescription.Channel;
 const VirtualMachineSystem = mod_vmm.VirtualMachineSystem;
 
 const MicrokitBoard = enum {
-    qemu_arm_virt,
+    qemu_virt_aarch64,
     odroidc4,
 
     pub fn fromStr(str: []const u8) !MicrokitBoard {
@@ -34,7 +35,7 @@ const MicrokitBoard = enum {
 
     pub fn arch(b: MicrokitBoard) SystemDescription.Arch {
         return switch (b) {
-            .qemu_arm_virt, .odroidc4 => .aarch64,
+            .qemu_virt_aarch64, .odroidc4 => .aarch64,
         };
     }
 
@@ -50,7 +51,7 @@ const MicrokitBoard = enum {
     /// each board
     pub fn uartNode(b: MicrokitBoard) []const u8 {
         return switch (b) {
-            .qemu_arm_virt => "pl011@9000000",
+            .qemu_virt_aarch64 => "pl011@9000000",
             .odroidc4 => "serial@3000",
         };
     }
@@ -61,8 +62,9 @@ const Example = enum {
     virtio_blk,
     abstractions,
     // gdb,
-    // kitty,
+    kitty,
     echo_server,
+    webserver,
 
     pub fn fromStr(str: []const u8) !Example {
         inline for (std.meta.fields(Example)) |field| {
@@ -80,7 +82,8 @@ const Example = enum {
             .abstractions => try abstractions(allocator, sdf, blob),
             .virtio_blk => try virtio_blk(allocator, sdf, blob),
             // .gdb => try gdb(allocator, sdf, blob),
-            // .kitty => try kitty(allocator, sdf, blob),
+            .kitty => try kitty(allocator, sdf, blob),
+            .webserver => try webserver(allocator, sdf, blob),
             .echo_server => try echo_server(allocator, sdf, blob),
         }
     }
@@ -100,27 +103,27 @@ const Example = enum {
 const Uart = struct {
     fn paddr(b: MicrokitBoard) usize {
         return switch (b) {
-            .qemu_arm_virt => 0x9000000,
+            .qemu_virt_aarch64 => 0x9000000,
             .odroidc4 => 0xff803000,
         };
     }
 
     fn size(b: MicrokitBoard) usize {
         return switch (b) {
-            .qemu_arm_virt, .odroidc4 => 0x1000,
+            .qemu_virt_aarch64, .odroidc4 => 0x1000,
         };
     }
 
     fn irq(b: MicrokitBoard) usize {
         return switch (b) {
-            .qemu_arm_virt => 33,
+            .qemu_virt_aarch64 => 33,
             .odroidc4 => 225,
         };
     }
 
     fn trigger(b: MicrokitBoard) Irq.Trigger {
         return switch (b) {
-            .qemu_arm_virt => .level,
+            .qemu_virt_aarch64 => .level,
             .odroidc4 => .edge,
         };
     }
@@ -128,7 +131,7 @@ const Uart = struct {
 
 fn guestRamVaddr(b: MicrokitBoard) usize {
     return switch (b) {
-        .qemu_arm_virt => 0x40000000,
+        .qemu_virt_aarch64 => 0x40000000,
         .odroidc4 => 0x20000000,
     };
 }
@@ -427,7 +430,7 @@ fn abstractions(_: Allocator, _: *SystemDescription, _: *dtb.Node) !void {
     //         const bus_node = soc_node.child("bus@ff800000").?;
     //         uart_node = bus_node.child("serial@3000");
     //     },
-    //     .qemu_arm_virt => {
+    //     .qemu_virt_aarch64 => {
     //         uart_node = blob.child(board.uartNode());
     //     },
     // }
@@ -471,7 +474,7 @@ fn abstractions(_: Allocator, _: *SystemDescription, _: *dtb.Node) !void {
 fn gdb(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !void {
     const uart_node = switch (board) {
         .odroidc4 => blob.child("soc").?.child("bus@ff800000").?.child("serial@3000"),
-        .qemu_arm_virt => blob.child(board.uartNode()),
+        .qemu_virt_aarch64 => blob.child(board.uartNode()),
     };
 
     var uart_driver = Pd.create(sdf, "uart_driver", ProgramImage.create("uart_driver.elf"));
@@ -531,7 +534,7 @@ fn virtio_blk(_: Allocator, _: *SystemDescription, _: *dtb.Node) !void {
     //         const bus_node = soc_node.child("bus@ff800000").?;
     //         uart_node = bus_node.child("serial@3000");
     //     },
-    //     .qemu_arm_virt => {
+    //     .qemu_virt_aarch64 => {
     //         uart_node = blob.child(board.uartNode());
     //     },
     // }
@@ -579,23 +582,126 @@ fn virtio_blk(_: Allocator, _: *SystemDescription, _: *dtb.Node) !void {
     // std.debug.print("{s}", .{xml});
 }
 
-fn kitty(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !void {
+/// Webserver has the following components/subsystems
+/// * serial
+/// * network
+/// * micropython client
+/// * nfs client
+fn webserver(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !void {
     const uart_node = switch (board) {
-        .odroidc4 => blob.child("soc").?.child("bus@ff800000").?.child("serial@3000"),
-        .qemu_arm_virt => blob.child(board.uartNode()),
+        .odroidc4 => blob.child("soc").?.child("bus@ff800000").?.child("serial@3000").?,
+        .qemu_virt_aarch64 => blob.child(board.uartNode()).?,
     };
 
     var uart_driver = Pd.create(sdf, "uart_driver", ProgramImage.create("uart_driver.elf"));
     sdf.addProtectionDomain(&uart_driver);
 
-    var serial_system = sddf.SerialSystem.init(allocator, sdf, 0x200000);
-    serial_system.setDriver(&uart_driver, uart_node.?);
+    // var serial_virt_rx = Pd.create(sdf, "serial_virt_rx", ProgramImage.create("serial_virt_rx.elf"));
+    // sdf.addProtectionDomain(&serial_virt_rx);
+    var serial_virt_tx = Pd.create(sdf, "serial_virt_tx", ProgramImage.create("serial_virt_tx.elf"));
+    sdf.addProtectionDomain(&serial_virt_tx);
 
-    var mux_rx = Pd.create(sdf, "serial_mux_rx", ProgramImage.create("serial_mux_rx.elf"));
-    sdf.addProtectionDomain(&mux_rx);
-    var mux_tx = Pd.create(sdf, "serial_mux_tx", ProgramImage.create("serial_mux_tx.elf"));
-    sdf.addProtectionDomain(&mux_tx);
-    serial_system.setMultiplexors(&mux_rx, &mux_tx);
+    var eth_virt_rx = Pd.create(sdf, "eth_virt_rx", ProgramImage.create("network_virt_rx.elf"));
+    sdf.addProtectionDomain(&eth_virt_rx);
+    var eth_virt_tx = Pd.create(sdf, "eth_virt_tx", ProgramImage.create("network_virt_tx.elf"));
+    sdf.addProtectionDomain(&eth_virt_tx);
+
+    const timer_node = switch (board) {
+        .odroidc4 => blob.child("soc").?.child("bus@ffd00000").?.child("watchdog@f0d0").?,
+        .qemu_virt_aarch64 => blob.child("timer").?
+    };
+
+    var timer_driver = Pd.create(sdf, "timer_driver", ProgramImage.create("timer_driver.elf"));
+    sdf.addProtectionDomain(&timer_driver);
+
+    var micropython = Pd.create(sdf, "micropython", ProgramImage.create("micropython.elf"));
+    sdf.addProtectionDomain(&micropython);
+
+    var nfs = Pd.create(sdf, "nfs", ProgramImage.create("nfs.elf"));
+    sdf.addProtectionDomain(&nfs);
+
+    const fs = lionsos.FileSystem.init(allocator, sdf, &nfs, &micropython, .{});
+
+    var timer_system = sddf.TimerSystem.init(allocator, sdf, &timer_driver, timer_node);
+    timer_system.addClient(&micropython);
+    timer_system.addClient(&nfs);
+
+    var serial_system = sddf.SerialSystem.init(allocator, sdf, uart_node, &uart_driver, &serial_virt_tx, null, .{ .rx = false });
+    serial_system.addClient(&micropython);
+    serial_system.addClient(&nfs);
+
+    const eth_node = switch (board) {
+        .odroidc4 => blob.child("soc").?.child("ethernet@ff3f0000").?,
+        .qemu_virt_aarch64 => blob.child("virtio_mmio@a003e00").?,
+    };
+    var eth_driver = Pd.create(sdf, "eth_driver", ProgramImage.create("eth_driver.elf"));
+    sdf.addProtectionDomain(&eth_driver);
+
+    var eth_copy_mp = Pd.create(sdf, "eth_copy_mp", ProgramImage.create("copy.elf"));
+    sdf.addProtectionDomain(&eth_copy_mp);
+    var eth_copy_nfs = Pd.create(sdf, "eth_copy_nfs", ProgramImage.create("copy.elf"));
+    sdf.addProtectionDomain(&eth_copy_nfs);
+
+    var eth_system = sddf.NetworkSystem.init(allocator, sdf, eth_node, &eth_driver, &eth_virt_rx, &eth_virt_tx, .{});
+    eth_system.addClientWithCopier(&nfs, &eth_copy_nfs);
+    eth_system.addClientWithCopier(&micropython, &eth_copy_mp);
+
+    eth_driver.priority = 110;
+    eth_driver.budget = 100;
+    eth_driver.period = 400;
+
+    eth_virt_rx.priority = 108;
+    eth_virt_rx.budget = 100;
+    eth_virt_rx.period = 500;
+
+    eth_virt_tx.priority = 109;
+    eth_virt_tx.budget = 100;
+    eth_virt_tx.period = 500;
+
+    eth_copy_nfs.priority = 99;
+    eth_copy_nfs.budget = 100;
+    eth_copy_nfs.period = 500;
+
+    eth_copy_mp.priority = 97;
+    eth_copy_mp.budget = 20000;
+
+    eth_copy_mp.priority = 97;
+    eth_copy_mp.budget = 20000;
+
+    uart_driver.priority = 100;
+
+    nfs.priority = 98;
+    nfs.stack_size = 0x10000;
+
+    micropython.priority = 1;
+
+    timer_driver.priority = 150;
+
+    serial_virt_tx.priority = 99;
+
+    try eth_system.connect();
+    try timer_system.connect();
+    try serial_system.connect();
+    fs.connect();
+
+    try sdf.print();
+}
+
+fn kitty(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !void {
+    const uart_node = switch (board) {
+        .odroidc4 => blob.child("soc").?.child("bus@ff800000").?.child("serial@3000").?,
+        .qemu_virt_aarch64 => blob.child(board.uartNode()).?,
+    };
+
+    var uart_driver = Pd.create(sdf, "uart_driver", ProgramImage.create("uart_driver.elf"));
+    sdf.addProtectionDomain(&uart_driver);
+
+    var serial_virt_rx = Pd.create(sdf, "serial_virt_rx", ProgramImage.create("serial_virt_rx.elf"));
+    sdf.addProtectionDomain(&serial_virt_rx);
+    var serial_virt_tx = Pd.create(sdf, "serial_virt_tx", ProgramImage.create("serial_virt_tx.elf"));
+    sdf.addProtectionDomain(&serial_virt_tx);
+
+    var serial_system = sddf.SerialSystem.init(allocator, sdf, uart_node, &uart_driver, &serial_virt_rx, &serial_virt_tx, .{});
 
     const timer_node = switch (board) {
         .odroidc4 => blob.child("soc").?.child("bus@ffd00000").?.child("watchdog@f0d0").?,
@@ -612,7 +718,7 @@ fn kitty(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !void {
     timer_system.addClient(&timer_client);
     try timer_system.connect();
 
-    // try serial_system.connect();
+    try serial_system.connect();
     const xml = try sdf.toXml();
     std.debug.print("{s}", .{xml});
 }
@@ -640,7 +746,7 @@ fn echo_server(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !
             const bus_node = soc_node.child("bus@ff800000").?;
             uart_node = bus_node.child("serial@3000");
         },
-        .qemu_arm_virt => {
+        .qemu_virt_aarch64 => {
             uart_node = blob.child(board.uartNode());
         },
     }
@@ -663,7 +769,7 @@ fn echo_server(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !
             const soc_node = blob.child("soc").?;
             break :blk soc_node.child("ethernet@ff3f0000").?;
         },
-        .qemu_arm_virt => @panic("TODO"),
+        .qemu_virt_aarch64 => @panic("TODO"),
     };
 
     var eth_driver = Pd.create(sdf, "eth_driver", .{ .path = "eth_driver.elf" });
@@ -702,7 +808,7 @@ fn echo_server(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !
 
     const timer = switch (board) {
         .odroidc4 => blob.child("soc").?.child("bus@ffd00000").?.child("watchdog@f0d0").?,
-        .qemu_arm_virt => @panic("TODO"),
+        .qemu_virt_aarch64 => @panic("TODO"),
     };
 
     var timer_system = sddf.TimerSystem.init(allocator, sdf, &timer_driver, timer);

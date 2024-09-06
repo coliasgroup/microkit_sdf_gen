@@ -136,7 +136,7 @@ pub fn probe(allocator: Allocator, path: []const u8) !void {
                 }
             };
             defer config_file.close();
-            std.log.info("reading 'drivers/{s}/{s}'", .{ entry.name, CONFIG_FILENAME });
+            std.log.info("reading 'drivers/{s}/{s}/{s}'", .{ device_class.name ,entry.name, CONFIG_FILENAME });
             const config_size = (try config_file.stat()).size;
             const config = try config_file.reader().readAllAlloc(allocator, config_size);
             // TODO; free config? we'd have to dupe the json data when populating our data structures
@@ -191,8 +191,9 @@ pub const Config = struct {
     /// The actual IRQ number that gets registered with seL4
     /// is something we can determine from the device tree.
     const Irq = struct {
-        name: []const u8,
         channel_id: usize,
+        /// Index into the 'interrupts' property of the Device Tree
+        dt_index: usize,
     };
 
     /// In the case of drivers there is some extra information we want
@@ -255,7 +256,7 @@ pub const Config = struct {
         const Class = enum {
             network,
             serial,
-            clock,
+            timer,
 
             pub fn fromStr(str: []const u8) Class {
                 inline for (std.meta.fields(Class)) |field| {
@@ -297,12 +298,12 @@ pub const DeviceTree = struct {
     pub fn armGicIrqNumber(number: usize, irq_type: ArmGicIrqType) usize {
         return switch (irq_type) {
             .spi => number + 32,
-            .ppi => number, // TODO: check this
+            .ppi => number + 16,
             .extended_spi, .extended_ppi => @panic("Unexpected IRQ type"),
         };
     }
 
-    pub fn armGicIrqTrigger(trigger: usize) !Interrupt.Trigger {
+    pub fn armGicSpiTrigger(trigger: usize) !Interrupt.Trigger {
         return switch (trigger) {
             0x1 => return .edge,
             0x4 => return .level,
@@ -363,27 +364,39 @@ pub const TimerSystem = struct {
 pub const SerialSystem = struct {
     allocator: Allocator,
     sdf: *SystemDescription,
-    region_size: usize,
+    driver_data_size: usize,
+    client_data_size: usize,
+    queue_size: usize,
     page_size: Mr.PageSize,
     driver: *Pd,
     device: *dtb.Node,
-    virt_rx: *Pd,
+    virt_rx: ?*Pd,
     virt_tx: *Pd,
     clients: std.ArrayList(*Pd),
+    rx: bool,
 
     pub const Options = struct {
-        region_size: usize = 0x1000,
+        driver_data_size: usize = 0x4000,
+        client_data_size: usize = 0x2000,
+        queue_size: usize = 0x1000,
+        rx: bool = true,
     };
 
-    const REGIONS = [_][]const u8{ "data", "queue" };
+    const Region = enum {
+        data,
+        queue,
+    };
 
-    pub fn init(allocator: Allocator, sdf: *SystemDescription, device: *dtb.Node, driver: *Pd, virt_tx: *Pd, virt_rx: *Pd, options: Options) SerialSystem {
-        const page_size = SystemDescription.MemoryRegion.PageSize.optimal(sdf, options.region_size);
+    pub fn init(allocator: Allocator, sdf: *SystemDescription, device: *dtb.Node, driver: *Pd, virt_tx: *Pd, virt_rx: ?*Pd, options: Options) SerialSystem {
         return .{
             .allocator = allocator,
             .sdf = sdf,
-            .region_size = options.region_size,
-            .page_size = page_size,
+            .driver_data_size = options.driver_data_size,
+            .client_data_size = options.client_data_size,
+            .queue_size = options.queue_size,
+            .rx = options.rx,
+            // TODO: sort out
+            .page_size = .small,
             .clients = std.ArrayList(*Pd).init(allocator),
             .driver = driver,
             .device = device,
@@ -397,73 +410,111 @@ pub const SerialSystem = struct {
     }
 
     fn rxConnectDriver(system: *SerialSystem) void {
-        for (REGIONS) |region| {
-            const mr_name = std.fmt.allocPrint(system.allocator, "serial_driver_rx_{s}", .{region}) catch @panic("OOM");
-            const mr = Mr.create(system.sdf, mr_name, system.region_size, null, system.page_size);
+        inline for (std.meta.fields(Region)) |region| {
+            const mr_name = std.fmt.allocPrint(system.allocator, "serial_driver_rx_{s}", .{ region.name }) catch @panic("OOM");
+            const mr_size = blk: {
+                if (@as(Region, @enumFromInt(region.value)) == .data) {
+                    break :blk system.driver_data_size;
+                } else {
+                    break :blk system.queue_size;
+                }
+            };
+            const mr = Mr.create(system.sdf, mr_name, mr_size, null, system.page_size);
             system.sdf.addMemoryRegion(mr);
             const perms: Map.Permissions = .{ .read = true, .write = true };
             // @ivanv: vaddr has invariant that needs to be checked
-            const virt_vaddr = system.virt_rx.getMapableVaddr(&mr);
-            const virt_setvar_vaddr = std.fmt.allocPrint(system.allocator, "rx_{s}_driver", .{ region }) catch @panic("OOM");
+            const virt_vaddr = system.virt_rx.?.getMapableVaddr(&mr);
+            const virt_setvar_vaddr = std.fmt.allocPrint(system.allocator, "rx_{s}_drv", .{ region.name }) catch @panic("OOM");
             const virt_map = Map.create(mr, virt_vaddr, perms, true, virt_setvar_vaddr);
-            system.virt_rx.addMap(virt_map);
+            system.virt_rx.?.addMap(virt_map);
 
             const driver_vaddr = system.driver.getMapableVaddr(&mr);
-            const driver_setvar_vaddr = std.fmt.allocPrint(system.allocator, "rx_{s}", .{ region }) catch @panic("OOM");
+            const driver_setvar_vaddr = std.fmt.allocPrint(system.allocator, "rx_{s}", .{ region.name }) catch @panic("OOM");
             const driver_map = Map.create(mr, driver_vaddr, perms, true, driver_setvar_vaddr);
             system.driver.addMap(driver_map);
         }
     }
 
     fn txConnectDriver(system: *SerialSystem) void {
-        for (REGIONS) |region| {
-            const mr_name = std.fmt.allocPrint(system.allocator, "serial_driver_tx_{s}", .{region}) catch @panic("OOM");
-            const mr = Mr.create(system.sdf, mr_name, system.region_size, null, system.page_size);
+        inline for (std.meta.fields(Region)) |region| {
+            const mr_name = std.fmt.allocPrint(system.allocator, "serial_driver_tx_{s}", .{ region.name }) catch @panic("OOM");
+            const mr_size = blk: {
+                if (@as(Region, @enumFromInt(region.value)) == .data) {
+                    break :blk system.driver_data_size;
+                } else {
+                    break :blk system.queue_size;
+                }
+            };
+            const mr = Mr.create(system.sdf, mr_name, mr_size, null, system.page_size);
             system.sdf.addMemoryRegion(mr);
             const perms: Map.Permissions = .{ .read = true, .write = true };
             // @ivanv: vaddr has invariant that needs to be checked
             const virt_vaddr = system.virt_tx.getMapableVaddr(&mr);
-            const virt_setvar_vaddr = std.fmt.allocPrint(system.allocator, "tx_{s}_driver", .{ region }) catch @panic("OOM");
+            const virt_setvar_vaddr = std.fmt.allocPrint(system.allocator, "tx_{s}_drv", .{ region.name }) catch @panic("OOM");
             const virt_map = Map.create(mr, virt_vaddr, perms, true, virt_setvar_vaddr);
             system.virt_tx.addMap(virt_map);
 
             const driver_vaddr = system.driver.getMapableVaddr(&mr);
-            const driver_setvar_vaddr = std.fmt.allocPrint(system.allocator, "tx_{s}", .{ region }) catch @panic("OOM");
+            const driver_setvar_vaddr = std.fmt.allocPrint(system.allocator, "tx_{s}", .{ region.name }) catch @panic("OOM");
             const driver_map = Map.create(mr, driver_vaddr, perms, true, driver_setvar_vaddr);
             system.driver.addMap(driver_map);
         }
     }
 
-    fn rxConnectClient(system: *SerialSystem, client: *Pd) void {
-        for (REGIONS) |region| {
-            const mr_name = std.fmt.allocPrint(system.allocator, "serial_virt_rx_{s}_{s}", .{ client.name, region }) catch @panic("OOM");
-            const mr = Mr.create(system.sdf, mr_name, system.region_size, null, system.page_size);
+    fn rxConnectClient(system: *SerialSystem, client: *Pd, client_zero: bool) void {
+        inline for (std.meta.fields(Region)) |region| {
+            const mr_name = std.fmt.allocPrint(system.allocator, "serial_virt_rx_{s}_{s}", .{ client.name, region.name }) catch @panic("OOM");
+            const mr_size = blk: {
+                if (@as(Region, @enumFromInt(region.value)) == .data) {
+                    break :blk system.driver_data_size;
+                } else {
+                    break :blk system.queue_size;
+                }
+            };
+            const mr = Mr.create(system.sdf, mr_name, mr_size, null, system.page_size);
             system.sdf.addMemoryRegion(mr);
             const perms: Map.Permissions = .{ .read = true, .write = true };
             // @ivanv: vaddr has invariant that needs to be checked
-            const virt_vaddr = system.virt_rx.getMapableVaddr(&mr);
-            const virt_map = Map.create(mr, virt_vaddr, perms, true, null);
-            system.virt_rx.addMap(virt_map);
+            const virt_vaddr = system.virt_rx.?.getMapableVaddr(&mr);
+            var virt_setvar_vaddr: ?[]const u8 = null;
+            if (client_zero) {
+                virt_setvar_vaddr = std.fmt.allocPrint(system.allocator, "rx_{s}_cli0", .{ region.name }) catch @panic("OOM");
+            }
+            const virt_map = Map.create(mr, virt_vaddr, perms, true, virt_setvar_vaddr);
+            system.virt_rx.?.addMap(virt_map);
 
             const client_vaddr = client.getMapableVaddr(&mr);
-            const client_map = Map.create(mr, client_vaddr, perms, true, null);
+            const client_setvar_vaddr = std.fmt.allocPrint(system.allocator, "serial_rx_{s}", .{ region.name }) catch @panic("OOM");
+            const client_map = Map.create(mr, client_vaddr, perms, true, client_setvar_vaddr);
             client.addMap(client_map);
         }
     }
 
-    fn txConnectClient(system: *SerialSystem, client: *Pd) void {
-        for (REGIONS) |region| {
-            const mr_name = std.fmt.allocPrint(system.allocator, "serial_virt_tx_{s}_{s}", .{ client.name, region }) catch @panic("OOM");
-            const mr = Mr.create(system.sdf, mr_name, system.region_size, null, system.page_size);
+    fn txConnectClient(system: *SerialSystem, client: *Pd, client_zero: bool) void {
+        inline for (std.meta.fields(Region)) |region| {
+            const mr_name = std.fmt.allocPrint(system.allocator, "serial_virt_tx_{s}_{s}", .{ client.name, region.name }) catch @panic("OOM");
+            const mr_size = blk: {
+                if (@as(Region, @enumFromInt(region.value)) == .data) {
+                    break :blk system.driver_data_size;
+                } else {
+                    break :blk system.queue_size;
+                }
+            };
+            const mr = Mr.create(system.sdf, mr_name, mr_size, null, system.page_size);
             system.sdf.addMemoryRegion(mr);
             const perms: Map.Permissions = .{ .read = true, .write = true };
             // @ivanv: vaddr has invariant that needs to be checked
             const virt_vaddr = system.virt_tx.getMapableVaddr(&mr);
-            const virt_map = Map.create(mr, virt_vaddr, perms, true, null);
+            var virt_setvar_vaddr: ?[]const u8 = null;
+            if (client_zero) {
+                virt_setvar_vaddr = std.fmt.allocPrint(system.allocator, "tx_{s}_cli0", .{ region.name }) catch @panic("OOM");
+            }
+            const virt_map = Map.create(mr, virt_vaddr, perms, true, virt_setvar_vaddr);
             system.virt_tx.addMap(virt_map);
 
             const client_vaddr = client.getMapableVaddr(&mr);
-            const client_map = Map.create(mr, client_vaddr, perms, true, null);
+            const client_setvar_vaddr = std.fmt.allocPrint(system.allocator, "serial_tx_{s}", .{ region.name }) catch @panic("OOM");
+            const client_map = Map.create(mr, client_vaddr, perms, true, client_setvar_vaddr);
             client.addMap(client_map);
         }
     }
@@ -475,21 +526,30 @@ pub const SerialSystem = struct {
         // 1.1 Create channels between driver and multiplexors
         try createDriver(sdf, system.driver, system.device);
         const ch_driver_virt_tx = Channel.create(system.driver, system.virt_tx);
-        const ch_driver_virt_rx = Channel.create(system.driver, system.virt_rx);
         sdf.addChannel(ch_driver_virt_tx);
-        sdf.addChannel(ch_driver_virt_rx);
+        if (system.rx) {
+            const ch_driver_virt_rx = Channel.create(system.driver, system.virt_rx.?);
+            sdf.addChannel(ch_driver_virt_rx);
+        }
         // 1.2 Create channels between multiplexors and clients
         for (system.clients.items) |client| {
             const ch_virt_tx_client = Channel.create(system.virt_tx, client);
-            const ch_virt_rx_client = Channel.create(system.virt_rx, client);
             sdf.addChannel(ch_virt_tx_client);
-            sdf.addChannel(ch_virt_rx_client);
+
+            if (system.rx) {
+                const ch_virt_rx_client = Channel.create(system.virt_rx.?, client);
+                sdf.addChannel(ch_virt_rx_client);
+            }
         }
-        system.rxConnectDriver();
+        if (system.rx) {
+            system.rxConnectDriver();
+        }
         system.txConnectDriver();
-        for (system.clients.items) |client| {
-            system.rxConnectClient(client);
-            system.txConnectClient(client);
+        for (system.clients.items, 0..) |client, i| {
+            if (system.rx) {
+                system.rxConnectClient(client, i == 0);
+            }
+            system.txConnectClient(client, i == 0);
         }
     }
 };
@@ -544,7 +604,8 @@ pub const NetworkSystem = struct {
         system.copiers.append(copier) catch @panic("Could not add copier to NetworkSystem");
     }
 
-    fn rxConnectDriver(system: *NetworkSystem) void {
+    fn rxConnectDriver(system: *NetworkSystem) Mr {
+        var data_mr: Mr = undefined;
         inline for (std.meta.fields(Region)) |region| {
             const mr_name = std.fmt.allocPrint(system.allocator, "net_driver_rx_{s}", .{ region.name }) catch @panic("OOM");
             const mr = Mr.create(system.sdf, mr_name, system.region_size, null, system.page_size);
@@ -565,11 +626,21 @@ pub const NetworkSystem = struct {
             }
 
             // @ivanv: vaddr has invariant that needs to be checked
-            const virt_vaddr = system.virt_rx.getMapableVaddr(&mr);
-            const virt_setvar_vaddr = std.fmt.allocPrint(system.allocator, "rx_{s}_driver", .{ region.name }) catch @panic("OOM");
-            const virt_map = Map.create(mr, virt_vaddr, perms, true, virt_setvar_vaddr);
-            system.virt_rx.addMap(virt_map);
+            // @ivanv: gross syntax
+            if (@as(Region, @enumFromInt(region.value)) != .data) {
+                const virt_vaddr = system.virt_rx.getMapableVaddr(&mr);
+                const virt_setvar_vaddr = std.fmt.allocPrint(system.allocator, "rx_{s}_drv", .{ region.name }) catch @panic("OOM");
+                const virt_map = Map.create(mr, virt_vaddr, perms, true, virt_setvar_vaddr);
+                system.virt_rx.addMap(virt_map);
+            } else {
+                const virt_vaddr = system.virt_rx.getMapableVaddr(&mr);
+                const virt_map = Map.create(mr, virt_vaddr, perms, true, "buffer_data_vaddr");
+                system.virt_rx.addMap(virt_map);
+                data_mr = mr;
+            }
         }
+
+        return data_mr;
     }
 
     fn txConnectDriver(system: *NetworkSystem) void {
@@ -588,7 +659,7 @@ pub const NetworkSystem = struct {
 
                 // @ivanv: vaddr has invariant that needs to be checked
                 const virt_vaddr = system.virt_tx.getMapableVaddr(&mr);
-                const virt_setvar_vaddr = std.fmt.allocPrint(system.allocator, "tx_{s}_driver", .{ region.name }) catch @panic("OOM");
+                const virt_setvar_vaddr = std.fmt.allocPrint(system.allocator, "tx_{s}_drv", .{ region.name }) catch @panic("OOM");
                 const virt_map = Map.create(mr, virt_vaddr, perms, true, virt_setvar_vaddr);
                 system.virt_tx.addMap(virt_map);
             }
@@ -603,16 +674,29 @@ pub const NetworkSystem = struct {
             const perms: Map.Permissions = .{ .read = true, .write = true };
             // @ivanv: vaddr has invariant that needs to be checked
             const virt_vaddr = rx.getMapableVaddr(&mr);
-            const virt_map = Map.create(mr, virt_vaddr, perms, true, null);
+            var virt_setvar_vaddr: ?[]const u8 = null;
+            // @ivanv: gross syntax
+            if (@as(Region, @enumFromInt(region.value)) != .data) {
+                virt_setvar_vaddr = std.fmt.allocPrint(system.allocator, "rx_{s}_cli", .{ region.name }) catch @panic("OOM");
+            } else {
+                virt_setvar_vaddr = "cli_buffer_data_region";
+            }
+            const virt_map = Map.create(mr, virt_vaddr, perms, true, virt_setvar_vaddr);
             rx.addMap(virt_map);
 
             const client_vaddr = client.getMapableVaddr(&mr);
-            const client_map = Map.create(mr, client_vaddr, perms, true, null);
+            var client_setvar_vaddr: ?[]const u8 = null;
+            if (@as(Region, @enumFromInt(region.value)) == .data) {
+                client_setvar_vaddr = "rx_buffer_data_region";
+            } else {
+                client_setvar_vaddr = std.fmt.allocPrint(system.allocator, "rx_{s}", .{ region.name }) catch @panic("OOM");
+            }
+            const client_map = Map.create(mr, client_vaddr, perms, true, client_setvar_vaddr);
             client.addMap(client_map);
         }
     }
 
-    fn clientTxConnect(system: *NetworkSystem, client: *Pd, tx: *Pd) void {
+    fn clientTxConnect(system: *NetworkSystem, client: *Pd, tx: *Pd, client_idx: usize) void {
         inline for (std.meta.fields(Region)) |region| {
             const mr_name = std.fmt.allocPrint(system.allocator, "net_client_tx_{s}_{s}", .{ client.name, region.name }) catch @panic("OOM");
             const mr = Mr.create(system.sdf, mr_name, system.region_size, null, system.page_size);
@@ -620,29 +704,62 @@ pub const NetworkSystem = struct {
             const perms: Map.Permissions = .{ .read = true, .write = true };
             // @ivanv: vaddr has invariant that needs to be checked
             const virt_vaddr = tx.getMapableVaddr(&mr);
-            const virt_map = Map.create(mr, virt_vaddr, perms, true, null);
+            var virt_setvar_vaddr: ?[]const u8 = null;
+            // @ivanv: gross syntax
+            if (client_idx == 0 and @as(Region, @enumFromInt(region.value)) != .data) {
+                virt_setvar_vaddr = std.fmt.allocPrint(system.allocator, "tx_{s}_cli0", .{ region.name }) catch @panic("OOM");
+            } else if (@as(Region, @enumFromInt(region.value)) == .data) {
+                virt_setvar_vaddr = std.fmt.allocPrint(system.allocator, "buffer_data_region_cli{}_vaddr", .{ client_idx }) catch @panic("OOM");
+            }
+            const virt_map = Map.create(mr, virt_vaddr, perms, true, virt_setvar_vaddr);
             tx.addMap(virt_map);
 
             const client_vaddr = client.getMapableVaddr(&mr);
-            const client_map = Map.create(mr, client_vaddr, perms, true, null);
+            var client_setvar_vaddr: ?[]const u8 = null;
+            if (@as(Region, @enumFromInt(region.value)) == .data) {
+                client_setvar_vaddr = "tx_buffer_data_region";
+            } else {
+                client_setvar_vaddr = std.fmt.allocPrint(system.allocator, "tx_{s}", .{ region.name }) catch @panic("OOM");
+            }
+            const client_map = Map.create(mr, client_vaddr, perms, true, client_setvar_vaddr);
             client.addMap(client_map);
+
+            if (@as(Region, @enumFromInt(region.value)) == .data) {
+                const data_setvar = std.fmt.allocPrint(system.allocator, "buffer_data_region_cli{}_paddr", .{ client_idx }) catch @panic("OOM");
+                system.virt_tx.addSetVar(SetVar.create(data_setvar, &mr));
+            }
         }
     }
 
-    fn copierRxConnect(system: *NetworkSystem, copier: *Pd) void {
-        inline for (.{ Region.active, Region.free }) |region| {
-            const mr_name = std.fmt.allocPrint(system.allocator, "net_{s}_{s}", .{ copier.name, @tagName(region) }) catch @panic("OOM");
+    // We need to map in the data region between the driver/virt into the copier with setvar "virt_buffer_data_region".
+    fn copierRxConnect(system: *NetworkSystem, copier: *Pd, first_client: bool, virt_data_mr: Mr) void {
+        inline for (std.meta.fields(Region)) |region| {
+
+            const mr_name = std.fmt.allocPrint(system.allocator, "net_{s}_{s}", .{ copier.name, region.name }) catch @panic("OOM");
             const mr = Mr.create(system.sdf, mr_name, system.region_size, null, system.page_size);
             system.sdf.addMemoryRegion(mr);
 
             // Map the MR into the virtualiser RX and copier RX
             const virt_vaddr = system.virt_rx.getMapableVaddr(&mr);
-            const virt_map = Map.create(mr, virt_vaddr, .{ .read = true, .write = true }, true, null);
-            system.virt_rx.addMap(virt_map);
+            if (@as(Region, @enumFromInt(region.value)) != .data) {
+                var virt_setvar_vaddr: ?[]const u8 = null;
+                if (first_client) {
+                    virt_setvar_vaddr = std.fmt.allocPrint(system.allocator, "rx_{s}_cli0", .{ region.name }) catch @panic("OOM");
+                }
+                const virt_map = Map.create(mr, virt_vaddr, .{ .read = true, .write = true }, true, virt_setvar_vaddr);
+                system.virt_rx.addMap(virt_map);
+            }
 
-            const copier_vaddr = copier.getMapableVaddr(&mr);
-            const copier_map = Map.create(mr, copier_vaddr, .{ .read = true, .write = true }, true, null);
-            copier.addMap(copier_map);
+            if (@as(Region, @enumFromInt(region.value)) == .data) {
+                const copier_vaddr = copier.getMapableVaddr(&virt_data_mr);
+                const copier_map = Map.create(virt_data_mr, copier_vaddr, .{ .read = true, .write = true }, true, "virt_buffer_data_region");
+                copier.addMap(copier_map);
+            } else {
+                const copier_vaddr = copier.getMapableVaddr(&mr);
+                const copier_setvar_vaddr = std.fmt.allocPrint(system.allocator, "rx_{s}_virt", .{ region.name }) catch @panic("OOM");
+                const copier_map = Map.create(mr, copier_vaddr, .{ .read = true, .write = true }, true, copier_setvar_vaddr);
+                copier.addMap(copier_map);
+            }
         }
     }
 
@@ -667,20 +784,20 @@ pub const NetworkSystem = struct {
         sdf.addChannel(Channel.create(system.driver, system.virt_tx));
         sdf.addChannel(Channel.create(system.driver, system.virt_rx));
 
+        const virt_data_mr = system.rxConnectDriver();
+        system.txConnectDriver();
+
         for (system.clients.items, 0..) |client, i| {
             // TODO: we have an assumption that all copiers are RX copiers
             sdf.addChannel(Channel.create(system.copiers.items[i], client));
             sdf.addChannel(Channel.create(system.virt_tx, client));
             sdf.addChannel(Channel.create(system.copiers.items[i], system.virt_rx));
 
-            system.copierRxConnect(system.copiers.items[i]);
+            system.copierRxConnect(system.copiers.items[i], i == 0, virt_data_mr);
             // TODO: we assume there exists a copier for each client, on the RX side
             system.clientRxConnect(client, system.copiers.items[i]);
-            system.clientTxConnect(client, system.virt_tx);
+            system.clientTxConnect(client, system.virt_tx, i);
         }
-
-        system.rxConnectDriver();
-        system.txConnectDriver();
     }
 };
 
@@ -703,39 +820,35 @@ pub fn createDriver(sdf: *SystemDescription, pd: *Pd, device: *dtb.Node) !void {
     // Get the driver based on the compatible string are given, assuming we can
     // find it.
     const driver = if (findDriver(compatible)) |d| d else return error.UnknownDevice;
+    // TODO: is there a better way to do this
     if(!builtin.target.cpu.arch.isWasm()) {
         std.log.debug("Found compatible driver '{s}'", .{driver.name});
     }
     // TODO: fix, this should be from the DTS
 
-    const device_reg = device.prop(.Reg).?;
     const interrupts = device.prop(.Interrupts).?;
-    // TODO: casting from u128 to u64
-    var device_paddr: u64 = @intCast(device_reg[0][0]);
-    // Some device registers may not be page aligned so we do that here.
-    device_paddr = device_paddr - (device_paddr % 0x1000);
 
-    // Why is this logic needed? Well it turns out device trees are great and the
-    // region of memory that a device occupies in physical memory is... not in the
-    // 'reg' property of the device's node in the tree. So here what we do is, as
-    // long as there is a parent node, we look and see if it has a memory address
-    // and add it to the device's declared 'address'. This needs to be done because
-    // some device trees have nodes which are offsets of the parent nodes, this is
-    // common with buses. For example, with the Odroid-C4 the main UART is 0x3000
-    // offset of the parent bus. We are only interested in the full physical address,
-    // hence this logic.
-    var parent_node_maybe: ?*dtb.Node = device.parent;
-    while (parent_node_maybe) |parent_node| : (parent_node_maybe = parent_node.parent) {
-        const parent_node_reg = parent_node.prop(.Reg);
-        if (parent_node_reg) |reg| {
-            device_paddr += @intCast(reg[0][0]);
+    if (device.prop(.Reg)) |device_reg| {
+        // TODO: casting from u128 to u64
+        // Some device registers may not be page aligned so we do that here.
+        var device_paddr: u64 = @intCast((device_reg[0][0] >> 12) << 12);
+        // Why is this logic needed? Well it turns out device trees are great and the
+        // region of memory that a device occupies in physical memory is... not in the
+        // 'reg' property of the device's node in the tree. So here what we do is, as
+        // long as there is a parent node, we look and see if it has a memory address
+        // and add it to the device's declared 'address'. This needs to be done because
+        // some device trees have nodes which are offsets of the parent nodes, this is
+        // common with buses. For example, with the Odroid-C4 the main UART is 0x3000
+        // offset of the parent bus. We are only interested in the full physical address,
+        // hence this logic.
+        var parent_node_maybe: ?*dtb.Node = device.parent;
+        while (parent_node_maybe) |parent_node| : (parent_node_maybe = parent_node.parent) {
+            const parent_node_reg = parent_node.prop(.Reg);
+            if (parent_node_reg) |reg| {
+                device_paddr += @intCast(reg[0][0]);
+            }
         }
     }
-
-    // TODO: handle multiple interrupts. This is not as simple as just looking
-    // at the device tree, coordination with the driver configuration is needed.
-    std.debug.assert(interrupts.len == 1);
-    std.debug.assert(driver.resources.irqs.len == 1);
 
     // For each set of interrupt values in the device tree 'interrupts' property
     // we expect three entries.
@@ -751,40 +864,36 @@ pub fn createDriver(sdf: *SystemDescription, pd: *Pd, device: *dtb.Node) !void {
     // IRQ device tree handling is currently ARM specific.
     std.debug.assert(sdf.arch == .aarch64 or sdf.arch == .aarch32);
 
-    // Determine the IRQ trigger and (software-observable) number based on the device tree.
-    const irq_type = try DeviceTree.armGicIrqType(interrupts[0][0]);
-    const irq_number = DeviceTree.armGicIrqNumber(interrupts[0][1], irq_type);
-    const irq_trigger = try DeviceTree.armGicIrqTrigger(interrupts[0][2]);
+    // TODO: support more than one device region, it will most likely be needed in the future.
+    std.debug.assert(driver.resources.device_regions.len <= 1);
+    if (driver.resources.device_regions.len > 0) {
+        for (driver.resources.device_regions) |region| {
+            const device_paddr: u64 = @intCast((device.prop(.Reg).?[0][0] >> 12) << 12);
 
-    // Create all the memory regions
-    // for (driver.resources.shared_regions) |region| {
-    //     const page_size = try Mr.PageSize.fromInt(region.page_size, sdf.arch);
-    //     const mr_name = std.fmt.allocPrint(sdf.allocator, "{s}_{s}", .{ driver.name, region.name }) catch @panic("OOM");
-    //     const mr = Mr.create(sdf, mr_name, region.size, null, page_size);
-    //     try sdf.addMemoryRegion(mr);
+            const page_size = try Mr.PageSize.fromInt(region.page_size, sdf.arch);
+            const mr_name = std.fmt.allocPrint(sdf.allocator, "{s}_{s}", .{ driver.name, region.name }) catch @panic("OOM");
+            const mr = Mr.create(sdf, mr_name, region.size, device_paddr, page_size);
+            sdf.addMemoryRegion(mr);
 
-    //     const perms = Map.Permissions.fromString(region.perms);
-    //     const vaddr = pd.getMapableVaddr(mr.size);
-    //     const map = Map.create(mr, vaddr, perms, region.cached, region.setvar_vaddr);
-    //     try pd.addMap(map);
-    // }
-
-    // // TODO: support more than one device region, it will most likely be needed in the future.
-    std.debug.assert(driver.resources.device_regions.len == 1);
-    for (driver.resources.device_regions) |region| {
-        const page_size = try Mr.PageSize.fromInt(region.page_size, sdf.arch);
-        const mr_name = std.fmt.allocPrint(sdf.allocator, "{s}_{s}", .{ driver.name, region.name }) catch @panic("OOM");
-        const mr = Mr.create(sdf, mr_name, region.size, device_paddr, page_size);
-        sdf.addMemoryRegion(mr);
-
-        const perms = Map.Permissions.fromString(region.perms);
-        const vaddr = pd.getMapableVaddr(&mr);
-        const map = Map.create(mr, vaddr, perms, region.cached, region.setvar_vaddr);
-        pd.addMap(map);
+            const perms = Map.Permissions.fromString(region.perms);
+            const vaddr = pd.getMapableVaddr(&mr);
+            const map = Map.create(mr, vaddr, perms, region.cached, region.setvar_vaddr);
+            pd.addMap(map);
+        }
     }
 
-    // Create all the IRQs
+    // For all driver IRQs, find the corresponding entry in the device tree and
+    // process it for the SDF.
     for (driver.resources.irqs) |driver_irq| {
+        const dt_irq = interrupts[driver_irq.dt_index];
+
+        // Determine the IRQ trigger and (software-observable) number based on the device tree.
+        const irq_type = try DeviceTree.armGicIrqType(dt_irq[0]);
+        const irq_number = DeviceTree.armGicIrqNumber(dt_irq[1], irq_type);
+        // Assume trigger is level if we are dealing with an IRQ that is not an SPI.
+        // TODO: come back to this, do we need to care about the trigger for non-SPIs?
+        const irq_trigger = if (irq_type == .spi) try DeviceTree.armGicSpiTrigger(dt_irq[2]) else .level;
+
         const irq = SystemDescription.Interrupt.create(irq_number, irq_trigger, driver_irq.channel_id);
         try pd.addInterrupt(irq);
     }

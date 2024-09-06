@@ -288,6 +288,7 @@ pub const SystemDescription = struct {
         budget: ?usize,
         period: ?usize,
         passive: bool = false,
+        stack_size: usize = 0x1000,
         /// Whether there is an available 'protected' entry point
         pp: bool = false,
         /// Child nodes
@@ -409,7 +410,7 @@ pub const SystemDescription = struct {
             // over all the maps and find the largest next available address.
             // We could extend this in the future to actually look for space
             // between mappings in the case they are not just sorted.
-            var next_vaddr: usize = 0x10_000_000;
+            var next_vaddr: usize = 0x20_000_000;
             for (pd.maps.items) |map| {
                 if (map.vaddr >= next_vaddr) {
                     next_vaddr = map.vaddr + map.mr.size;
@@ -435,9 +436,9 @@ pub const SystemDescription = struct {
             const budget = if (pd.budget) |budget| budget else 100;
             const period = if (pd.period) |period| period else budget;
             const attributes_str =
-                \\priority="{}" budget="{}" period="{}" passive="{}" pp="{}"
+                \\priority="{}" budget="{}" period="{}" passive="{}" pp="{}" stack_size="0x{x}"
             ;
-            const attributes_xml = try allocPrint(sdf.allocator, attributes_str, .{ pd.priority, budget, period, pd.passive, pd.pp });
+            const attributes_xml = try allocPrint(sdf.allocator, attributes_str, .{ pd.priority, budget, period, pd.passive, pd.pp, pd.stack_size });
             defer sdf.allocator.free(attributes_xml);
             var top: []const u8 = undefined;
             if (id) |id_val| {
@@ -578,6 +579,13 @@ pub const SystemDescription = struct {
         sdf.pds.append(pd) catch @panic("Could not add ProtectionDomain to SystemDescription");
     }
 
+    // pub fn addPd(sdf: *SystemDescription, name: []const u8, program_image: ProtectionDomain.ProgramImage) ProtectionDomain {
+    //     var pd = ProtectionDomain.create(sdf, name, program_image);
+    //     sdf.addProtectionDomain(&pd);
+
+    //     return pd;
+    // }
+
     pub fn toXml(sdf: *SystemDescription) ![:0]const u8 {
         const writer = sdf.xml_data.writer();
         _ = try writer.write("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<system>\n");
@@ -618,5 +626,9 @@ pub const SystemDescription = struct {
         // }
 
         return header;
+    }
+
+    pub fn print(sdf: *SystemDescription) !void {
+        try std.io.getStdOut().writer().writeAll(try sdf.toXml());
     }
 };
