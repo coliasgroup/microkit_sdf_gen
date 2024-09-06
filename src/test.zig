@@ -50,9 +50,9 @@ test "PD + MR + mappings + channel" {
     const image = ProgramImage.create("hello.elf");
     var pd1 = ProtectionDomain.create(&sdf, "hello-1", image);
     try pd1.addInterrupt(Interrupt.create(33, .level, null));
-    pd1.addMap(Map.create(mr, 0x400000000, .{ .read = true }, true, null));
-    pd1.addMap(Map.create(mr, 0x600000000, .{ .execute = true }, true, null));
-    pd1.addMap(Map.create(mr, 0x800000000, .{ .read = true, .execute = true }, true, null));
+    pd1.addMap(Map.create(mr, 0x400000000, .r, true, null));
+    pd1.addMap(Map.create(mr, 0x600000000, .x, true, null));
+    pd1.addMap(Map.create(mr, 0x800000000, .rwx, true, null));
 
     var pd2 = ProtectionDomain.create(&sdf, "hello-2", image);
 

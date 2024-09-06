@@ -151,7 +151,9 @@ pub const SystemDescription = struct {
             execute: bool = false,
 
             pub const r = .{ .read = true };
+            pub const x = .{ .execute = true };
             pub const rw = .{ .read = true, .write = true };
+            pub const rx = .{ .read = true, .execute = true };
             pub const rwx = .{ .read = true, .write = true, .execute = true };
 
             pub fn toString(perms: Permissions, buf: *[4]u8) usize {
