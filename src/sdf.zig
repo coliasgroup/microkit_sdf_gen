@@ -287,7 +287,7 @@ pub const SystemDescription = struct {
     pub const ProtectionDomain = struct {
         name: []const u8,
         /// Program ELF
-        program_image: ?ProgramImage,
+        program_image: ?[]const u8,
         /// Scheduling parameters
         /// The policy here is to follow the default values that Microkit uses.
         priority: u8 = 100,
@@ -314,21 +314,7 @@ pub const SystemDescription = struct {
         const MAX_IRQS = MAX_IDS;
         const MAX_CHILD_PDS = MAX_IDS;
 
-        pub const ProgramImage = struct {
-            path: []const u8,
-
-            pub fn create(path: []const u8) ProgramImage {
-                return .{ .path = path };
-            }
-
-            pub fn toXml(program_image: *const ProgramImage, sdf: *SystemDescription, writer: ArrayList(u8).Writer, separator: []const u8) !void {
-                const xml = try allocPrint(sdf.allocator, "{s}<program_image path=\"{s}\" />\n", .{ separator, program_image.path });
-                defer sdf.allocator.free(xml);
-                _ = try writer.write(xml);
-            }
-        };
-
-        pub fn create(sdf: *SystemDescription, name: []const u8, program_image: ?ProgramImage) ProtectionDomain {
+        pub fn create(sdf: *SystemDescription, name: []const u8, program_image: ?[]const u8) ProtectionDomain {
             return ProtectionDomain{
                 .name = name,
                 .program_image = program_image,
@@ -459,7 +445,9 @@ pub const SystemDescription = struct {
             defer sdf.allocator.free(child_separator);
             // Add program image (if we have one)
             if (pd.program_image) |program_image| {
-                try program_image.toXml(sdf, writer, child_separator);
+                const image_xml = try allocPrint(sdf.allocator, "{s}<program_image path=\"{s}\" />\n", .{ child_separator, program_image });
+                defer sdf.allocator.free(image_xml);
+                _ = try writer.write(image_xml);
             }
             // Add memory region mappins
             for (pd.maps.items) |map| {

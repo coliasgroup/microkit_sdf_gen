@@ -13,7 +13,6 @@ const Vm = SystemDescription.VirtualMachine;
 const Map = SystemDescription.Map;
 const Irq = SystemDescription.Interrupt;
 const Channel = SystemDescription.Channel;
-const ProgramImage = Pd.ProgramImage;
 const DeviceTree = sddf.DeviceTree;
 
 var dtbs_path: []const u8 = "dtbs";

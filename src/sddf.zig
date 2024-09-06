@@ -8,7 +8,6 @@ const SystemDescription = mod_sdf.SystemDescription;
 const Mr = SystemDescription.MemoryRegion;
 const Map = SystemDescription.Map;
 const Pd = SystemDescription.ProtectionDomain;
-const ProgramImage = Pd.ProgramImage;
 const Interrupt = SystemDescription.Interrupt;
 const Channel = SystemDescription.Channel;
 const SetVar = SystemDescription.SetVar;

@@ -2,7 +2,6 @@ const std = @import("std");
 
 const SystemDescription = @import("sdf.zig").SystemDescription;
 const ProtectionDomain = SystemDescription.ProtectionDomain;
-const ProgramImage = ProtectionDomain.ProgramImage;
 const MemoryRegion = SystemDescription.MemoryRegion;
 const Map = SystemDescription.Map;
 const Interrupt = SystemDescription.Interrupt;
@@ -29,8 +28,7 @@ fn readAll(test_path: []const u8) ![]const u8 {
 test "basic" {
     var sdf = try SystemDescription.create(allocator, .aarch64);
 
-    const image = ProgramImage.create("hello.elf");
-    var pd = ProtectionDomain.create(&sdf, "hello", image);
+    var pd = ProtectionDomain.create(&sdf, "hello", "hello.elf");
 
     sdf.addProtectionDomain(&pd);
 
@@ -47,7 +45,7 @@ test "PD + MR + mappings + channel" {
     const mr = MemoryRegion.create(&sdf, "test", 0x1000, null, .small);
     sdf.addMemoryRegion(mr);
 
-    const image = ProgramImage.create("hello.elf");
+    const image = "hello.elf";
     var pd1 = ProtectionDomain.create(&sdf, "hello-1", image);
     try pd1.addInterrupt(Interrupt.create(33, .level, null));
     pd1.addMap(Map.create(mr, 0x400000000, .r, true, null));

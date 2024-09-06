@@ -11,7 +11,6 @@ const Allocator = std.mem.Allocator;
 const SystemDescription = mod_sdf.SystemDescription;
 const Pd = SystemDescription.ProtectionDomain;
 const Vm = SystemDescription.VirtualMachine;
-const ProgramImage = Pd.ProgramImage;
 const Mr = SystemDescription.MemoryRegion;
 const Map = SystemDescription.Map;
 const Irq = SystemDescription.Interrupt;
@@ -273,7 +272,7 @@ fn virtio(sdf: *SystemDescription) !void {
     const GUEST_RAM_SIZE: usize = 1024 * 1024 * 128;
 
     // 1. Create UART driver and map in UART device
-    const uart_driver_image = ProgramImage.create("uart_driver.elf");
+    const uart_driver_image = "uart_driver.elf";
     var uart_driver = Pd.create(sdf, "uart_driver", uart_driver_image);
     uart_driver.priority = 100;
     sdf.addProtectionDomain(&uart_driver);
@@ -286,19 +285,19 @@ fn virtio(sdf: *SystemDescription) !void {
     try uart_driver.addInterrupt(uart_irq);
 
     // 2. Create MUX RX
-    const serial_mux_rx_image = ProgramImage.create("serial_mux_rx.elf");
+    const serial_mux_rx_image = "serial_mux_rx.elf";
     var serial_mux_rx = Pd.create(sdf, "serial_mux_rx", serial_mux_rx_image);
     serial_mux_rx.priority = 98;
     sdf.addProtectionDomain(&serial_mux_rx);
 
     // 3. Create MUX TX
-    const serial_mux_tx_image = ProgramImage.create("serial_mux_tx.elf");
+    const serial_mux_tx_image = "serial_mux_tx.elf";
     var serial_mux_tx = Pd.create(sdf, "serial_mux_tx", serial_mux_tx_image);
     serial_mux_tx.priority = 99;
     sdf.addProtectionDomain(&serial_mux_tx);
 
     // 4. Create native serial device
-    const serial_tester_image = ProgramImage.create("serial_tester.elf");
+    const serial_tester_image = "serial_tester.elf";
     var serial_tester = Pd.create(sdf, "serial_tester", serial_tester_image);
     serial_tester.priority = 97;
     sdf.addProtectionDomain(&serial_tester);
@@ -387,7 +386,7 @@ fn virtio(sdf: *SystemDescription) !void {
     serial_tester.addMap(tx_data_serial_tester_map);
 
     // 9. Create the virtual machine and virtual-machine-monitor
-    const vmm_image = ProgramImage.create("vmm.elf");
+    const vmm_image = "vmm.elf";
     var vmm = Pd.create(sdf, "vmm", vmm_image);
 
     var guest = Vm.create(sdf, "linux");
@@ -416,7 +415,7 @@ fn virtio(sdf: *SystemDescription) !void {
 /// TODO: there was an issue using the DTB that QEMU dumps. Most likely
 /// something wrong with dtb.zig dependency. Need to investigate.
 fn abstractions(_: Allocator, _: *SystemDescription, _: *dtb.Node) !void {
-    // const image = ProgramImage.create("uart_driver.elf");
+    // const image = "uart_driver.elf";
     // var driver = Pd.create(sdf, "uart_driver", image);
     // sdf.addProtectionDomain(&driver);
 
@@ -445,22 +444,22 @@ fn abstractions(_: Allocator, _: *SystemDescription, _: *dtb.Node) !void {
 
     // // const clients = [_][]const u8{ "client1", "client2", "client3" };
 
-    // const mux_rx_image = ProgramImage.create("mux_rx.elf");
+    // const mux_rx_image = "mux_rx.elf";
     // var mux_rx = Pd.create(sdf, "mux_rx", mux_rx_image);
     // sdf.addProtectionDomain(&mux_rx);
 
-    // const mux_tx_image = ProgramImage.create("mux_tx.elf");
+    // const mux_tx_image = "mux_tx.elf";
     // var mux_tx = Pd.create(sdf, "mux_tx", mux_tx_image);
     // sdf.addProtectionDomain(&mux_tx);
 
     // serial_system.setMultiplexors(&mux_rx, &mux_tx);
 
-    // const client1_image = ProgramImage.create("client1.elf");
+    // const client1_image = "client1.elf";
     // var client1_pd = Pd.create(sdf, "client1", client1_image);
     // serial_system.addClient(&client1_pd);
     // sdf.addProtectionDomain(&client1_pd);
 
-    // const client2_image = ProgramImage.create("client2.elf");
+    // const client2_image = "client2.elf";
     // var client2_pd = Pd.create(sdf, "client2", client2_image);
     // serial_system.addClient(&client2_pd);
     // sdf.addProtectionDomain(&client2_pd);
@@ -477,17 +476,17 @@ fn gdb(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !void {
         .qemu_virt_aarch64 => blob.child(board.uartNode()),
     };
 
-    var uart_driver = Pd.create(sdf, "uart_driver", ProgramImage.create("uart_driver.elf"));
+    var uart_driver = Pd.create(sdf, "uart_driver", "uart_driver.elf");
     sdf.addProtectionDomain(&uart_driver);
 
     var serial_system = sddf.SerialSystem.init(allocator, sdf, 0x200000);
     serial_system.setDriver(&uart_driver, uart_node.?);
 
-    var debugger = Pd.create(sdf, "debugger", ProgramImage.create("debugger.elf"));
+    var debugger = Pd.create(sdf, "debugger", "debugger.elf");
     sdf.addProtectionDomain(&debugger);
 
-    var ping = Pd.create(sdf, "ping", ProgramImage.create("ping.elf"));
-    var pong = Pd.create(sdf, "pong", ProgramImage.create("pong.elf"));
+    var ping = Pd.create(sdf, "ping", "ping.elf");
+    var pong = Pd.create(sdf, "pong", "pong.elf");
 
     const debug_pds = [_]*Pd{ &ping, &pong };
     for (debug_pds) |pd| {
@@ -496,9 +495,9 @@ fn gdb(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !void {
 
     sdf.addChannel(Channel.create(&ping, &pong));
 
-    var mux_rx = Pd.create(sdf, "serial_mux_rx", ProgramImage.create("serial_mux_rx.elf"));
+    var mux_rx = Pd.create(sdf, "serial_mux_rx", "serial_mux_rx.elf");
     sdf.addProtectionDomain(&mux_rx);
-    var mux_tx = Pd.create(sdf, "serial_mux_tx", ProgramImage.create("serial_mux_tx.elf"));
+    var mux_tx = Pd.create(sdf, "serial_mux_tx", "serial_mux_tx.elf");
     sdf.addProtectionDomain(&mux_tx);
     serial_system.setMultiplexors(&mux_rx, &mux_tx);
 
@@ -520,7 +519,7 @@ fn virtio_blk(_: Allocator, _: *SystemDescription, _: *dtb.Node) !void {
     // serial muxes
     // two clients which as VMMs
     // block driver VM
-    // const image = ProgramImage.create("uart_driver.elf");
+    // const image = "uart_driver.elf";
     // var driver = Pd.create(sdf, "uart_driver", image);
     // sdf.addProtectionDomain(&driver);
 
@@ -544,14 +543,14 @@ fn virtio_blk(_: Allocator, _: *SystemDescription, _: *dtb.Node) !void {
     //     std.process.exit(1);
     // }
 
-    // const client1_vmm_image = ProgramImage.create("client_vmm_1.elf");
+    // const client1_vmm_image = "client_vmm_1.elf";
     // var client1_vmm = Pd.create(sdf, "client_vmm_1", client1_vmm_image);
     // var client1_vm = Vm.create(sdf, "client_vm_1");
-    // const client2_vmm_image = ProgramImage.create("client_vmm_2.elf");
+    // const client2_vmm_image = "client_vmm_2.elf";
     // var client2_vmm = Pd.create(sdf, "client_vmm_2", client2_vmm_image);
     // var client2_vm = Vm.create(sdf, "client_vm_2");
 
-    // const blk_driver_vmm_image = ProgramImage.create("blk_driver_vmm.elf");
+    // const blk_driver_vmm_image = "blk_driver_vmm.elf";
     // var blk_driver_vmm = Pd.create(sdf, "blk_driver_vmm", blk_driver_vmm_image);
     // var blk_driver_vm = Vm.create(sdf, "blk_linux");
 
@@ -566,11 +565,11 @@ fn virtio_blk(_: Allocator, _: *SystemDescription, _: *dtb.Node) !void {
     // var serial_system = sddf.SerialSystem.init(allocator, sdf, 0x200000);
     // serial_system.setDriver(&driver, uart_node.?);
 
-    // const mux_rx_image = ProgramImage.create("mux_rx.elf");
+    // const mux_rx_image = "mux_rx.elf";
     // var mux_rx = Pd.create(sdf, "mux_rx", mux_rx_image);
     // sdf.addProtectionDomain(&mux_rx);
 
-    // const mux_tx_image = ProgramImage.create("mux_tx.elf");
+    // const mux_tx_image = "mux_tx.elf";
     // var mux_tx = Pd.create(sdf, "mux_tx", mux_tx_image);
     // sdf.addProtectionDomain(&mux_tx);
 
@@ -593,17 +592,17 @@ fn webserver(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !vo
         .qemu_virt_aarch64 => blob.child(board.uartNode()).?,
     };
 
-    var uart_driver = Pd.create(sdf, "uart_driver", ProgramImage.create("uart_driver.elf"));
+    var uart_driver = Pd.create(sdf, "uart_driver", "uart_driver.elf");
     sdf.addProtectionDomain(&uart_driver);
 
-    // var serial_virt_rx = Pd.create(sdf, "serial_virt_rx", ProgramImage.create("serial_virt_rx.elf"));
+    // var serial_virt_rx = Pd.create(sdf, "serial_virt_rx", "serial_virt_rx.elf");
     // sdf.addProtectionDomain(&serial_virt_rx);
-    var serial_virt_tx = Pd.create(sdf, "serial_virt_tx", ProgramImage.create("serial_virt_tx.elf"));
+    var serial_virt_tx = Pd.create(sdf, "serial_virt_tx", "serial_virt_tx.elf");
     sdf.addProtectionDomain(&serial_virt_tx);
 
-    var eth_virt_rx = Pd.create(sdf, "eth_virt_rx", ProgramImage.create("network_virt_rx.elf"));
+    var eth_virt_rx = Pd.create(sdf, "eth_virt_rx", "network_virt_rx.elf");
     sdf.addProtectionDomain(&eth_virt_rx);
-    var eth_virt_tx = Pd.create(sdf, "eth_virt_tx", ProgramImage.create("network_virt_tx.elf"));
+    var eth_virt_tx = Pd.create(sdf, "eth_virt_tx", "network_virt_tx.elf");
     sdf.addProtectionDomain(&eth_virt_tx);
 
     const timer_node = switch (board) {
@@ -611,13 +610,13 @@ fn webserver(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !vo
         .qemu_virt_aarch64 => blob.child("timer").?
     };
 
-    var timer_driver = Pd.create(sdf, "timer_driver", ProgramImage.create("timer_driver.elf"));
+    var timer_driver = Pd.create(sdf, "timer_driver", "timer_driver.elf");
     sdf.addProtectionDomain(&timer_driver);
 
-    var micropython = Pd.create(sdf, "micropython", ProgramImage.create("micropython.elf"));
+    var micropython = Pd.create(sdf, "micropython", "micropython.elf");
     sdf.addProtectionDomain(&micropython);
 
-    var fatfs = Pd.create(sdf, "fatfs", ProgramImage.create("fatfs.elf"));
+    var fatfs = Pd.create(sdf, "fatfs", "fatfs.elf");
     sdf.addProtectionDomain(&fatfs);
 
     var timer_system = sddf.TimerSystem.init(allocator, sdf, &timer_driver, timer_node);
@@ -633,9 +632,9 @@ fn webserver(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !vo
         .qemu_virt_aarch64 => blob.child("virtio_mmio@a002000").?,
     };
 
-    var blk_driver = Pd.create(sdf, "blk_driver", ProgramImage.create("blk_driver.elf"));
+    var blk_driver = Pd.create(sdf, "blk_driver", "blk_driver.elf");
     sdf.addProtectionDomain(&blk_driver);
-    var blk_virt = Pd.create(sdf, "blk_virt", ProgramImage.create("blk_virt.elf"));
+    var blk_virt = Pd.create(sdf, "blk_virt", "blk_virt.elf");
     sdf.addProtectionDomain(&blk_virt);
 
     var blk_system = sddf.BlockSystem.init(allocator, sdf, blk_node, &blk_driver, &blk_virt, .{});
@@ -645,12 +644,12 @@ fn webserver(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !vo
         .odroidc4 => blob.child("soc").?.child("ethernet@ff3f0000").?,
         .qemu_virt_aarch64 => blob.child("virtio_mmio@a003e00").?,
     };
-    var eth_driver = Pd.create(sdf, "eth_driver", ProgramImage.create("eth_driver.elf"));
+    var eth_driver = Pd.create(sdf, "eth_driver", "eth_driver.elf");
     sdf.addProtectionDomain(&eth_driver);
 
-    var eth_copy_mp = Pd.create(sdf, "eth_copy_mp", ProgramImage.create("copy.elf"));
+    var eth_copy_mp = Pd.create(sdf, "eth_copy_mp", "copy.elf");
     sdf.addProtectionDomain(&eth_copy_mp);
-    // var eth_copy_nfs = Pd.create(sdf, "eth_copy_nfs", ProgramImage.create("copy.elf"));
+    // var eth_copy_nfs = Pd.create(sdf, "eth_copy_nfs", "copy.elf");
     // sdf.addProtectionDomain(&eth_copy_nfs);
 
     var eth_system = sddf.NetworkSystem.init(allocator, sdf, eth_node, &eth_driver, &eth_virt_rx, &eth_virt_tx, .{});
@@ -713,12 +712,12 @@ fn kitty(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !void {
         .qemu_virt_aarch64 => blob.child(board.uartNode()).?,
     };
 
-    var uart_driver = Pd.create(sdf, "uart_driver", ProgramImage.create("uart_driver.elf"));
+    var uart_driver = Pd.create(sdf, "uart_driver", "uart_driver.elf");
     sdf.addProtectionDomain(&uart_driver);
 
-    var serial_virt_rx = Pd.create(sdf, "serial_virt_rx", ProgramImage.create("serial_virt_rx.elf"));
+    var serial_virt_rx = Pd.create(sdf, "serial_virt_rx", "serial_virt_rx.elf");
     sdf.addProtectionDomain(&serial_virt_rx);
-    var serial_virt_tx = Pd.create(sdf, "serial_virt_tx", ProgramImage.create("serial_virt_tx.elf"));
+    var serial_virt_tx = Pd.create(sdf, "serial_virt_tx", "serial_virt_tx.elf");
     sdf.addProtectionDomain(&serial_virt_tx);
 
     var serial_system = sddf.SerialSystem.init(allocator, sdf, uart_node, &uart_driver, &serial_virt_rx, &serial_virt_tx, .{});
@@ -728,10 +727,10 @@ fn kitty(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !void {
         else => @panic("Don't know timer node for platform")
     };
 
-    var timer_client = Pd.create(sdf, "timer_client", ProgramImage.create("timer_client.elf"));
+    var timer_client = Pd.create(sdf, "timer_client", "timer_client.elf");
     sdf.addProtectionDomain(&timer_client);
 
-    var timer_driver = Pd.create(sdf, "timer_driver", ProgramImage.create("timer_driver.elf"));
+    var timer_driver = Pd.create(sdf, "timer_driver", "timer_driver.elf");
     sdf.addProtectionDomain(&timer_driver);
 
     var timer_system = sddf.TimerSystem.init(allocator, sdf, &timer_driver, timer_node);
@@ -752,7 +751,7 @@ fn kitty(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !void {
 /// Do not worry about the abstraction stuff. First reproduce the echo server,
 /// then consider whether the abstractions are correct.
 fn echo_server(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !void {
-    const image = ProgramImage.create("uart_driver.elf");
+    const image = "uart_driver.elf";
     var driver = Pd.create(sdf, "uart_driver", image);
     sdf.addProtectionDomain(&driver);
 
@@ -776,10 +775,10 @@ fn echo_server(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !
         std.process.exit(1);
     }
 
-    var serial_virt_rx = Pd.create(sdf, "serial_virt_rx", .{ .path = "serial_virt_rx.elf" });
+    var serial_virt_rx = Pd.create(sdf, "serial_virt_rx", "serial_virt_rx.elf");
     sdf.addProtectionDomain(&serial_virt_rx);
 
-    var serial_virt_tx = Pd.create(sdf, "serial_virt_tx", .{ .path = "serial_virt_tx.elf" });
+    var serial_virt_tx = Pd.create(sdf, "serial_virt_tx", "serial_virt_tx.elf");
     sdf.addProtectionDomain(&serial_virt_tx);
 
     var serial_system = sddf.SerialSystem.init(allocator, sdf, uart_node.?, &driver, &serial_virt_tx, &serial_virt_rx, .{});
@@ -792,29 +791,29 @@ fn echo_server(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !
         .qemu_virt_aarch64 => @panic("TODO"),
     };
 
-    var eth_driver = Pd.create(sdf, "eth_driver", .{ .path = "eth_driver.elf" });
+    var eth_driver = Pd.create(sdf, "eth_driver", "eth_driver.elf");
     eth_driver.budget = 100;
     eth_driver.period = 400;
     eth_driver.priority = 101;
     sdf.addProtectionDomain(&eth_driver);
 
-    var net_virt_tx = Pd.create(sdf, "net_virt_tx", .{ .path = "net_virt_tx.elf "});
+    var net_virt_tx = Pd.create(sdf, "net_virt_tx", "net_virt_tx.elf");
     net_virt_tx.priority = 100;
     net_virt_tx.budget = 20000;
     sdf.addProtectionDomain(&net_virt_tx);
 
-    var net_virt_rx = Pd.create(sdf, "net_virt_rx", .{ .path = "net_virt_rx.elf "});
+    var net_virt_rx = Pd.create(sdf, "net_virt_rx", "net_virt_rx.elf");
     net_virt_tx.priority = 99;
     sdf.addProtectionDomain(&net_virt_rx);
 
-    var net_copier0_rx = Pd.create(sdf, "net_copier0_rx", .{ .path = "net_copier_rx.elf" });
+    var net_copier0_rx = Pd.create(sdf, "net_copier0_rx", "net_copier_rx.elf");
     sdf.addProtectionDomain(&net_copier0_rx);
-    var net_copier1_rx = Pd.create(sdf, "net_copier1_rx", .{ .path = "net_copier_rx.elf" });
+    var net_copier1_rx = Pd.create(sdf, "net_copier1_rx", "net_copier_rx.elf");
     sdf.addProtectionDomain(&net_copier1_rx);
 
-    var client0 = Pd.create(sdf, "client0", .{ .path = "lwip.elf" });
+    var client0 = Pd.create(sdf, "client0", "lwip.elf");
     sdf.addProtectionDomain(&client0);
-    var client1 = Pd.create(sdf, "client1", .{ .path = "lwip.elf" });
+    var client1 = Pd.create(sdf, "client1", "lwip.elf");
     sdf.addProtectionDomain(&client1);
 
     var ethernet_system = sddf.NetworkSystem.init(allocator, sdf, ethernet, &eth_driver, &net_virt_rx, &net_virt_tx, .{
@@ -823,7 +822,7 @@ fn echo_server(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !
     ethernet_system.addClientWithCopier(&client0, &net_copier0_rx);
     ethernet_system.addClientWithCopier(&client1, &net_copier1_rx);
 
-    var timer_driver = Pd.create(sdf, "timer_driver", .{ .path = "timer_driver.elf" });
+    var timer_driver = Pd.create(sdf, "timer_driver", "timer_driver.elf");
     sdf.addProtectionDomain(&timer_driver);
 
     const timer = switch (board) {
