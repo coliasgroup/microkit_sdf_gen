@@ -1013,8 +1013,8 @@ pub fn createDriver(sdf: *SystemDescription, pd: *Pd, device: *dtb.Node, class: 
     // If we have more device regions in the config file than there are in the DTB node,
     // the config file is invalid.
     const num_dt_regs = if (device.prop(.Reg)) |r| r.len else 0;
-    if (num_dt_regs > driver.resources.device_regions.len) {
-        std.log.err("todo", .{});
+    if (num_dt_regs < driver.resources.device_regions.len) {
+        std.log.err("device '{s}' has {} DTB node reg entries, but {} config device regions", .{ device.name, num_dt_regs, driver.resources.device_regions.len });
         return error.InvalidConfig;
     }
 
