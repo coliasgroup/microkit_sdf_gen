@@ -46,7 +46,10 @@ pub fn build(b: *std.Build) !void {
     const test_step = b.step("test", "Run tests");
     test_step.dependOn(&run_main_tests.step);
 
-    const modsdf = b.addModule("sdf", .{ .root_source_file = b.path("src/sdf.zig") } );
+    const modsdf = b.addModule("sdf", .{
+        .root_source_file = b.path("src/mod.zig")
+    });
+    modsdf.addImport("dtb", dtbzig_dep.module("dtb"));
 
     // const pysdfgen_bin = b.option([]const u8, "pysdfgen-emit", "Name of pysdfgen library") orelse "pysdfgen.so";
     // const pysdfgen = b.addSharedLibrary(.{

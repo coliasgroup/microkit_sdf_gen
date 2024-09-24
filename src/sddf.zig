@@ -2,6 +2,8 @@ const std = @import("std");
 const builtin = @import("builtin");
 const mod_sdf = @import("sdf.zig");
 const dtb = @import("dtb");
+
+const assert = std.debug.assert;
 const Allocator = std.mem.Allocator;
 
 const SystemDescription = mod_sdf.SystemDescription;
@@ -30,7 +32,7 @@ var classes: std.ArrayList(Config.DeviceClass) = undefined;
 const CONFIG_FILENAME = "config.json";
 
 /// Assumes probe() has been called
-pub fn findDriver(compatibles: []const []const u8) ?Config.Driver {
+pub fn findDriver(compatibles: []const []const u8, class: Config.DeviceClass.Class) ?Config.Driver {
     for (drivers.items) |driver| {
         // This is yet another point of weirdness with device trees. It is often
         // the case that there are multiple compatible strings for a device and
@@ -39,7 +41,7 @@ pub fn findDriver(compatibles: []const []const u8) ?Config.Driver {
         // of a driver.
         for (compatibles) |compatible| {
             for (driver.compatible) |driver_compatible| {
-                if (std.mem.eql(u8, driver_compatible, compatible)) {
+                if (std.mem.eql(u8, driver_compatible, compatible) and driver.class == class) {
                     // We have found a compatible driver
                     return driver;
                 }
@@ -114,61 +116,42 @@ pub fn probe(allocator: Allocator, path: []const u8) !void {
         // Search for all the drivers. For each device class we need
         // to iterate through each directory and find the config file
         // TODO: handle this gracefully
-        var device_class_dir = try sddf.openDir("drivers/" ++ device_class.name, .{ .iterate = true });
-        defer device_class_dir.close();
-        var iter = device_class_dir.iterate();
-        std.log.info("searching through: 'drivers/{s}'", .{device_class.name});
-        while (try iter.next()) |entry| {
-            // Under this directory, we should find the configuration file
-            const config_path = std.fmt.allocPrint(allocator, "{s}/config.json", .{entry.name}) catch @panic("OOM");
-            defer allocator.free(config_path);
-            // Attempt to open the configuration file. It is realistic to not
-            // have every driver to have a configuration file associated with
-            // it, especially during the development of sDDF.
-            const config_file = device_class_dir.openFile(config_path, .{}) catch |e| {
-                switch (e) {
-                    error.FileNotFound => {
-                        std.log.info("could not find config file at '{s}', skipping...", .{config_path});
-                        continue;
-                    },
-                    else => return e,
-                }
-            };
-            defer config_file.close();
-            std.log.info("reading 'drivers/{s}/{s}/{s}'", .{ device_class.name ,entry.name, CONFIG_FILENAME });
-            const config_size = (try config_file.stat()).size;
-            const config = try config_file.reader().readAllAlloc(allocator, config_size);
-            // TODO; free config? we'd have to dupe the json data when populating our data structures
-            std.debug.assert(config.len == config_size);
-            // TODO: we have no information if the parsing fails. We need to do some error output if
-            // it the input is malformed.
-            // TODO: should probably free the memory at some point
-            // We are using an ArenaAllocator so calling parseFromSliceLeaky instead of parseFromSlice
-            // is recommended.
-            const json = try std.json.parseFromSliceLeaky(Config.Driver.Json, allocator, config, .{});
+        for (@as(Config.DeviceClass.Class, @enumFromInt(device_class.value)).dirs()) |dir| {
+            const driver_dir = std.fmt.allocPrint(allocator, "drivers/{s}", .{ dir }) catch @panic("OOM");
+            var device_class_dir = try sddf.openDir(driver_dir, .{ .iterate = true });
+            defer device_class_dir.close();
+            var iter = device_class_dir.iterate();
+            std.log.info("searching through: 'drivers/{s}'", .{device_class.name});
+            while (try iter.next()) |entry| {
+                // Under this directory, we should find the configuration file
+                const config_path = std.fmt.allocPrint(allocator, "{s}/config.json", .{entry.name}) catch @panic("OOM");
+                defer allocator.free(config_path);
+                // Attempt to open the configuration file. It is realistic to not
+                // have every driver to have a configuration file associated with
+                // it, especially during the development of sDDF.
+                const config_file = device_class_dir.openFile(config_path, .{}) catch |e| {
+                    switch (e) {
+                        error.FileNotFound => {
+                            std.log.info("could not find config file at '{s}', skipping...", .{config_path});
+                            continue;
+                        },
+                        else => return e,
+                    }
+                };
+                defer config_file.close();
+                std.log.info("reading 'drivers/{s}/{s}/{s}'", .{ device_class.name ,entry.name, CONFIG_FILENAME });
+                const config_size = (try config_file.stat()).size;
+                const config = try config_file.reader().readAllAlloc(allocator, config_size);
+                // TODO; free config? we'd have to dupe the json data when populating our data structures
+                assert(config.len == config_size);
+                // TODO: we have no information if the parsing fails. We need to do some error output if
+                // it the input is malformed.
+                // TODO: should probably free the memory at some point
+                // We are using an ArenaAllocator so calling parseFromSliceLeaky instead of parseFromSlice
+                // is recommended.
+                const json = try std.json.parseFromSliceLeaky(Config.Driver.Json, allocator, config, .{});
 
-            try drivers.append(Config.Driver.fromJson(json, device_class.name));
-        }
-        // Look for all the configuration files inside each of the device class
-        // sub-directories.
-        const class_config_path = std.fmt.allocPrint(allocator, "{s}/config.json", .{device_class.name}) catch @panic("OOM");
-        defer allocator.free(class_config_path);
-        if (sddf.openFile(class_config_path, .{})) |class_config_file| {
-            defer class_config_file.close();
-
-            const config_size = (try class_config_file.stat()).size;
-            const config = try class_config_file.reader().readAllAlloc(allocator, config_size);
-
-            const json = try std.json.parseFromSliceLeaky(Config.DeviceClass.Json, allocator, config, .{});
-            try classes.append(Config.DeviceClass.fromJson(json, device_class.name));
-        } else |err| {
-            switch (err) {
-                error.FileNotFound => {
-                    std.log.info("could not find class config file at '{s}', skipping...", .{class_config_path});
-                },
-                else => {
-                    std.log.info("error accessing config file ({}) at '{s}', skipping...", .{ err, class_config_path });
-                },
+                try drivers.append(Config.Driver.fromJson(json, device_class.name));
             }
         }
     }
@@ -180,11 +163,10 @@ pub const Config = struct {
         name: []const u8,
         /// Permissions to the region of memory once mapped in
         perms: []const u8,
-        // TODO: do we need cached or can we decide based on the type?
-        cached: bool,
         setvar_vaddr: ?[]const u8,
-        page_size: usize,
         size: usize,
+        // Index into 'reg' property of the device tree
+        dt_index: usize,
     };
 
     /// The actual IRQ number that gets registered with seL4
@@ -206,7 +188,6 @@ pub const Config = struct {
 
         const Resources = struct {
             device_regions: []const Region,
-            shared_regions: []const Region,
             irqs: []const Irq,
         };
 
@@ -258,6 +239,14 @@ pub const Config = struct {
             timer,
             blk,
 
+            const dir_list = [_][]const u8{
+                "network",
+                "serial",
+                "timer",
+                "blk",
+                "blk/mmc",
+            };
+
             pub fn fromStr(str: []const u8) Class {
                 inline for (std.meta.fields(Class)) |field| {
                     if (std.mem.eql(u8, str, field.name)) {
@@ -267,6 +256,15 @@ pub const Config = struct {
 
                 // TODO: don't panic
                 @panic("Unexpected device class string given");
+            }
+
+            pub fn dirs(comptime self: Class) []const []const u8 {
+                return switch (self) {
+                    .network => &.{ "network"},
+                    .serial => &.{ "serial"},
+                    .timer => &.{ "timer"},
+                    .blk => &.{ "blk", "blk/mmc"},
+                };
             }
         };
 
@@ -310,6 +308,25 @@ pub const DeviceTree = struct {
             else => return error.InvalidTriggerValue,
         };
     }
+
+    // Given an address from a DTB node's 'reg' property, convert it to a
+    // mappable MMIO address. This involves traversing any higher-level busses
+    // to find the CPU visible address rather than some address relative to the
+    // particular bus the address is on. We also align to the smallest page size;
+    // Assumes smallest page size is 0x1000;
+    pub fn regToPaddr(device: *dtb.Node, paddr: u128) u64 {
+        // TODO: casting from u128 to u64
+        var device_paddr: u64 = @intCast((paddr >> 12) << 12);
+        var parent_node_maybe: ?*dtb.Node = device.parent;
+        while (parent_node_maybe) |parent_node| : (parent_node_maybe = parent_node.parent) {
+            const parent_node_reg = parent_node.prop(.Reg);
+            if (parent_node_reg) |reg| {
+                device_paddr += @intCast(reg[0][0]);
+            }
+        }
+
+        return device_paddr;
+    }
 };
 
 pub const TimerSystem = struct {
@@ -348,10 +365,10 @@ pub const TimerSystem = struct {
 
     pub fn connect(system: *TimerSystem) !void {
         // The driver must be passive and it must be able to receive protected procedure calls
-        std.debug.assert(system.driver.passive);
-        std.debug.assert(system.driver.pp);
+        assert(system.driver.passive);
+        assert(system.driver.pp);
 
-        try createDriver(system.sdf, system.driver, system.device);
+        try createDriver(system.sdf, system.driver, system.device, .timer);
         for (system.clients.items) |client| {
             // In order to connect a client we simply have to create a channel between
             // each client and the driver.
@@ -416,86 +433,104 @@ pub const BlockSystem = struct {
     }
 
     pub fn connectDriver(system: *BlockSystem) void {
+        // TODO: temporary for virtIO driver
+        if (std.mem.eql(u8, system.device.prop(.Compatible).?[0], "virtio,mmio")) {
+            const virtio_headers_mr = Mr.create(system.sdf, "blk_virtio_headers", 0x10_000, null, .small);
+            const virtio_metadata = Mr.create(system.sdf, "blk_driver_metadata", 0x200_000, null, .large);
+
+            system.sdf.addMemoryRegion(virtio_headers_mr);
+            system.sdf.addMemoryRegion(virtio_metadata);
+
+            system.driver.addMap(.create(virtio_headers_mr, system.driver.getMapVaddr(&virtio_headers_mr), .rw, false, "virtio_headers_vaddr"));
+            system.driver.addMap(.create(virtio_metadata, system.driver.getMapVaddr(&virtio_metadata), .rw, false, "requests_vaddr"));
+
+            system.driver.addSetVar(.create("virtio_headers_paddr", &virtio_headers_mr));
+            system.driver.addSetVar(.create("requests_paddr", &virtio_metadata));
+        }
         const mr_config = Mr.create(system.sdf, "blk_driver_config", REGION_CONFIG_SIZE, null, .small);
-        const map_config_driver = Map.create(mr_config, system.driver.getMapVaddr(&mr_config), .rw, true, "blk_config");
-        const map_config_virt = Map.create(mr_config, system.virt.getMapVaddr(&mr_config), .r, true, "blk_config_driver");
+        const map_config_driver = Map.create(mr_config, system.driver.getMapVaddr(&mr_config), .rw, true, "blk_storage_info");
+        const map_config_virt = Map.create(mr_config, system.virt.getMapVaddr(&mr_config), .r, true, "blk_driver_storage_info");
 
         system.sdf.addMemoryRegion(mr_config);
         system.driver.addMap(map_config_driver);
         system.virt.addMap(map_config_virt);
 
         // TODO: deal with size
-        const mr_req = Mr.create(system.sdf, "blk_driver_request", 0x200_000, null, .small);
+        const mr_req = Mr.create(system.sdf, "blk_driver_request", 0x200_000, null, .large);
         const map_req_driver = Map.create(mr_req, system.driver.getMapVaddr(&mr_req), .rw, true, "blk_request");
-        const map_req_virt = Map.create(mr_req, system.virt.getMapVaddr(&mr_req), .r, true, "blk_req_queue_driver");
+        const map_req_virt = Map.create(mr_req, system.virt.getMapVaddr(&mr_req), .rw, true, "blk_driver_req_queue");
 
         system.sdf.addMemoryRegion(mr_req);
         system.driver.addMap(map_req_driver);
         system.virt.addMap(map_req_virt);
 
-        const mr_resp = Mr.create(system.sdf, "blk_driver_response", 0x200_000, null, .small);
+        const mr_resp = Mr.create(system.sdf, "blk_driver_response", 0x200_000, null, .large);
         const map_resp_driver = Map.create(mr_resp, system.driver.getMapVaddr(&mr_resp), .rw, true, "blk_response");
-        const map_resp_virt = Map.create(mr_resp, system.virt.getMapVaddr(&mr_resp), .r, true, "blk_resp_queue_driver");
+        const map_resp_virt = Map.create(mr_resp, system.virt.getMapVaddr(&mr_resp), .rw, true, "blk_driver_resp_queue");
 
         system.sdf.addMemoryRegion(mr_resp);
         system.driver.addMap(map_resp_driver);
         system.virt.addMap(map_resp_virt);
 
-        const mr_data = Mr.create(system.sdf, "blk_driver_data", 0x200_000, null, .small);
-        const map_data_virt = Map.create(mr_data, system.virt.getMapVaddr(&mr_data), .r, true, "blk_data_driver");
+        const mr_data = Mr.create(system.sdf, "blk_driver_data", 0x200_000, null, .large);
+        const map_data_virt = Map.create(mr_data, system.virt.getMapVaddr(&mr_data), .rw, true, "blk_driver_data");
 
         system.sdf.addMemoryRegion(mr_data);
         system.virt.addMap(map_data_virt);
-        system.virt.addSetVar(SetVar.create("blk_data_driver_paddr", &mr_data));
+        system.virt.addSetVar(SetVar.create("blk_data_paddr_driver", &mr_data));
+
+        system.sdf.addChannel(.create(system.virt, system.driver));
     }
 
-    pub fn connectClient(system: *BlockSystem, client: *Pd) Mr {
+    pub fn connectClient(system: *BlockSystem, client: *Pd) void {
         const mr_config = Mr.create(system.sdf, "blk_client_config", REGION_CONFIG_SIZE, null, .small);
-        const map_config_virt = Map.create(mr_config, system.virt.getMapVaddr(&mr_config), .r, true, "blk_config");
-        const map_config_client = Map.create(mr_config, client.getMapVaddr(&mr_config), .r, true, "blk_config");
+        const map_config_virt = Map.create(mr_config, system.virt.getMapVaddr(&mr_config), .rw, true, "blk_client_storage_info");
+        const map_config_client = Map.create(mr_config, client.getMapVaddr(&mr_config), .r, true, "blk_storage_info");
 
         system.sdf.addMemoryRegion(mr_config);
         system.virt.addMap(map_config_virt);
         client.addMap(map_config_client);
 
-        const mr_req = Mr.create(system.sdf, "blk_client_request", 0x200_000, null, .small);
-        const map_req_virt = Map.create(mr_req, system.virt.getMapVaddr(&mr_req), .rw, true, "blk_req_queue");
+        const mr_req = Mr.create(system.sdf, "blk_client_request", 0x200_000, null, .large);
+        const map_req_virt = Map.create(mr_req, system.virt.getMapVaddr(&mr_req), .rw, true, "blk_client_req_queue");
         const map_req_client = Map.create(mr_req, client.getMapVaddr(&mr_req), .rw, true, "blk_req_queue");
 
         system.sdf.addMemoryRegion(mr_req);
         system.virt.addMap(map_req_virt);
         client.addMap(map_req_client);
 
-        const mr_resp = Mr.create(system.sdf, "blk_client_response", 0x200_000, null, .small);
-        const map_resp_virt = Map.create(mr_resp, system.virt.getMapVaddr(&mr_resp), .rw, true, "blk_resp_queue");
+        const mr_resp = Mr.create(system.sdf, "blk_client_response", 0x200_000, null, .large);
+        const map_resp_virt = Map.create(mr_resp, system.virt.getMapVaddr(&mr_resp), .rw, true, "blk_client_resp_queue");
         const map_resp_client = Map.create(mr_resp, client.getMapVaddr(&mr_resp), .rw, true, "blk_resp_queue");
 
         system.sdf.addMemoryRegion(mr_resp);
         system.virt.addMap(map_resp_virt);
         client.addMap(map_resp_client);
 
-        const mr_data = Mr.create(system.sdf, "blk_client_data", 0x200_000, null, .small);
-        const map_data_virt = Map.create(mr_data, system.virt.getMapVaddr(&mr_data), .rw, true, "blk_client_data_start");
+        const mr_data = Mr.create(system.sdf, "blk_client_data", 0x200_000, null, .large);
+        const map_data_virt = Map.create(mr_data, system.virt.getMapVaddr(&mr_data), .rw, true, "blk_client_data");
         const map_data_client = Map.create(mr_data, client.getMapVaddr(&mr_data), .rw, true, "blk_data");
 
         system.sdf.addMemoryRegion(mr_data);
         system.virt.addMap(map_data_virt);
         client.addMap(map_data_client);
 
-        return mr_data;
+        system.virt.addSetVar(SetVar.create("blk_client0_data_paddr", &mr_data));
+
+        system.sdf.addChannel(.create(system.virt, client));
     }
 
-    pub fn connect(system: *BlockSystem) !Mr {
+    pub fn connect(system: *BlockSystem) !void {
         const sdf = system.sdf;
 
         // 1. Create the device resources for the driver
-        try createDriver(sdf, system.driver, system.device);
+        try createDriver(sdf, system.driver, system.device, .blk);
         // 2. Connect the driver to the virtualiser
         system.connectDriver();
         // 3. Connect each client to the virtualiser
         // TODO: we need to fix our code for multiple clients
-        std.debug.assert(system.clients.items.len == 1);
-        return system.connectClient(system.clients.items[0]);
+        assert(system.clients.items.len == 1);
+        system.connectClient(system.clients.items[0]);
     }
 };
 
@@ -526,7 +561,10 @@ pub const SerialSystem = struct {
         queue,
     };
 
-    pub fn init(allocator: Allocator, sdf: *SystemDescription, device: *dtb.Node, driver: *Pd, virt_tx: *Pd, virt_rx: ?*Pd, options: Options) SerialSystem {
+    pub fn init(allocator: Allocator, sdf: *SystemDescription, device: *dtb.Node, driver: *Pd, virt_tx: *Pd, virt_rx: ?*Pd, options: Options) !SerialSystem {
+        if (options.rx and virt_rx == null) {
+            return error.SerialMissingVirtRx;
+        }
         return .{
             .allocator = allocator,
             .sdf = sdf,
@@ -659,7 +697,7 @@ pub const SerialSystem = struct {
 
         // 1. Create all the channels
         // 1.1 Create channels between driver and multiplexors
-        try createDriver(sdf, system.driver, system.device);
+        try createDriver(sdf, system.driver, system.device, .serial);
         const ch_driver_virt_tx = Channel.create(system.driver, system.virt_tx);
         sdf.addChannel(ch_driver_virt_tx);
         if (system.rx) {
@@ -899,7 +937,7 @@ pub const NetworkSystem = struct {
 
     pub fn connect(system: *NetworkSystem) !void {
         var sdf = system.sdf;
-        try createDriver(sdf, system.driver, system.device);
+        try createDriver(sdf, system.driver, system.device, .network);
 
         // TODO: The driver needs the HW ring buffer memory region as well. In the future
         // we should make this configurable but right no we'll just add it here
@@ -937,7 +975,7 @@ pub const NetworkSystem = struct {
 
 /// Given the DTB node for the device and the SDF program image, we can figure
 /// all the resources that need to be added to the system description.
-pub fn createDriver(sdf: *SystemDescription, pd: *Pd, device: *dtb.Node) !void {
+pub fn createDriver(sdf: *SystemDescription, pd: *Pd, device: *dtb.Node, class: Config.DeviceClass.Class) !void {
     // First thing to do is find the driver configuration for the device given.
     // The way we do that is by searching for the compatible string described in the DTB node.
     const compatible = device.prop(.Compatible).?;
@@ -953,35 +991,31 @@ pub fn createDriver(sdf: *SystemDescription, pd: *Pd, device: *dtb.Node) !void {
     }
     // Get the driver based on the compatible string are given, assuming we can
     // find it.
-    const driver = if (findDriver(compatible)) |d| d else return error.UnknownDevice;
+    const driver = if (findDriver(compatible, class)) |d| d else {
+        std.log.err("Cannot find driver matching '{s}' for class '{s}'", .{ device.name, @tagName(class )});
+        return error.UnknownDevice;
+    };
     // TODO: is there a better way to do this
     if(!builtin.target.cpu.arch.isWasm()) {
         std.log.debug("Found compatible driver '{s}'", .{driver.name});
     }
-    // TODO: fix, this should be from the DTS
+
+    // If a status property does exist, we should check that it is 'okay'
+    if (device.prop(.Status)) |status| {
+        if (status != .Okay) {
+            std.log.err("Device '{s}' has invalid status: '{s}'", .{ device.name, status });
+            return error.DeviceStatusInvalid;
+        }
+    }
 
     const interrupts = device.prop(.Interrupts).?;
 
-    if (device.prop(.Reg)) |device_reg| {
-        // TODO: casting from u128 to u64
-        // Some device registers may not be page aligned so we do that here.
-        var device_paddr: u64 = @intCast((device_reg[0][0] >> 12) << 12);
-        // Why is this logic needed? Well it turns out device trees are great and the
-        // region of memory that a device occupies in physical memory is... not in the
-        // 'reg' property of the device's node in the tree. So here what we do is, as
-        // long as there is a parent node, we look and see if it has a memory address
-        // and add it to the device's declared 'address'. This needs to be done because
-        // some device trees have nodes which are offsets of the parent nodes, this is
-        // common with buses. For example, with the Odroid-C4 the main UART is 0x3000
-        // offset of the parent bus. We are only interested in the full physical address,
-        // hence this logic.
-        var parent_node_maybe: ?*dtb.Node = device.parent;
-        while (parent_node_maybe) |parent_node| : (parent_node_maybe = parent_node.parent) {
-            const parent_node_reg = parent_node.prop(.Reg);
-            if (parent_node_reg) |reg| {
-                device_paddr += @intCast(reg[0][0]);
-            }
-        }
+    // If we have more device regions in the config file than there are in the DTB node,
+    // the config file is invalid.
+    const num_dt_regs = if (device.prop(.Reg)) |r| r.len else 0;
+    if (num_dt_regs > driver.resources.device_regions.len) {
+        std.log.err("todo", .{});
+        return error.InvalidConfig;
     }
 
     // For each set of interrupt values in the device tree 'interrupts' property
@@ -992,26 +1026,64 @@ pub fn createDriver(sdf: *SystemDescription, pd: *Pd, device: *dtb.Node) !void {
     // Note that this is specific to the ARM architecture. Fucking DTS people couldn't
     // make it easy to distinguish based on architecture. :((
     for (interrupts) |interrupt| {
-        std.debug.assert(interrupt.len == 3);
+        assert(interrupt.len == 3);
     }
 
     // IRQ device tree handling is currently ARM specific.
-    std.debug.assert(sdf.arch == .aarch64 or sdf.arch == .aarch32);
+    assert(sdf.arch == .aarch64 or sdf.arch == .aarch32);
 
     // TODO: support more than one device region, it will most likely be needed in the future.
-    std.debug.assert(driver.resources.device_regions.len <= 1);
+    assert(driver.resources.device_regions.len <= 1);
     if (driver.resources.device_regions.len > 0) {
         for (driver.resources.device_regions) |region| {
-            const device_paddr: u64 = @intCast((device.prop(.Reg).?[0][0] >> 12) << 12);
+            const reg = device.prop(.Reg).?;
+            assert(region.dt_index < reg.len);
 
-            const page_size = try Mr.PageSize.fromInt(region.page_size, sdf.arch);
-            const mr_name = std.fmt.allocPrint(sdf.allocator, "{s}_{s}", .{ driver.name, region.name }) catch @panic("OOM");
-            const mr = Mr.create(sdf, mr_name, region.size, device_paddr, page_size);
-            sdf.addMemoryRegion(mr);
+            const reg_entry = reg[region.dt_index];
+            assert(reg_entry.len == 2);
+            const reg_paddr = reg_entry[0];
+            // In case the device region is less than a page
+            const reg_size = if (reg_entry[1] < 0x1000) 0x1000 else reg_entry[1];
+
+            if (reg_size < region.size) {
+                std.log.err("device '{s}' has config region size for dt_index '{}' that is too small (0x{x} bytes)", .{ device.name, region.dt_index, reg_size });
+                return error.InvalidConfig;
+            }
+
+            if (region.size & ((1 << 12) - 1) != 0) {
+                std.log.err("device '{s}' has config region size not aligned to page size for dt_index '{}'", .{ device.name, region.dt_index });
+                return error.InvalidConfig;
+            }
+
+            if (reg_size & ((1 << 12) - 1) != 0) {
+                std.log.err("device '{s}' has DTB region size not aligned to page size for dt_index '{}'", .{ device.name, region.dt_index });
+                return error.InvalidConfig;
+            }
+
+            const device_paddr = DeviceTree.regToPaddr(device, reg_paddr);
+
+            // TODO: hack when we have multiple virtIO devices. Need to come up with
+            // a proper solution.
+            var device_mr: ?Mr = null;
+            for (sdf.mrs.items) |mr| {
+                if (mr.phys_addr) |mr_phys_addr| {
+                    if (mr_phys_addr == device_paddr) {
+                        device_mr = mr;
+                    }
+                }
+            }
+
+            if (device_mr == null) {
+                const page_size = Mr.PageSize.optimal(sdf, region.size);
+                const mr_name = std.fmt.allocPrint(sdf.allocator, "{s}_{s}", .{ driver.name, region.name }) catch @panic("OOM");
+                device_mr = Mr.create(sdf, mr_name, region.size, device_paddr, page_size);
+                sdf.addMemoryRegion(device_mr.?);
+            }
 
             const perms = Map.Permissions.fromString(region.perms);
-            const vaddr = pd.getMapVaddr(&mr);
-            const map = Map.create(mr, vaddr, perms, region.cached, region.setvar_vaddr);
+            const vaddr = pd.getMapVaddr(&device_mr.?);
+            // Never map MMIO device regions as cached
+            const map = Map.create(device_mr.?, vaddr, perms, false, region.setvar_vaddr);
             pd.addMap(map);
         }
     }

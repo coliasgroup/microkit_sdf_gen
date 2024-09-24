@@ -1,6 +1,7 @@
 const std = @import("std");
 const mod_sdf = @import("sdf.zig");
 const dtb = @import("dtb");
+const sddf = @import("sddf.zig");
 const Allocator = std.mem.Allocator;
 
 const SystemDescription = mod_sdf.SystemDescription;
@@ -13,32 +14,41 @@ const Vm = SystemDescription.VirtualMachine;
 pub const VirtualMachineSystem = struct {
     allocator: Allocator,
     sdf: *SystemDescription,
-    /// There is a one-to-one relationship between the each VMM PD
-    /// and the DTB node
-    vmms: std.ArrayList(*Pd),
-    dtbs: std.ArrayList(*dtb.Node),
+    vmm: *Pd,
+    vm: *Vm,
+    guest_dtb: *dtb.Node,
 
-    pub fn init(allocator: Allocator, sdf: *SystemDescription) VirtualMachineSystem {
+    pub fn init(allocator: Allocator, sdf: *SystemDescription, vmm: *Pd, vm: *Vm, guest_dtb: *dtb.Node) VirtualMachineSystem {
         return .{
             .allocator = allocator,
             .sdf = sdf,
-            .vmms = std.ArrayList(*Pd).init(allocator),
-            .dtbs = std.ArrayList(*dtb.Node).init(allocator),
+            .vmm = vmm,
+            .vm = vm,
+            .guest_dtb = guest_dtb,
         };
-    }
-
-    pub fn add(system: *VirtualMachineSystem, vmm: *Pd, vm: *Vm, guest_dtb: *dtb.Node) !void {
-        // TODO: check that PD does not already have VM
-        try system.vmms.append(vmm);
-        try system.dtbs.append(guest_dtb);
-        try vmm.addVirtualMachine(vm);
     }
 
     /// A currently naive approach to adding passthrough for a particular device
     /// to a virtual machine.
-    /// This adds the required interrupts to be given to the VMM, and the 
-    pub fn addPassthrough(_: *VirtualMachineSystem, ) !void {
-        
+    /// This adds the required interrupts to be given to the VMM, and the
+    pub fn addPassthrough(system: *VirtualMachineSystem, name: []const u8, device: *dtb.Node) !void {
+        // Find the device, get it's memory regions and add it to the guest. Add its IRQs to the VMM.
+        const interrupts = device.prop(.Interrupts).?;
+        if (device.prop(.Reg)) |device_reg| {
+            const device_paddr: u64 = @intCast((device_reg[0][0] >> 12) << 12);
+            const device_mr = Mr.create(system.sdf, name, 0x1000, device_paddr, .small);
+            system.sdf.addMemoryRegion(device_mr);
+            system.vm.addMap(Map.create(device_mr, device_paddr, .rw, false, null));
+        }
+
+        // Determine the IRQ trigger and (software-observable) number based on the device tree.
+        const irq_type = try sddf.DeviceTree.armGicIrqType(interrupts[0][0]);
+        const irq_number = sddf.DeviceTree.armGicIrqNumber(interrupts[0][1], irq_type);
+        // Assume trigger is level if we are dealing with an IRQ that is not an SPI.
+        // TODO: come back to this, do we need to care about the trigger for non-SPIs?
+        const irq_trigger = if (irq_type == .spi) try sddf.DeviceTree.armGicSpiTrigger(interrupts[0][2]) else .level;
+
+        try system.vmm.addInterrupt(.create(irq_number, irq_trigger, null));
     }
 
     pub fn connect(system: *VirtualMachineSystem) !void {
@@ -47,6 +57,9 @@ pub const VirtualMachineSystem = struct {
             std.debug.print("Unsupported architecture: '{}'", .{ system.sdf.arch });
             return error.UnsupportedArch;
         }
+        const vmm = system.vmm;
+        const vm = system.vm;
+        try vmm.setVirtualMachine(vm);
         // TODO; get this information from the DTB of the guest
         const gic_vcpu = Mr.create(sdf, "gic_vcpu", 0x1000, 0x8040000, .small);
         sdf.addMemoryRegion(gic_vcpu);
@@ -54,31 +67,24 @@ pub const VirtualMachineSystem = struct {
         // TODO: get the vaddr information from DTB
         const gic_vcpu_perms: Map.Permissions = .{ .read = true, .write = true };
         const gic_vcpu_map = Map.create(gic_vcpu, 0x8010000, gic_vcpu_perms, false, null);
-        for (system.vmms.items, system.dtbs.items) |vmm, vm_dtb| {
-            if (vmm.vm) |vm| {
-                const memory_node = vm_dtb.child("memory@0").?;
-                const memory_reg = memory_node.prop(.Reg).?;
-                const memory_paddr: usize = @intCast(memory_reg[0][0]);
-                std.debug.print("memory_paddr: {}\n", .{ memory_paddr });
-                // TODO: should free the name at some point....
-                const guest_mr_name = std.fmt.allocPrint(system.allocator, "guest_ram_{s}", .{ vm.name }) catch @panic("OOM");
-                // TODO: get RAM size from the memory node from DTB
-                const guest_ram_size = 1024 * 1024 * 256;
-                const guest_ram_mr = Mr.create(sdf, guest_mr_name, guest_ram_size, null, Mr.PageSize.optimal(sdf, guest_ram_size));
-                sdf.addMemoryRegion(guest_ram_mr);
-                // TODO: vaddr should come from the memory node from DTB
-                const vm_guest_ram_perms: Map.Permissions = .{ .read = true, .write = true, .execute = true };
-                const vmm_guest_ram_perms: Map.Permissions = .{ .read = true, .write = true };
-                const vm_guest_ram_map = Map.create(guest_ram_mr, memory_paddr, vm_guest_ram_perms, true, null);
-                const vmm_guest_ram_map = Map.create(guest_ram_mr, memory_paddr, vmm_guest_ram_perms, true, "guest_ram_vaddr");
-                vmm.addMap(vmm_guest_ram_map);
-                vm.addMap(vm_guest_ram_map);
-                vm.addMap(gic_vcpu_map);
-            } else {
-                return error.VmmMissingVm;
-            }
-            sdf.addProtectionDomain(vmm);
-        }
+        const memory_node = system.guest_dtb.child("memory@40000000").?;
+        const memory_reg = memory_node.prop(.Reg).?;
+        const memory_paddr: usize = @intCast(memory_reg[0][0]);
+        std.debug.print("memory_paddr: {}\n", .{ memory_paddr });
+        // TODO: should free the name at some point....
+        const guest_mr_name = std.fmt.allocPrint(system.allocator, "guest_ram_{s}", .{ vm.name }) catch @panic("OOM");
+        // TODO: get RAM size from the memory node from DTB
+        const guest_ram_size = 1024 * 1024 * 256;
+        const guest_ram_mr = Mr.create(sdf, guest_mr_name, guest_ram_size, null, Mr.PageSize.optimal(sdf, guest_ram_size));
+        sdf.addMemoryRegion(guest_ram_mr);
+        // TODO: vaddr should come from the memory node from DTB
+        const vm_guest_ram_perms: Map.Permissions = .{ .read = true, .write = true, .execute = true };
+        const vmm_guest_ram_perms: Map.Permissions = .{ .read = true, .write = true };
+        const vm_guest_ram_map = Map.create(guest_ram_mr, memory_paddr, vm_guest_ram_perms, true, null);
+        const vmm_guest_ram_map = Map.create(guest_ram_mr, memory_paddr, vmm_guest_ram_perms, true, "guest_ram_vaddr");
+        vmm.addMap(vmm_guest_ram_map);
+        vm.addMap(vm_guest_ram_map);
+        vm.addMap(gic_vcpu_map);
     }
 };
 

@@ -240,12 +240,21 @@ pub const SystemDescription = struct {
         // the budget
         budget: usize = 100,
         period: usize = 100,
+        // TODO: deal with passive
         passive: bool = false,
+        vcpus: []const Vcpu,
         maps: ArrayList(Map),
 
-        pub fn create(sdf: *SystemDescription, name: []const u8) VirtualMachine {
+        const Vcpu = struct {
+            id: usize,
+            /// Physical core the vCPU will run on
+            cpu: usize,
+        };
+
+        pub fn create(sdf: *SystemDescription, name: []const u8, vcpus: []const Vcpu) VirtualMachine {
             return VirtualMachine{
                 .name = name,
+                .vcpus = vcpus,
                 .maps = ArrayList(Map).init(sdf.allocator),
             };
         }
@@ -258,11 +267,11 @@ pub const SystemDescription = struct {
             vm.maps.deinit();
         }
 
-        pub fn toXml(vm: *VirtualMachine, sdf: *SystemDescription, writer: ArrayList(u8).Writer, separator: []const u8, id: usize) !void {
+        pub fn toXml(vm: *VirtualMachine, sdf: *SystemDescription, writer: ArrayList(u8).Writer, separator: []const u8) !void {
             const first_tag =
-                \\{s}<virtual_machine name="{s}" id="{}" priority="{}" budget="{}" period="{}" passive="{}" />
+                \\{s}<virtual_machine name="{s}" priority="{}" budget="{}" period="{}" >
             ;
-            const first_xml = try allocPrint(sdf.allocator, first_tag, .{ separator, vm.name, id, vm.priority, vm.budget, vm.period, vm.passive });
+            const first_xml = try allocPrint(sdf.allocator, first_tag, .{ separator, vm.name, vm.priority, vm.budget, vm.period });
             defer sdf.allocator.free(first_xml);
             _ = try writer.write(first_xml);
             _ = try writer.write("\n");
@@ -270,12 +279,20 @@ pub const SystemDescription = struct {
             // Add memory region mappings as child nodes
             const child_separator = try allocPrint(sdf.allocator, "{s}    ", .{ separator });
             defer sdf.allocator.free(child_separator);
+
+            for (vm.vcpus) |vcpu| {
+                // TODO: write out cpu field
+                const vcpu_xml = try allocPrint(sdf.allocator, "{s}<vcpu id=\"{}\" />", .{ child_separator, vcpu.id });
+                _ = try writer.write(vcpu_xml);
+                _ = try writer.write("\n");
+            }
+
             for (vm.maps.items) |map| {
                 try map.toXml(sdf, writer, child_separator);
             }
 
             const closing_tag =
-                \\{s}<virtual_machine />
+                \\{s}</virtual_machine>
             ;
             const closing_xml = try allocPrint(sdf.allocator, closing_tag, .{ separator });
             defer sdf.allocator.free(closing_xml);
@@ -347,6 +364,7 @@ pub const SystemDescription = struct {
         pub fn allocateId(pd: *ProtectionDomain, id: ?usize) !usize {
             if (id) |chosen_id| {
                 if (pd.ids.isSet(chosen_id)) {
+                    std.log.err("attempting to allocate id '{}' in PD '{s}'", .{ chosen_id, pd.name });
                     return error.AlreadyAllocatedId;
                 } else {
                     pd.ids.setValue(chosen_id, true);
@@ -364,7 +382,7 @@ pub const SystemDescription = struct {
             }
         }
 
-        pub fn addVirtualMachine(pd: *ProtectionDomain, vm: *VirtualMachine) !void {
+        pub fn setVirtualMachine(pd: *ProtectionDomain, vm: *VirtualMachine) !void {
             if (pd.vm != null) return error.ProtectionDomainAlreadyHasVirtualMachine;
             pd.vm = vm;
         }
@@ -430,7 +448,18 @@ pub const SystemDescription = struct {
             const attributes_str =
                 \\priority="{}" budget="{}" period="{}" passive="{}" pp="{}" stack_size="0x{x}"
             ;
-            const attributes_xml = try allocPrint(sdf.allocator, attributes_str, .{ pd.priority, budget, period, pd.passive, pd.pp, pd.stack_size });
+            const attributes_xml = try allocPrint(
+                sdf.allocator,
+                attributes_str,
+                .{
+                    pd.priority,
+                    budget,
+                    period,
+                    pd.passive,
+                    pd.pp,
+                    pd.stack_size
+                }
+            );
             defer sdf.allocator.free(attributes_xml);
             var top: []const u8 = undefined;
             if (id) |id_val| {
@@ -459,7 +488,7 @@ pub const SystemDescription = struct {
             }
             // Add virtual machine (if we have one)
             if (pd.vm) |vm| {
-                try vm.toXml(sdf, writer, child_separator, try pd.allocateId(null));
+                try vm.toXml(sdf, writer, child_separator);
             }
             // Add interrupts
             for (pd.irqs.items) |irq| {
@@ -569,9 +598,17 @@ pub const SystemDescription = struct {
         sdf.mrs.append(mr) catch @panic("Could not add MemoryRegion to SystemDescription");
     }
 
-    pub fn addProtectionDomain(sdf: *SystemDescription, pd: *ProtectionDomain) void {
-        sdf.pds.append(pd) catch @panic("Could not add ProtectionDomain to SystemDescription");
+    pub fn addProtectionDomain(sdf: *SystemDescription, protection_domain: *ProtectionDomain) void {
+        sdf.pds.append(protection_domain) catch @panic("Could not add ProtectionDomain to SystemDescription");
     }
+
+    pub fn addPd(sdf: *SystemDescription, name: []const u8, program_image: ?[]const u8) ProtectionDomain {
+        var pd = ProtectionDomain.create(sdf, name, program_image);
+        sdf.addProtectionDomain(&pd);
+
+        return pd;
+    }
+
 
     // pub fn addPd(sdf: *SystemDescription, name: []const u8, program_image: ProtectionDomain.ProgramImage) ProtectionDomain {
     //     var pd = ProtectionDomain.create(sdf, name, program_image);

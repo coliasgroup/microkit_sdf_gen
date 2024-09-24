@@ -57,7 +57,7 @@ const MicrokitBoard = enum {
 };
 
 const Example = enum {
-    virtio,
+    // virtio,
     virtio_blk,
     abstractions,
     // gdb,
@@ -77,7 +77,7 @@ const Example = enum {
 
     pub fn generate(e: Example, allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !void {
         switch (e) {
-            .virtio => try virtio(sdf),
+            // .virtio => try virtio(sdf),
             .abstractions => try abstractions(allocator, sdf, blob),
             .virtio_blk => try virtio_blk(allocator, sdf, blob),
             // .gdb => try gdb(allocator, sdf, blob),
