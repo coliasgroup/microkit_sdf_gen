@@ -121,7 +121,6 @@ pub fn probe(allocator: Allocator, path: []const u8) !void {
             var device_class_dir = try sddf.openDir(driver_dir, .{ .iterate = true });
             defer device_class_dir.close();
             var iter = device_class_dir.iterate();
-            std.log.info("searching through: 'drivers/{s}'", .{device_class.name});
             while (try iter.next()) |entry| {
                 // Under this directory, we should find the configuration file
                 const config_path = std.fmt.allocPrint(allocator, "{s}/config.json", .{entry.name}) catch @panic("OOM");
@@ -132,14 +131,12 @@ pub fn probe(allocator: Allocator, path: []const u8) !void {
                 const config_file = device_class_dir.openFile(config_path, .{}) catch |e| {
                     switch (e) {
                         error.FileNotFound => {
-                            std.log.info("could not find config file at '{s}', skipping...", .{config_path});
                             continue;
                         },
                         else => return e,
                     }
                 };
                 defer config_file.close();
-                std.log.info("reading 'drivers/{s}/{s}/{s}'", .{ device_class.name ,entry.name, CONFIG_FILENAME });
                 const config_size = (try config_file.stat()).size;
                 const config = try config_file.reader().readAllAlloc(allocator, config_size);
                 // TODO; free config? we'd have to dupe the json data when populating our data structures
@@ -275,12 +272,101 @@ pub const Config = struct {
 };
 
 pub const DeviceTree = struct {
+    pub fn isCompatible(device_compatibles: []const []const u8, compatibles: []const []const u8) bool {
+        // Go through the given compatibles and see if they match with anything on the device.
+        for (compatibles) |compatible| {
+            for (device_compatibles) |device_compatible| {
+                if (std.mem.eql(u8, device_compatible, compatible)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    pub fn memory(d: *dtb.Node) ?*dtb.Node {
+        for (d.children) |child| {
+            const device_type = child.prop(.DeviceType);
+            if (device_type != null) {
+                if (std.mem.eql(u8, "memory", device_type.?)) {
+                    return child;
+                }
+            }
+
+            if (memory(child)) |memory_node| {
+                return memory_node;
+            }
+        }
+
+        return null;
+    }
+
     /// Functionality relating the the ARM Generic Interrupt Controller.
     const ArmGicIrqType = enum {
         spi,
         ppi,
         extended_spi,
         extended_ppi,
+    };
+
+    pub const ArmGic = struct {
+        const Version = enum {
+            two,
+            three
+        };
+
+        cpu_paddr: u64,
+        vcpu_paddr: u64,
+        vcpu_size: u64,
+        version: Version,
+
+        const compatible = compatible_v2 ++ compatible_v3;
+        const compatible_v2 = [_][]const u8{ "arm,gic-v2", "arm,cortex-a15-gic" };
+        const compatible_v3 = [_][]const u8{ "arm,gic-v3" };
+
+        pub fn fromDtb(d: *dtb.Node) ArmGic {
+            // Find the GIC with any compatible string, regardless of version.
+            // TODO: check if findCompatible returns null
+            const maybe_gic_node = DeviceTree.findCompatible(d, &ArmGic.compatible);
+            if (maybe_gic_node == null) {
+                @panic("Cannot find ARM GIC device in device tree");
+            }
+            const gic_node = maybe_gic_node.?;
+            // Get the GIC version first.
+            const node_compatible = gic_node.prop(.Compatible).?;
+            const version = blk: {
+                if (isCompatible(node_compatible, &compatible_v2)) {
+                    break :blk Version.two;
+                } else if (isCompatible(node_compatible, &compatible_v3)) {
+                    break :blk Version.three;
+                } else {
+                    unreachable;
+                }
+            };
+
+            const vcpu_dt_index: usize = switch (version) {
+                .two => 3,
+                .three => 4,
+            };
+            const cpu_dt_index: usize = switch (version) {
+                .two => 1,
+                .three => 2,
+            };
+            // TODO: need to check indexes are valid
+            const gic_reg = gic_node.prop(.Reg).?;
+            const vcpu_paddr = DeviceTree.regToPaddr(gic_node, gic_reg[vcpu_dt_index][0]);
+            const vcpu_size = gic_reg[vcpu_dt_index][1];
+            const cpu_paddr = DeviceTree.regToPaddr(gic_node, gic_reg[cpu_dt_index][0]);
+
+            return .{
+                .cpu_paddr = cpu_paddr,
+                .vcpu_paddr = vcpu_paddr,
+                // TODO: down cast
+                .vcpu_size = @intCast(vcpu_size),
+                .version = version,
+            };
+        }
     };
 
     pub fn armGicIrqType(irq_type: usize) !ArmGicIrqType {
@@ -309,21 +395,43 @@ pub const DeviceTree = struct {
         };
     }
 
+    pub fn findCompatible(d: *dtb.Node, compatibles: []const []const u8) ?*dtb.Node {
+        for (d.children) |child| {
+            const device_compatibles = child.prop(.Compatible);
+            // It is possible for a node to not have any compatibles
+            if (device_compatibles != null) {
+                for (compatibles) |compatible| {
+                    for (device_compatibles.?) |device_compatible| {
+                        if (std.mem.eql(u8, device_compatible, compatible)) {
+                            return child;
+                        }
+                    }
+                }
+            }
+            if (findCompatible(child, compatibles)) |compatible_child| {
+                return compatible_child;
+            }
+        }
+
+        return null;
+    }
+
     // Given an address from a DTB node's 'reg' property, convert it to a
     // mappable MMIO address. This involves traversing any higher-level busses
     // to find the CPU visible address rather than some address relative to the
     // particular bus the address is on. We also align to the smallest page size;
     // Assumes smallest page size is 0x1000;
-    pub fn regToPaddr(device: *dtb.Node, paddr: u128) u64 {
+    pub fn regToPaddr(_: *dtb.Node, paddr: u128) u64 {
         // TODO: casting from u128 to u64
-        var device_paddr: u64 = @intCast((paddr >> 12) << 12);
-        var parent_node_maybe: ?*dtb.Node = device.parent;
-        while (parent_node_maybe) |parent_node| : (parent_node_maybe = parent_node.parent) {
-            const parent_node_reg = parent_node.prop(.Reg);
-            if (parent_node_reg) |reg| {
-                device_paddr += @intCast(reg[0][0]);
-            }
-        }
+        const device_paddr: u64 = @intCast((paddr >> 12) << 12);
+        // TODO: doesn't work on the maaxboard
+        // var parent_node_maybe: ?*dtb.Node = device.parent;
+        // while (parent_node_maybe) |parent_node| : (parent_node_maybe = parent_node.parent) {
+        //     const parent_node_reg = parent_node.prop(.Reg);
+        //     if (parent_node_reg) |reg| {
+        //         device_paddr += @intCast(reg[0][0]);
+        //     }
+        // }
 
         return device_paddr;
     }
@@ -457,7 +565,7 @@ pub const BlockSystem = struct {
 
         // TODO: deal with size
         const mr_req = Mr.create(system.sdf, "blk_driver_request", 0x200_000, null, .large);
-        const map_req_driver = Map.create(mr_req, system.driver.getMapVaddr(&mr_req), .rw, true, "blk_request");
+        const map_req_driver = Map.create(mr_req, system.driver.getMapVaddr(&mr_req), .rw, true, "blk_req_queue");
         const map_req_virt = Map.create(mr_req, system.virt.getMapVaddr(&mr_req), .rw, true, "blk_driver_req_queue");
 
         system.sdf.addMemoryRegion(mr_req);
@@ -465,7 +573,7 @@ pub const BlockSystem = struct {
         system.virt.addMap(map_req_virt);
 
         const mr_resp = Mr.create(system.sdf, "blk_driver_response", 0x200_000, null, .large);
-        const map_resp_driver = Map.create(mr_resp, system.driver.getMapVaddr(&mr_resp), .rw, true, "blk_response");
+        const map_resp_driver = Map.create(mr_resp, system.driver.getMapVaddr(&mr_resp), .rw, true, "blk_resp_queue");
         const map_resp_virt = Map.create(mr_resp, system.virt.getMapVaddr(&mr_resp), .rw, true, "blk_driver_resp_queue");
 
         system.sdf.addMemoryRegion(mr_resp);

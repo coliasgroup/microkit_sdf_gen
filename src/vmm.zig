@@ -10,6 +10,9 @@ const Pd = SystemDescription.ProtectionDomain;
 const Map = SystemDescription.Map;
 const Vm = SystemDescription.VirtualMachine;
 
+const DeviceTree = sddf.DeviceTree;
+const ArmGic = DeviceTree.ArmGic;
+
 // TODO: handle freeing of arraylists
 pub const VirtualMachineSystem = struct {
     allocator: Allocator,
@@ -30,27 +33,35 @@ pub const VirtualMachineSystem = struct {
 
     /// A currently naive approach to adding passthrough for a particular device
     /// to a virtual machine.
-    /// This adds the required interrupts to be given to the VMM, and the
-    pub fn addPassthrough(system: *VirtualMachineSystem, name: []const u8, device: *dtb.Node) !void {
+    /// This adds the required interrupts to be given to the VMM, and the TODO finish description
+    pub fn addPassthrough(system: *VirtualMachineSystem, name: []const u8, device: *dtb.Node, irqs: bool) !void {
         // Find the device, get it's memory regions and add it to the guest. Add its IRQs to the VMM.
-        const interrupts = device.prop(.Interrupts).?;
         if (device.prop(.Reg)) |device_reg| {
+            // TODO: use function for this
             const device_paddr: u64 = @intCast((device_reg[0][0] >> 12) << 12);
-            const device_mr = Mr.create(system.sdf, name, 0x1000, device_paddr, .small);
+            const device_size: u64 = @intCast(device_reg[0][1]);
+            const device_mr = Mr.create(system.sdf, name, device_size, device_paddr, .small);
             system.sdf.addMemoryRegion(device_mr);
             system.vm.addMap(Map.create(device_mr, device_paddr, .rw, false, null));
         }
 
-        // Determine the IRQ trigger and (software-observable) number based on the device tree.
-        const irq_type = try sddf.DeviceTree.armGicIrqType(interrupts[0][0]);
-        const irq_number = sddf.DeviceTree.armGicIrqNumber(interrupts[0][1], irq_type);
-        // Assume trigger is level if we are dealing with an IRQ that is not an SPI.
-        // TODO: come back to this, do we need to care about the trigger for non-SPIs?
-        const irq_trigger = if (irq_type == .spi) try sddf.DeviceTree.armGicSpiTrigger(interrupts[0][2]) else .level;
-
-        try system.vmm.addInterrupt(.create(irq_number, irq_trigger, null));
+        if (irqs) {
+            const maybe_interrupts = device.prop(.Interrupts);
+            if (maybe_interrupts) |interrupts| {
+                // Determine the IRQ trigger and (software-observable) number based on the device tree.
+                const irq_type = try sddf.DeviceTree.armGicIrqType(interrupts[0][0]);
+                const irq_number = sddf.DeviceTree.armGicIrqNumber(interrupts[0][1], irq_type);
+                // Assume trigger is level if we are dealing with an IRQ that is not an SPI.
+                // TODO: come back to this, do we need to care about the trigger for non-SPIs?
+                const irq_trigger = if (irq_type == .spi) try sddf.DeviceTree.armGicSpiTrigger(interrupts[0][2]) else .level;
+                try system.vmm.addInterrupt(.create(irq_number, irq_trigger, null));
+            }
+        }
     }
 
+    // TODO: deal with the general problem of having multiple gic vcpu mappings but only one MR.
+    // Two options, find the GIC vcpu mr and if it it doesn't exist, create it, if it does, use it.
+    // other option is to have each a 'VirtualMachineSystem' that is responsible for every single VM.
     pub fn connect(system: *VirtualMachineSystem) !void {
         var sdf = system.sdf;
         if (sdf.arch != .aarch64) {
@@ -60,21 +71,25 @@ pub const VirtualMachineSystem = struct {
         const vmm = system.vmm;
         const vm = system.vm;
         try vmm.setVirtualMachine(vm);
-        // TODO; get this information from the DTB of the guest
-        const gic_vcpu = Mr.create(sdf, "gic_vcpu", 0x1000, 0x8040000, .small);
-        sdf.addMemoryRegion(gic_vcpu);
-        // TODO: I think this mapping stays the same so we only need to create it once
-        // TODO: get the vaddr information from DTB
-        const gic_vcpu_perms: Map.Permissions = .{ .read = true, .write = true };
-        const gic_vcpu_map = Map.create(gic_vcpu, 0x8010000, gic_vcpu_perms, false, null);
-        const memory_node = system.guest_dtb.child("memory@40000000").?;
+
+        // On ARM, map in the GIC vCPU device as the GIC CPU device in the guest's memory.
+        if (sdf.arch == .aarch64) {
+            const gic = ArmGic.fromDtb(system.guest_dtb);
+            const gic_vcpu_mr = Mr.create(sdf, "gic_vcpu", gic.vcpu_size, gic.vcpu_paddr, .small);
+            const gic_guest_map = Map.create(gic_vcpu_mr, gic.cpu_paddr, .rw, false, null);
+            sdf.addMemoryRegion(gic_vcpu_mr);
+            vm.addMap(gic_guest_map);
+        }
+
+        const memory_node = DeviceTree.memory(system.guest_dtb).?;
         const memory_reg = memory_node.prop(.Reg).?;
+        // TODO
+        std.debug.assert(memory_reg.len == 1);
         const memory_paddr: usize = @intCast(memory_reg[0][0]);
-        std.debug.print("memory_paddr: {}\n", .{ memory_paddr });
         // TODO: should free the name at some point....
         const guest_mr_name = std.fmt.allocPrint(system.allocator, "guest_ram_{s}", .{ vm.name }) catch @panic("OOM");
         // TODO: get RAM size from the memory node from DTB
-        const guest_ram_size = 1024 * 1024 * 256;
+        const guest_ram_size: usize = @intCast(memory_reg[0][1]);
         const guest_ram_mr = Mr.create(sdf, guest_mr_name, guest_ram_size, null, Mr.PageSize.optimal(sdf, guest_ram_size));
         sdf.addMemoryRegion(guest_ram_mr);
         // TODO: vaddr should come from the memory node from DTB
@@ -84,11 +99,5 @@ pub const VirtualMachineSystem = struct {
         const vmm_guest_ram_map = Map.create(guest_ram_mr, memory_paddr, vmm_guest_ram_perms, true, "guest_ram_vaddr");
         vmm.addMap(vmm_guest_ram_map);
         vm.addMap(vm_guest_ram_map);
-        vm.addMap(gic_vcpu_map);
     }
 };
-
-// Given a device tree node, will add the corresponding interrupts to the
-// VMM PD and map the memory associated with the device to the virtual machine.
-// pub fn addPassthrough(vmm: *Pd, vm: *VirtualMachine, device: *dtb.Node) !void {
-// }
