@@ -50,18 +50,40 @@ zig build c
 
 ### Python bindings
 
+The Python bindings are based on the C bindings. While it is possible to just use pure
+Zig with the Python C API to create modules, types, functions etc for the Python bindings,
+I opted with the C API to minimise friction. There are minor things like macros that are not
+usable within Zig hence making writing the module in C slightly easier.
+
+First, create a virtual environment and activate it:
 ```sh
 cd python
-zig build python
-python3 -m venv env
-source env/bin/activate
-python3 -m pip install .
+python3 -m venv venv
+source venv/bin/activate
 ```
 
+To build just the bindings, without the package, you can run the command below.
 
-From here you can do something like:
 ```sh
-python3
+zig build python -Dpython-include=/python/include
+```
+
+You will need to supply one or more include directories to build the bindings, since they depend
+on what your OS is and where your package manager put them.
+
+You can find the include directories using `python3-config --includes`. However, be careful that
+the `python3-config` version is using the same Python as the one used to make the virtual environment.
+If you have multiple versions of Python on your machine, this can be an easy mistake to make.
+
+Finally, to build the package, you can run:
+```sh
+./venv/bin/python3 -m pip install .
+```
+
+Now you should be able to import and use the bindings:
+```sh
+./venv/bin/python3
 >>> import sdfgen
+>>> help(sdfgen)
 ```
 

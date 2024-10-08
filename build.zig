@@ -6,6 +6,8 @@ pub fn build(b: *std.Build) !void {
 
     const dtbzig_dep = b.dependency("dtb.zig", .{});
 
+    const python_include = b.option([]const []const u8, "python-include", "Include directory for Python bindings") orelse &.{};
+
     const lib = b.addStaticLibrary(.{
         .name = "microkit_sdf_gen",
         .root_source_file = b.path("src/sdf.zig"),
@@ -75,7 +77,12 @@ pub fn build(b: *std.Build) !void {
             "-Werror"
         }
     });
-    pysdfgen.addIncludePath(.{ .cwd_relative = "/opt/homebrew/opt/python@3.12/Frameworks/Python.framework/Versions/3.12/include/python3.12" });
+    for (python_include) |include| {
+        pysdfgen.addIncludePath(.{ .cwd_relative = include });
+    }
+    if (python_include.len == 0) {
+        try pysdfgen.step.addError("python bindings need a list of python include directories, see -Dpython-include option", .{});
+    }
     pysdfgen.linkLibC();
     pysdfgen.addIncludePath(b.path("src/c"));
     b.installArtifact(pysdfgen);

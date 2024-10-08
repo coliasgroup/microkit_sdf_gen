@@ -21,11 +21,15 @@ if __name__ == '__main__':
     blk_system = Sddf.Block(sdf, dtb.node("virtio_mmio@a003e00"), blk_driver, blk_virt)
     blk_system.add_client(i2c_reactor_client)
 
-    sdf.add_pd(i2c_reactor_client)
-    sdf.add_pd(i2c_virt)
-    sdf.add_pd(i2c_reactor_driver)
-    sdf.add_pd(blk_driver)
-    sdf.add_pd(blk_virt)
+    pds = [
+        i2c_reactor_client,
+        i2c_virt,
+        i2c_reactor_driver,
+        blk_driver,
+        blk_virt
+    ]
+    for pd in pds:
+        sdf.add_pd(pd)
 
     i2c_system.connect()
     blk_system.connect()
