@@ -12,6 +12,59 @@ typedef struct {
 
 typedef struct {
     PyObject_HEAD
+    void *blob;
+} DeviceTreeObject;
+
+static int
+DeviceTree_init(DeviceTreeObject *self, PyObject *args)
+{
+    char *path;
+    if (!PyArg_ParseTuple(args, "s", &path)) {
+        return -1;
+    }
+    self->blob = sdfgen_dtb_parse(path);
+
+    return 0;
+}
+
+static PyObject *
+DeviceTree_node(DeviceTreeObject *self, PyObject *args) {
+    char *node_str;
+    printf("here\n");
+    if (!PyArg_ParseTuple(args, "s", &node_str)) {
+        // TODO: raise exception?
+        return NULL;
+    }
+    void *node = sdfgen_dtb_node(self->blob, node_str);
+    if (node == NULL) {
+        Py_RETURN_NONE;
+    }
+    // TODO: how does this work with the GC? We want to increase the refcount
+    // whenever we have a pointer to the node right?
+    return PyCapsule_New(node, "node_str", NULL);
+}
+
+static PyMethodDef DeviceTree_methods[] = {
+    {"node", (PyCFunction) DeviceTree_node, METH_VARARGS,
+     "Get a node in the DeviceTree, returns None if the node does not exist."
+    },
+    {NULL}  /* Sentinel */
+};
+
+static PyTypeObject DeviceTreeType = {
+    .ob_base = PyVarObject_HEAD_INIT(NULL, 0)
+    .tp_name = "sdfgen.DeviceTree",
+    .tp_doc = PyDoc_STR("DeviceTree"),
+    .tp_basicsize = sizeof(DeviceTreeObject),
+    .tp_itemsize = 0,
+    .tp_flags = Py_TPFLAGS_DEFAULT,
+    .tp_new = PyType_GenericNew,
+    .tp_init = (initproc) DeviceTree_init,
+    .tp_methods = DeviceTree_methods,
+};
+
+typedef struct {
+    PyObject_HEAD
     void *pd;
 } ProtectionDomainObject;
 
@@ -48,18 +101,96 @@ static PyTypeObject ProtectionDomainType = {
 typedef struct {
     PyObject_HEAD
     void *system;
+} SddfBlockObject;
+
+static int
+SddfBlock_init(SddfBlockObject *self, PyObject *args)
+{
+    // TODO: check args
+    SystemDescriptionObject *sdf_obj;
+    PyObject *device_obj;
+    ProtectionDomainObject *driver_obj;
+    ProtectionDomainObject *virt_obj;
+
+    PyArg_ParseTuple(args, "OOOO", &sdf_obj, &device_obj, &driver_obj, &virt_obj);
+
+    void *device;
+    if (device_obj == Py_None) {
+        device = NULL;
+    } else {
+        // TODO: better capsule name
+        device = PyCapsule_GetPointer(device_obj, "node_str");
+    }
+
+    self->system = sdfgen_sddf_block(sdf_obj->sdf, device, driver_obj->pd, virt_obj->pd);
+    return 0;
+}
+
+static PyObject *
+SddfBlock_add_client(SddfBlockObject *self, PyObject *py_pd)
+{
+    // TODO: do we need to count refernce to py_pd?
+    ProtectionDomainObject *pd_obj = (ProtectionDomainObject *)py_pd;
+    sdfgen_sddf_block_add_client(self->system, pd_obj->pd);
+
+    Py_RETURN_NONE;
+}
+
+static PyObject *
+SddfBlock_connect(SddfBlockObject *self, PyObject *Py_UNUSED(ignored))
+{
+    sdfgen_sddf_block_connect(self->system);
+
+    Py_RETURN_NONE;
+}
+
+static PyMethodDef SddfBlock_methods[] = {
+    {"add_client", (PyCFunction) SddfBlock_add_client, METH_O,
+     "Add a client to the system"
+    },
+    {"connect", (PyCFunction) SddfBlock_connect, METH_NOARGS,
+     "Generate all resources for system"
+    },
+    {NULL}  /* Sentinel */
+};
+
+static PyTypeObject SddfBlockType = {
+    .ob_base = PyVarObject_HEAD_INIT(NULL, 0)
+    .tp_name = "sdfgen.Sddf.Block",
+    .tp_doc = PyDoc_STR("Sddf.Block"),
+    .tp_basicsize = sizeof(SddfBlockObject),
+    .tp_itemsize = 0,
+    .tp_flags = Py_TPFLAGS_DEFAULT,
+    .tp_new = PyType_GenericNew,
+    .tp_init = (initproc) SddfBlock_init,
+    .tp_methods = SddfBlock_methods,
+};
+
+typedef struct {
+    PyObject_HEAD
+    void *system;
 } SddfI2cObject;
 
 static int
 SddfI2c_init(SddfI2cObject *self, PyObject *args)
 {
     // TODO: check args
-    // TODO: handle i2c device
     SystemDescriptionObject *sdf_obj;
+    PyObject *device_obj;
     ProtectionDomainObject *driver_obj;
     ProtectionDomainObject *virt_obj;
-    PyArg_ParseTuple(args, "OOO", &sdf_obj, &driver_obj, &virt_obj);
-    self->system = sdfgen_sddf_i2c(sdf_obj->sdf, NULL, driver_obj->pd, virt_obj->pd);
+
+    PyArg_ParseTuple(args, "OOOO", &sdf_obj, &device_obj, &driver_obj, &virt_obj);
+
+    void *device;
+    if (device_obj == Py_None) {
+        device = NULL;
+    } else {
+        // TODO: better capsule name
+        device = PyCapsule_GetPointer(device_obj, "node_str");
+    }
+
+    self->system = sdfgen_sddf_i2c(sdf_obj->sdf, device, driver_obj->pd, virt_obj->pd);
     return 0;
 }
 
@@ -68,7 +199,7 @@ SddfI2c_add_client(SddfI2cObject *self, PyObject *py_pd)
 {
     // TODO: do we need to count refernce to py_pd?
     ProtectionDomainObject *pd_obj = (ProtectionDomainObject *)py_pd;
-    sdfgen_sddf_i2c_client_add(self->system, pd_obj->pd);
+    sdfgen_sddf_i2c_add_client(self->system, pd_obj->pd);
 
     Py_RETURN_NONE;
 }
@@ -196,6 +327,10 @@ PyInit_sdfgen(void)
         return NULL;
     }
 
+    if (PyType_Ready(&DeviceTreeType) < 0) {
+        return NULL;
+    }
+
     if (PyType_Ready(&ProtectionDomainType) < 0) {
         return NULL;
     }
@@ -205,6 +340,12 @@ PyInit_sdfgen(void)
     }
     Py_INCREF(&SddfI2cType);
     PyDict_SetItemString(SddfType.tp_dict, "I2c", (PyObject *)&SddfI2cType);
+
+    if (PyType_Ready(&SddfBlockType) < 0) {
+        return NULL;
+    }
+    Py_INCREF(&SddfBlockType);
+    PyDict_SetItemString(SddfType.tp_dict, "Block", (PyObject *)&SddfBlockType);
 
     if (PyType_Ready(&SddfType) < 0) {
         return NULL;
@@ -218,6 +359,13 @@ PyInit_sdfgen(void)
     Py_INCREF(&SystemDescriptionType);
     if (PyModule_AddObject(m, "SystemDescription", (PyObject *) &SystemDescriptionType) < 0) {
         Py_DECREF(&SystemDescriptionType);
+        Py_DECREF(m);
+        return NULL;
+    }
+
+    Py_INCREF(&DeviceTreeType);
+    if (PyModule_AddObject(m, "DeviceTree", (PyObject *) &DeviceTreeType) < 0) {
+        Py_DECREF(&DeviceTreeType);
         Py_DECREF(m);
         return NULL;
     }

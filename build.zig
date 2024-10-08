@@ -67,7 +67,13 @@ pub fn build(b: *std.Build) !void {
     });
     pysdfgen.linkLibrary(csdfgen);
     pysdfgen.linker_allow_shlib_undefined = true;
-    pysdfgen.addCSourceFile(.{ .file = b.path("python/module.c") });
+    pysdfgen.addCSourceFile(.{
+        .file = b.path("python/module.c"),
+        .flags = &.{
+            "-Wall",
+            "-Werror"
+        }
+    });
     pysdfgen.addIncludePath(.{ .cwd_relative = "/opt/homebrew/opt/python@3.12/Frameworks/Python.framework/Versions/3.12/include/python3.12" });
     pysdfgen.linkLibC();
     pysdfgen.addIncludePath(b.path("src/c"));
