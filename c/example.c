@@ -10,7 +10,7 @@ int main() {
     void *i2c_reactor_driver = sdfgen_pd_create("i2c_reactor_driver", "reactor_driver.elf");
 
     void *i2c_system = sdfgen_sddf_i2c(sdf, NULL, i2c_reactor_driver, i2c_virt);
-    sdfgen_sddf_i2c_client_add(i2c_system, i2c_reactor_client);
+    sdfgen_sddf_i2c_add_client(i2c_system, i2c_reactor_client);
 
     sdfgen_sddf_i2c_connect(i2c_system);
 

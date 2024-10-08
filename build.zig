@@ -52,11 +52,12 @@ pub fn build(b: *std.Build) !void {
     modsdf.addImport("dtb", dtbzig_dep.module("dtb"));
 
     const csdfgen = b.addStaticLibrary(.{
-        .name = "sdfgen",
+        .name = "csdfgen",
         .root_source_file = b.path("src/c/c.zig"),
         .target = target,
         .optimize = optimize,
     });
+    csdfgen.linkLibC();
     csdfgen.root_module.addImport("sdf", modsdf);
 
     const pysdfgen_bin = b.option([]const u8, "pysdfgen-emit", "Build pysdfgen library") orelse "pysdfgen.so";
@@ -92,6 +93,7 @@ pub fn build(b: *std.Build) !void {
     c_example.addCSourceFile(.{ .file = b.path("c/example.c") });
     c_example.linkLibrary(csdfgen);
     c_example.addIncludePath(b.path("src/c"));
+    c_example.linkLibC();
     const c_example_cmd = b.addRunArtifact(c_example);
 
     c_example_step.dependOn(&c_example_cmd.step);
