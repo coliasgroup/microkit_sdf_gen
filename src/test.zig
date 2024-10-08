@@ -26,9 +26,9 @@ fn readAll(test_path: []const u8) ![]const u8 {
 // * sDDF example
 
 test "basic" {
-    var sdf = try SystemDescription.create(allocator, .aarch64);
+    var sdf = SystemDescription.create(allocator, .aarch64);
 
-    var pd = ProtectionDomain.create(&sdf, "hello", "hello.elf");
+    var pd = ProtectionDomain.create(allocator, "hello", "hello.elf");
 
     sdf.addProtectionDomain(&pd);
 
@@ -41,18 +41,18 @@ test "basic" {
 }
 
 test "PD + MR + mappings + channel" {
-    var sdf = try SystemDescription.create(allocator, .aarch64);
+    var sdf = SystemDescription.create(allocator, .aarch64);
     const mr = MemoryRegion.create(&sdf, "test", 0x1000, null, .small);
     sdf.addMemoryRegion(mr);
 
     const image = "hello.elf";
-    var pd1 = ProtectionDomain.create(&sdf, "hello-1", image);
+    var pd1 = ProtectionDomain.create(allocator, "hello-1", image);
     try pd1.addInterrupt(Interrupt.create(33, .level, null));
     pd1.addMap(Map.create(mr, 0x400000000, .r, true, null));
     pd1.addMap(Map.create(mr, 0x600000000, .x, true, null));
     pd1.addMap(Map.create(mr, 0x800000000, .rwx, true, null));
 
-    var pd2 = ProtectionDomain.create(&sdf, "hello-2", image);
+    var pd2 = ProtectionDomain.create(allocator, "hello-2", image);
 
     sdf.addProtectionDomain(&pd1);
     sdf.addProtectionDomain(&pd2);
