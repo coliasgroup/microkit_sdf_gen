@@ -16,13 +16,21 @@ typedef struct {
 } ProtectionDomainObject;
 
 static int
-ProtectionDomain_init(ProtectionDomainObject *self, PyObject *args)
+ProtectionDomain_init(ProtectionDomainObject *self, PyObject *args, PyObject *kwds)
 {
     // TODO: check args
+    // TODO: handle defaults, better, ideally we wouldn't set the priority unless
+    // it was supplied;
+    uint8_t priority = 100;
+    static char *kwlist[] = { "name", "elf", "priority", NULL };
     char *name;
     char *elf;
-    PyArg_ParseTuple(args, "ss", &name, &elf);
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "ss|$h", kwlist, &name, &elf, &priority)) {
+        return -1;
+    }
     self->pd = sdfgen_pd_create(name, elf);
+    sdfgen_pd_set_priority(self->pd, priority);
+
     return 0;
 }
 
