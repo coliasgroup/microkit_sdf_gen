@@ -54,7 +54,7 @@ pub const VirtualMachineSystem = struct {
                 } else {
                     mr_name = name;
                 }
-                const device_mr = Mr.create(system.sdf, mr_name, device_size, device_paddr, .small);
+                const device_mr = Mr.create(system.allocator, mr_name, device_size, device_paddr, .small);
                 system.sdf.addMemoryRegion(device_mr);
                 system.vm.addMap(Map.create(device_mr, device_paddr, .rw, false, null));
             }
@@ -80,7 +80,7 @@ pub const VirtualMachineSystem = struct {
         const device_reg = device.prop(.Reg).?;
         const device_paddr = DeviceTree.regToPaddr(device, device_reg[reg_index][0]);
         const device_size = DeviceTree.regToSize(device_reg[reg_index][1]);
-        const device_mr = Mr.create(system.sdf, name, device_size, device_paddr, .small);
+        const device_mr = Mr.create(system.allocator, name, device_size, device_paddr, .small);
         system.sdf.addMemoryRegion(device_mr);
         system.vm.addMap(Map.create(device_mr, device_paddr, .rw, false, null));
     }
@@ -102,7 +102,7 @@ pub const VirtualMachineSystem = struct {
         if (sdf.arch == .aarch64) {
             const gic = ArmGic.fromDtb(system.guest_dtb);
             // TODO: fix size
-            const gic_vcpu_mr = Mr.create(sdf, "gic_vcpu", 0x1000, gic.vcpu_paddr, .small);
+            const gic_vcpu_mr = Mr.create(system.allocator, "gic_vcpu", 0x1000, gic.vcpu_paddr, .small);
             const gic_guest_map = Map.create(gic_vcpu_mr, gic.cpu_paddr, .rw, false, null);
             sdf.addMemoryRegion(gic_vcpu_mr);
             vm.addMap(gic_guest_map);
@@ -118,7 +118,7 @@ pub const VirtualMachineSystem = struct {
         // TODO: get RAM size from the memory node from DTB
         const guest_ram_size: usize = @intCast(memory_reg[0][1]);
         const guest_ram_phys_addr: ?usize = if (system.one_to_one_ram) memory_paddr else null;
-        const guest_ram_mr = Mr.create(sdf, guest_mr_name, guest_ram_size, guest_ram_phys_addr, Mr.PageSize.optimal(sdf, guest_ram_size));
+        const guest_ram_mr = Mr.create(system.allocator, guest_mr_name, guest_ram_size, guest_ram_phys_addr, Mr.PageSize.optimal(sdf, guest_ram_size));
         sdf.addMemoryRegion(guest_ram_mr);
         // TODO: vaddr should come from the memory node from DTB
         const vm_guest_ram_perms: Map.Permissions = .{ .read = true, .write = true, .execute = true };

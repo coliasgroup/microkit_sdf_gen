@@ -41,7 +41,6 @@ class ZigBuilder(build_ext):
                 "build",
                 "python",
                 "-Doptimize=ReleaseFast",
-                *(["-target", "x86_64-windows-msvc"] if windows else []),
                 "--prefix-lib-dir",
                 f"{modpath}",
                 f"-Dpysdfgen-emit={self.get_ext_filename(ext.name)}",

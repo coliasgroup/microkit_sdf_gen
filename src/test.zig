@@ -42,7 +42,7 @@ test "basic" {
 
 test "PD + MR + mappings + channel" {
     var sdf = SystemDescription.create(allocator, .aarch64);
-    const mr = MemoryRegion.create(&sdf, "test", 0x1000, null, .small);
+    const mr = MemoryRegion.create(allocator, "test", 0x1000, null, .small);
     sdf.addMemoryRegion(mr);
 
     const image = "hello.elf";

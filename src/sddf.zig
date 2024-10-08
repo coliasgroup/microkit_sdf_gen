@@ -522,13 +522,14 @@ pub const I2cSystem = struct {
     }
 
     pub fn connectDriver(system: *I2cSystem) void {
+        const allocator = system.allocator;
         var sdf = system.sdf;
         var driver = system.driver;
         var virt = system.virt;
 
         // Create all the MRs between the driver and virtualiser
-        const mr_req = Mr.create(system.sdf, "i2c_driver_request", system.region_req_size, null, .small);
-        const mr_resp = Mr.create(system.sdf, "i2c_driver_response", system.region_resp_size, null, .small);
+        const mr_req = Mr.create(allocator, "i2c_driver_request", system.region_req_size, null, .small);
+        const mr_resp = Mr.create(allocator, "i2c_driver_response", system.region_resp_size, null, .small);
 
         sdf.addMemoryRegion(mr_req);
         sdf.addMemoryRegion(mr_resp);
@@ -541,14 +542,15 @@ pub const I2cSystem = struct {
     }
 
     pub fn connectClient(system: *I2cSystem, client: *Pd) void {
+        const allocator = system.allocator;
         var sdf = system.sdf;
         const virt = system.virt;
         var driver = system.driver;
 
         // TODO: use optimal size
-        const mr_req = Mr.create(system.sdf, fmt(system.allocator, "i2c_client_request_{s}", .{ client.name }), system.region_req_size, null, .small);
-        const mr_resp = Mr.create(system.sdf, fmt(system.allocator, "i2c_client_response_{s}", .{ client.name }), system.region_resp_size, null, .small);
-        const mr_data = Mr.create(system.sdf, fmt(system.allocator, "i2c_client_data_{s}", .{ client.name }), system.region_data_size, null, .small);
+        const mr_req = Mr.create(allocator, fmt(allocator, "i2c_client_request_{s}", .{ client.name }), system.region_req_size, null, .small);
+        const mr_resp = Mr.create(allocator, fmt(allocator, "i2c_client_response_{s}", .{ client.name }), system.region_resp_size, null, .small);
+        const mr_data = Mr.create(allocator, fmt(allocator, "i2c_client_data_{s}", .{ client.name }), system.region_data_size, null, .small);
 
         sdf.addMemoryRegion(mr_req);
         sdf.addMemoryRegion(mr_resp);
@@ -647,10 +649,11 @@ pub const BlockSystem = struct {
     }
 
     pub fn connectDriver(system: *BlockSystem) void {
+        const allocator = system.allocator;
         // TODO: temporary for virtIO driver
         if (std.mem.eql(u8, system.device.prop(.Compatible).?[0], "virtio,mmio")) {
-            const virtio_headers_mr = Mr.create(system.sdf, "blk_virtio_headers", 0x10_000, null, .small);
-            const virtio_metadata = Mr.create(system.sdf, "blk_driver_metadata", 0x200_000, null, .large);
+            const virtio_headers_mr = Mr.create(allocator, "blk_virtio_headers", 0x10_000, null, .small);
+            const virtio_metadata = Mr.create(allocator, "blk_driver_metadata", 0x200_000, null, .large);
 
             system.sdf.addMemoryRegion(virtio_headers_mr);
             system.sdf.addMemoryRegion(virtio_metadata);
@@ -661,7 +664,7 @@ pub const BlockSystem = struct {
             system.driver.addSetVar(.create("virtio_headers_paddr", &virtio_headers_mr));
             system.driver.addSetVar(.create("requests_paddr", &virtio_metadata));
         }
-        const mr_config = Mr.create(system.sdf, "blk_driver_config", REGION_CONFIG_SIZE, null, .small);
+        const mr_config = Mr.create(allocator, "blk_driver_config", REGION_CONFIG_SIZE, null, .small);
         const map_config_driver = Map.create(mr_config, system.driver.getMapVaddr(&mr_config), .rw, true, "blk_storage_info");
         const map_config_virt = Map.create(mr_config, system.virt.getMapVaddr(&mr_config), .r, true, "blk_driver_storage_info");
 
@@ -670,7 +673,7 @@ pub const BlockSystem = struct {
         system.virt.addMap(map_config_virt);
 
         // TODO: deal with size
-        const mr_req = Mr.create(system.sdf, "blk_driver_request", 0x200_000, null, .large);
+        const mr_req = Mr.create(allocator, "blk_driver_request", 0x200_000, null, .large);
         const map_req_driver = Map.create(mr_req, system.driver.getMapVaddr(&mr_req), .rw, true, "blk_req_queue");
         const map_req_virt = Map.create(mr_req, system.virt.getMapVaddr(&mr_req), .rw, true, "blk_driver_req_queue");
 
@@ -678,7 +681,7 @@ pub const BlockSystem = struct {
         system.driver.addMap(map_req_driver);
         system.virt.addMap(map_req_virt);
 
-        const mr_resp = Mr.create(system.sdf, "blk_driver_response", 0x200_000, null, .large);
+        const mr_resp = Mr.create(allocator, "blk_driver_response", 0x200_000, null, .large);
         const map_resp_driver = Map.create(mr_resp, system.driver.getMapVaddr(&mr_resp), .rw, true, "blk_resp_queue");
         const map_resp_virt = Map.create(mr_resp, system.virt.getMapVaddr(&mr_resp), .rw, true, "blk_driver_resp_queue");
 
@@ -686,7 +689,7 @@ pub const BlockSystem = struct {
         system.driver.addMap(map_resp_driver);
         system.virt.addMap(map_resp_virt);
 
-        const mr_data = Mr.create(system.sdf, "blk_driver_data", 0x200_000, null, .large);
+        const mr_data = Mr.create(allocator, "blk_driver_data", 0x200_000, null, .large);
         const map_data_virt = Map.create(mr_data, system.virt.getMapVaddr(&mr_data), .rw, true, "blk_driver_data");
 
         system.sdf.addMemoryRegion(mr_data);
@@ -697,7 +700,9 @@ pub const BlockSystem = struct {
     }
 
     pub fn connectClient(system: *BlockSystem, client: *Pd) void {
-        const mr_config = Mr.create(system.sdf, "blk_client_config", REGION_CONFIG_SIZE, null, .small);
+        const allocator = system.allocator;
+
+        const mr_config = Mr.create(allocator, "blk_client_config", REGION_CONFIG_SIZE, null, .small);
         const map_config_virt = Map.create(mr_config, system.virt.getMapVaddr(&mr_config), .rw, true, "blk_client_storage_info");
         const map_config_client = Map.create(mr_config, client.getMapVaddr(&mr_config), .r, true, "blk_storage_info");
 
@@ -705,7 +710,7 @@ pub const BlockSystem = struct {
         system.virt.addMap(map_config_virt);
         client.addMap(map_config_client);
 
-        const mr_req = Mr.create(system.sdf, "blk_client_request", 0x200_000, null, .large);
+        const mr_req = Mr.create(allocator, "blk_client_request", 0x200_000, null, .large);
         const map_req_virt = Map.create(mr_req, system.virt.getMapVaddr(&mr_req), .rw, true, "blk_client_req_queue");
         const map_req_client = Map.create(mr_req, client.getMapVaddr(&mr_req), .rw, true, "blk_req_queue");
 
@@ -713,7 +718,7 @@ pub const BlockSystem = struct {
         system.virt.addMap(map_req_virt);
         client.addMap(map_req_client);
 
-        const mr_resp = Mr.create(system.sdf, "blk_client_response", 0x200_000, null, .large);
+        const mr_resp = Mr.create(allocator, "blk_client_response", 0x200_000, null, .large);
         const map_resp_virt = Map.create(mr_resp, system.virt.getMapVaddr(&mr_resp), .rw, true, "blk_client_resp_queue");
         const map_resp_client = Map.create(mr_resp, client.getMapVaddr(&mr_resp), .rw, true, "blk_resp_queue");
 
@@ -721,7 +726,7 @@ pub const BlockSystem = struct {
         system.virt.addMap(map_resp_virt);
         client.addMap(map_resp_client);
 
-        const mr_data = Mr.create(system.sdf, "blk_client_data", 0x200_000, null, .large);
+        const mr_data = Mr.create(allocator, "blk_client_data", 0x200_000, null, .large);
         const map_data_virt = Map.create(mr_data, system.virt.getMapVaddr(&mr_data), .rw, true, "blk_client_data");
         const map_data_client = Map.create(mr_data, client.getMapVaddr(&mr_data), .rw, true, "blk_data");
 
@@ -801,6 +806,7 @@ pub const SerialSystem = struct {
     }
 
     fn rxConnectDriver(system: *SerialSystem) void {
+        const allocator = system.allocator;
         inline for (std.meta.fields(Region)) |region| {
             const mr_name = std.fmt.allocPrint(system.allocator, "serial_driver_rx_{s}", .{ region.name }) catch @panic("OOM");
             const mr_size = blk: {
@@ -810,7 +816,7 @@ pub const SerialSystem = struct {
                     break :blk system.queue_size;
                 }
             };
-            const mr = Mr.create(system.sdf, mr_name, mr_size, null, system.page_size);
+            const mr = Mr.create(allocator, mr_name, mr_size, null, system.page_size);
             system.sdf.addMemoryRegion(mr);
             // @ivanv: vaddr has invariant that needs to be checked
             const virt_vaddr = system.virt_rx.?.getMapVaddr(&mr);
@@ -826,6 +832,7 @@ pub const SerialSystem = struct {
     }
 
     fn txConnectDriver(system: *SerialSystem) void {
+        const allocator = system.allocator;
         inline for (std.meta.fields(Region)) |region| {
             const mr_name = std.fmt.allocPrint(system.allocator, "serial_driver_tx_{s}", .{ region.name }) catch @panic("OOM");
             const mr_size = blk: {
@@ -835,7 +842,7 @@ pub const SerialSystem = struct {
                     break :blk system.queue_size;
                 }
             };
-            const mr = Mr.create(system.sdf, mr_name, mr_size, null, system.page_size);
+            const mr = Mr.create(allocator, mr_name, mr_size, null, system.page_size);
             system.sdf.addMemoryRegion(mr);
             // @ivanv: vaddr has invariant that needs to be checked
             const virt_vaddr = system.virt_tx.getMapVaddr(&mr);
@@ -851,6 +858,7 @@ pub const SerialSystem = struct {
     }
 
     fn rxConnectClient(system: *SerialSystem, client: *Pd, client_zero: bool) void {
+        const allocator = system.allocator;
         inline for (std.meta.fields(Region)) |region| {
             const mr_name = std.fmt.allocPrint(system.allocator, "serial_virt_rx_{s}_{s}", .{ client.name, region.name }) catch @panic("OOM");
             const mr_size = blk: {
@@ -860,7 +868,7 @@ pub const SerialSystem = struct {
                     break :blk system.queue_size;
                 }
             };
-            const mr = Mr.create(system.sdf, mr_name, mr_size, null, system.page_size);
+            const mr = Mr.create(allocator, mr_name, mr_size, null, system.page_size);
             system.sdf.addMemoryRegion(mr);
             // @ivanv: vaddr has invariant that needs to be checked
             const virt_vaddr = system.virt_rx.?.getMapVaddr(&mr);
@@ -879,6 +887,7 @@ pub const SerialSystem = struct {
     }
 
     fn txConnectClient(system: *SerialSystem, client: *Pd, client_zero: bool) void {
+        const allocator = system.allocator;
         inline for (std.meta.fields(Region)) |region| {
             const mr_name = std.fmt.allocPrint(system.allocator, "serial_virt_tx_{s}_{s}", .{ client.name, region.name }) catch @panic("OOM");
             const mr_size = blk: {
@@ -888,7 +897,7 @@ pub const SerialSystem = struct {
                     break :blk system.queue_size;
                 }
             };
-            const mr = Mr.create(system.sdf, mr_name, mr_size, null, system.page_size);
+            const mr = Mr.create(allocator, mr_name, mr_size, null, system.page_size);
             system.sdf.addMemoryRegion(mr);
             // @ivanv: vaddr has invariant that needs to be checked
             const virt_vaddr = system.virt_tx.getMapVaddr(&mr);
@@ -992,10 +1001,11 @@ pub const NetworkSystem = struct {
     }
 
     fn rxConnectDriver(system: *NetworkSystem) Mr {
+        const allocator = system.allocator;
         var data_mr: Mr = undefined;
         inline for (std.meta.fields(Region)) |region| {
             const mr_name = std.fmt.allocPrint(system.allocator, "net_driver_rx_{s}", .{ region.name }) catch @panic("OOM");
-            const mr = Mr.create(system.sdf, mr_name, system.region_size, null, system.page_size);
+            const mr = Mr.create(allocator, mr_name, system.region_size, null, system.page_size);
             system.sdf.addMemoryRegion(mr);
             const perms = switch (@as(Region, @enumFromInt(region.value))) {
                 .data => .{ .read = true },
@@ -1031,9 +1041,10 @@ pub const NetworkSystem = struct {
     }
 
     fn txConnectDriver(system: *NetworkSystem) void {
+        const allocator = system.allocator;
         inline for (std.meta.fields(Region)) |region| {
             const mr_name = std.fmt.allocPrint(system.allocator, "net_driver_tx_{s}", .{ region.name }) catch @panic("OOM");
-            const mr = Mr.create(system.sdf, mr_name, system.region_size, null, system.page_size);
+            const mr = Mr.create(allocator, mr_name, system.region_size, null, system.page_size);
             system.sdf.addMemoryRegion(mr);
             // Data regions are not to be mapped in the driver's address space
             // @ivanv: gross syntax
@@ -1053,9 +1064,10 @@ pub const NetworkSystem = struct {
     }
 
     fn clientRxConnect(system: *NetworkSystem, client: *Pd, rx: *Pd) void {
+        const allocator = system.allocator;
         inline for (std.meta.fields(Region)) |region| {
             const mr_name = std.fmt.allocPrint(system.allocator, "net_client_rx_{s}_{s}", .{ client.name, region.name }) catch @panic("OOM");
-            const mr = Mr.create(system.sdf, mr_name, system.region_size, null, system.page_size);
+            const mr = Mr.create(allocator, mr_name, system.region_size, null, system.page_size);
             system.sdf.addMemoryRegion(mr);
             const perms: Map.Permissions = .{ .read = true, .write = true };
             // @ivanv: vaddr has invariant that needs to be checked
@@ -1083,9 +1095,10 @@ pub const NetworkSystem = struct {
     }
 
     fn clientTxConnect(system: *NetworkSystem, client: *Pd, tx: *Pd, client_idx: usize) void {
+        const allocator = system.allocator;
         inline for (std.meta.fields(Region)) |region| {
-            const mr_name = std.fmt.allocPrint(system.allocator, "net_client_tx_{s}_{s}", .{ client.name, region.name }) catch @panic("OOM");
-            const mr = Mr.create(system.sdf, mr_name, system.region_size, null, system.page_size);
+            const mr_name = fmt(system.allocator, "net_client_tx_{s}_{s}", .{ client.name, region.name });
+            const mr = Mr.create(allocator, mr_name, system.region_size, null, system.page_size);
             system.sdf.addMemoryRegion(mr);
             const perms: Map.Permissions = .{ .read = true, .write = true };
             // @ivanv: vaddr has invariant that needs to be checked
@@ -1093,9 +1106,9 @@ pub const NetworkSystem = struct {
             var virt_setvar_vaddr: ?[]const u8 = null;
             // @ivanv: gross syntax
             if (client_idx == 0 and @as(Region, @enumFromInt(region.value)) != .data) {
-                virt_setvar_vaddr = std.fmt.allocPrint(system.allocator, "tx_{s}_cli0", .{ region.name }) catch @panic("OOM");
+                virt_setvar_vaddr = fmt(system.allocator, "tx_{s}_cli0", .{ region.name });
             } else if (@as(Region, @enumFromInt(region.value)) == .data) {
-                virt_setvar_vaddr = std.fmt.allocPrint(system.allocator, "buffer_data_region_cli{}_vaddr", .{ client_idx }) catch @panic("OOM");
+                virt_setvar_vaddr = fmt(allocator, "buffer_data_region_cli{}_vaddr", .{ client_idx });
             }
             const virt_map = Map.create(mr, virt_vaddr, perms, true, virt_setvar_vaddr);
             tx.addMap(virt_map);
@@ -1105,13 +1118,13 @@ pub const NetworkSystem = struct {
             if (@as(Region, @enumFromInt(region.value)) == .data) {
                 client_setvar_vaddr = "tx_buffer_data_region";
             } else {
-                client_setvar_vaddr = std.fmt.allocPrint(system.allocator, "tx_{s}", .{ region.name }) catch @panic("OOM");
+                client_setvar_vaddr = fmt(allocator, "tx_{s}", .{ region.name });
             }
             const client_map = Map.create(mr, client_vaddr, perms, true, client_setvar_vaddr);
             client.addMap(client_map);
 
             if (@as(Region, @enumFromInt(region.value)) == .data) {
-                const data_setvar = std.fmt.allocPrint(system.allocator, "buffer_data_region_cli{}_paddr", .{ client_idx }) catch @panic("OOM");
+                const data_setvar = fmt(allocator, "buffer_data_region_cli{}_paddr", .{ client_idx });
                 system.virt_tx.addSetVar(SetVar.create(data_setvar, &mr));
             }
         }
@@ -1119,10 +1132,10 @@ pub const NetworkSystem = struct {
 
     // We need to map in the data region between the driver/virt into the copier with setvar "virt_buffer_data_region".
     fn copierRxConnect(system: *NetworkSystem, copier: *Pd, first_client: bool, virt_data_mr: Mr) void {
+        const allocator = system.allocator;
         inline for (std.meta.fields(Region)) |region| {
-
-            const mr_name = std.fmt.allocPrint(system.allocator, "net_{s}_{s}", .{ copier.name, region.name }) catch @panic("OOM");
-            const mr = Mr.create(system.sdf, mr_name, system.region_size, null, system.page_size);
+            const mr_name = fmt(allocator, "net_{s}_{s}", .{ copier.name, region.name });
+            const mr = Mr.create(allocator, mr_name, system.region_size, null, system.page_size);
             system.sdf.addMemoryRegion(mr);
 
             // Map the MR into the virtualiser RX and copier RX
@@ -1130,7 +1143,7 @@ pub const NetworkSystem = struct {
             if (@as(Region, @enumFromInt(region.value)) != .data) {
                 var virt_setvar_vaddr: ?[]const u8 = null;
                 if (first_client) {
-                    virt_setvar_vaddr = std.fmt.allocPrint(system.allocator, "rx_{s}_cli0", .{ region.name }) catch @panic("OOM");
+                    virt_setvar_vaddr = fmt(allocator, "rx_{s}_cli0", .{ region.name });
                 }
                 const virt_map = Map.create(mr, virt_vaddr, .rw, true, virt_setvar_vaddr);
                 system.virt_rx.addMap(virt_map);
@@ -1150,12 +1163,13 @@ pub const NetworkSystem = struct {
     }
 
     pub fn connect(system: *NetworkSystem) !void {
+        const allocator = system.allocator;
         var sdf = system.sdf;
         try createDriver(sdf, system.driver, system.device, .network);
 
         // TODO: The driver needs the HW ring buffer memory region as well. In the future
         // we should make this configurable but right no we'll just add it here
-        const hw_ring_buffer_mr = Mr.create(system.sdf, "hw_ring_buffer", 0x10_000, null, .small);
+        const hw_ring_buffer_mr = Mr.create(allocator, "hw_ring_buffer", 0x10_000, null, .small);
         system.sdf.addMemoryRegion(hw_ring_buffer_mr);
         system.driver.addMap(Map.create(
             hw_ring_buffer_mr,
@@ -1167,17 +1181,17 @@ pub const NetworkSystem = struct {
 
         system.driver.addSetVar(SetVar.create("hw_ring_buffer_paddr", @constCast(&hw_ring_buffer_mr)));
 
-        sdf.addChannel(Channel.create(system.driver, system.virt_tx));
-        sdf.addChannel(Channel.create(system.driver, system.virt_rx));
+        sdf.addChannel(.create(system.driver, system.virt_tx));
+        sdf.addChannel(.create(system.driver, system.virt_rx));
 
         const virt_data_mr = system.rxConnectDriver();
         system.txConnectDriver();
 
         for (system.clients.items, 0..) |client, i| {
             // TODO: we have an assumption that all copiers are RX copiers
-            sdf.addChannel(Channel.create(system.copiers.items[i], client));
-            sdf.addChannel(Channel.create(system.virt_tx, client));
-            sdf.addChannel(Channel.create(system.copiers.items[i], system.virt_rx));
+            sdf.addChannel(.create(system.copiers.items[i], client));
+            sdf.addChannel(.create(system.virt_tx, client));
+            sdf.addChannel(.create(system.copiers.items[i], system.virt_rx));
 
             system.copierRxConnect(system.copiers.items[i], i == 0, virt_data_mr);
             // TODO: we assume there exists a copier for each client, on the RX side
@@ -1313,7 +1327,7 @@ pub fn createDriver(sdf: *SystemDescription, pd: *Pd, device: *dtb.Node, class: 
             if (device_mr == null) {
                 const page_size = Mr.PageSize.optimal(sdf, region.size);
                 const mr_name = std.fmt.allocPrint(sdf.allocator, "{s}_{s}", .{ driver.name, region.name }) catch @panic("OOM");
-                device_mr = Mr.create(sdf, mr_name, region.size, device_paddr, page_size);
+                device_mr = Mr.create(sdf.allocator, mr_name, region.size, device_paddr, page_size);
                 sdf.addMemoryRegion(device_mr.?);
             }
 

@@ -53,22 +53,24 @@ pub const SystemDescription = struct {
     };
 
     pub const MemoryRegion = struct {
+        allocator: Allocator,
         name: []const u8,
         size: usize,
         phys_addr: ?usize,
         page_size: PageSize,
 
-        pub fn create(system: *SystemDescription, name: []const u8, size: usize, phys_addr: ?usize, page_size: PageSize) MemoryRegion {
+        pub fn create(allocator: Allocator, name: []const u8, size: usize, phys_addr: ?usize, page_size: PageSize) MemoryRegion {
             return MemoryRegion{
-                .name = system.allocator.dupe(u8, name) catch "Could not allocate name for MemoryRegion",
+                .allocator = allocator,
+                .name = allocator.dupe(u8, name) catch "Could not allocate name for MemoryRegion",
                 .size = size,
                 .phys_addr = phys_addr,
                 .page_size = page_size,
             };
         }
 
-        pub fn destroy(mr: MemoryRegion, system: *SystemDescription) void {
-            system.allocator.free(mr.name);
+        pub fn destroy(mr: MemoryRegion) void {
+            mr.allocator.free(mr.name);
         }
 
         pub fn toXml(mr: MemoryRegion, sdf: *SystemDescription, writer: ArrayList(u8).Writer, separator: []const u8) !void {
@@ -251,11 +253,11 @@ pub const SystemDescription = struct {
             cpu: usize,
         };
 
-        pub fn create(sdf: *SystemDescription, name: []const u8, vcpus: []const Vcpu) VirtualMachine {
+        pub fn create(allocator: Allocator, name: []const u8, vcpus: []const Vcpu) VirtualMachine {
             return VirtualMachine{
                 .name = name,
                 .vcpus = vcpus,
-                .maps = ArrayList(Map).init(sdf.allocator),
+                .maps = ArrayList(Map).init(allocator),
             };
         }
 
@@ -584,7 +586,7 @@ pub const SystemDescription = struct {
     pub fn destroy(sdf: *SystemDescription) void {
         for (sdf.pds.items) |pd| pd.destroy();
         sdf.pds.deinit();
-        for (sdf.mrs.items) |mr| mr.destroy(sdf);
+        for (sdf.mrs.items) |mr| mr.destroy();
         sdf.mrs.deinit();
         sdf.channels.deinit();
         sdf.xml_data.deinit();

@@ -1,0 +1,232 @@
+// #define Py_LIMITED_API 3
+#define PY_SSIZE_T_CLEAN
+
+#include <stdbool.h>
+#include <sdfgen.h>
+#include <Python.h>
+
+typedef struct {
+    PyObject_HEAD
+    void *sdf;
+} SystemDescriptionObject;
+
+typedef struct {
+    PyObject_HEAD
+    void *pd;
+} ProtectionDomainObject;
+
+static int
+ProtectionDomain_init(ProtectionDomainObject *self, PyObject *args)
+{
+    // TODO: check args
+    char *name;
+    char *elf;
+    PyArg_ParseTuple(args, "ss", &name, &elf);
+    self->pd = sdfgen_pd_create(name, elf);
+    return 0;
+}
+
+static PyTypeObject ProtectionDomainType = {
+    .ob_base = PyVarObject_HEAD_INIT(NULL, 0)
+    .tp_name = "sdfgen.ProtectionDomain",
+    .tp_doc = PyDoc_STR("ProtectionDomain"),
+    .tp_basicsize = sizeof(ProtectionDomainObject),
+    .tp_itemsize = 0,
+    .tp_flags = Py_TPFLAGS_DEFAULT,
+    .tp_new = PyType_GenericNew,
+    .tp_init = (initproc) ProtectionDomain_init,
+};
+
+typedef struct {
+    PyObject_HEAD
+    void *system;
+} SddfI2cObject;
+
+static int
+SddfI2c_init(SddfI2cObject *self, PyObject *args)
+{
+    // TODO: check args
+    // TODO: handle i2c device
+    SystemDescriptionObject *sdf_obj;
+    ProtectionDomainObject *driver_obj;
+    ProtectionDomainObject *virt_obj;
+    PyArg_ParseTuple(args, "OOO", &sdf_obj, &driver_obj, &virt_obj);
+    self->system = sdfgen_sddf_i2c(sdf_obj->sdf, NULL, driver_obj->pd, virt_obj->pd);
+    return 0;
+}
+
+static PyObject *
+SddfI2c_add_client(SddfI2cObject *self, PyObject *py_pd)
+{
+    // TODO: do we need to count refernce to py_pd?
+    ProtectionDomainObject *pd_obj = (ProtectionDomainObject *)py_pd;
+    sdfgen_sddf_i2c_client_add(self->system, pd_obj->pd);
+
+    Py_RETURN_NONE;
+}
+
+static PyObject *
+SddfI2c_connect(SddfI2cObject *self, PyObject *Py_UNUSED(ignored))
+{
+    sdfgen_sddf_i2c_connect(self->system);
+
+    Py_RETURN_NONE;
+}
+
+static PyMethodDef SddfI2c_methods[] = {
+    {"add_client", (PyCFunction) SddfI2c_add_client, METH_O,
+     "Add a client to the system"
+    },
+    {"connect", (PyCFunction) SddfI2c_connect, METH_NOARGS,
+     "Generate all resources for system"
+    },
+    {NULL}  /* Sentinel */
+};
+
+static PyTypeObject SddfI2cType = {
+    .ob_base = PyVarObject_HEAD_INIT(NULL, 0)
+    .tp_name = "sdfgen.Sddf.I2c",
+    .tp_doc = PyDoc_STR("Sddf.I2c"),
+    .tp_basicsize = sizeof(SddfI2cObject),
+    .tp_itemsize = 0,
+    .tp_flags = Py_TPFLAGS_DEFAULT,
+    .tp_new = PyType_GenericNew,
+    .tp_init = (initproc) SddfI2c_init,
+    .tp_methods = SddfI2c_methods,
+};
+
+typedef struct {
+    PyObject_HEAD
+} SddfObject;
+
+static int
+Sddf_init(SddfObject *self, PyObject *args)
+{
+    // TODO: check if sddf path is null?
+    // TODO: handle error case
+    char *sddf_path;
+    PyArg_ParseTuple(args, "s", &sddf_path);
+    sdfgen_sddf_init(sddf_path);
+
+    return 0;
+}
+
+static PyTypeObject SddfType = {
+    .ob_base = PyVarObject_HEAD_INIT(NULL, 0)
+    .tp_name = "sdfgen.Sddf",
+    .tp_doc = PyDoc_STR("Sddf"),
+    .tp_basicsize = sizeof(SddfObject),
+    .tp_itemsize = 0,
+    .tp_flags = Py_TPFLAGS_DEFAULT,
+    .tp_new = PyType_GenericNew,
+    .tp_init = (initproc) Sddf_init,
+};
+
+static int
+SystemDescription_init(SystemDescriptionObject *self, PyObject *args, PyObject *kwds)
+{
+    self->sdf = sdfgen_create();
+    return 0;
+}
+
+static PyObject *
+SystemDescription_add_pd(SystemDescriptionObject *self, PyObject *py_pd)
+{
+    // TODO: do we need to count refernce to py_pd?
+    ProtectionDomainObject *pd_obj = (ProtectionDomainObject *)py_pd;
+    sdfgen_pd_add(self->sdf, pd_obj->pd);
+
+    Py_RETURN_NONE;
+}
+
+static PyObject *
+SystemDescription_xml(SystemDescriptionObject *self, PyObject *Py_UNUSED(ignored))
+{
+    return PyUnicode_FromString(sdfgen_to_xml(self->sdf));
+}
+
+static PyMethodDef SystemDescription_methods[] = {
+    {"xml", (PyCFunction) SystemDescription_xml, METH_NOARGS,
+     "Generate and return the XML format"
+    },
+    {"add_pd", (PyCFunction) SystemDescription_add_pd, METH_O,
+     "Add a ProtectionDomain"
+    },
+    {NULL}  /* Sentinel */
+};
+
+static PyTypeObject SystemDescriptionType = {
+    .ob_base = PyVarObject_HEAD_INIT(NULL, 0)
+    .tp_name = "sdfgen.SystemDescription",
+    .tp_doc = PyDoc_STR("SystemDescription"),
+    .tp_basicsize = sizeof(SystemDescriptionObject),
+    .tp_itemsize = 0,
+    .tp_flags = Py_TPFLAGS_DEFAULT,
+    .tp_new = PyType_GenericNew,
+    .tp_init = (initproc) SystemDescription_init,
+    .tp_methods = SystemDescription_methods,
+};
+
+static PyModuleDef sdfgen_module = {
+    .m_base = PyModuleDef_HEAD_INIT,
+    .m_name = "sdfgen",
+    .m_doc = "Python bindings for the sdfgen tooling",
+    .m_size = -1,
+};
+
+PyMODINIT_FUNC
+PyInit_sdfgen(void)
+{
+    PyObject *m;
+
+    SddfType.tp_dict = PyDict_New();
+    if (!SddfType.tp_dict) {
+        return NULL;
+    }
+
+    if (PyType_Ready(&SystemDescriptionType) < 0) {
+        return NULL;
+    }
+
+    if (PyType_Ready(&ProtectionDomainType) < 0) {
+        return NULL;
+    }
+
+    if (PyType_Ready(&SddfI2cType) < 0) {
+        return NULL;
+    }
+    Py_INCREF(&SddfI2cType);
+    PyDict_SetItemString(SddfType.tp_dict, "I2c", (PyObject *)&SddfI2cType);
+
+    if (PyType_Ready(&SddfType) < 0) {
+        return NULL;
+    }
+
+    m = PyModule_Create(&sdfgen_module);
+    if (m == NULL) {
+        return NULL;
+    }
+
+    Py_INCREF(&SystemDescriptionType);
+    if (PyModule_AddObject(m, "SystemDescription", (PyObject *) &SystemDescriptionType) < 0) {
+        Py_DECREF(&SystemDescriptionType);
+        Py_DECREF(m);
+        return NULL;
+    }
+
+    Py_INCREF(&ProtectionDomainType);
+    if (PyModule_AddObject(m, "ProtectionDomain", (PyObject *) &ProtectionDomainType) < 0) {
+        Py_DECREF(&ProtectionDomainType);
+        Py_DECREF(m);
+        return NULL;
+    }
+
+    Py_INCREF(&SddfType);
+    if (PyModule_AddObject(m, "Sddf", (PyObject *) &SddfType) < 0) {
+        Py_DECREF(&SddfType);
+        Py_DECREF(m);
+        return NULL;
+    }
+
+    return m;
+}
