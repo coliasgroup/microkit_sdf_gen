@@ -89,7 +89,7 @@ pub const SystemDescription = struct {
         pub const PageSize = enum(usize) {
             small,
             large,
-            huge,
+            // huge,
 
             pub fn toSize(page_size: PageSize, arch: Arch) usize {
                 // TODO: on RISC-V we are assuming that it's Sv39. For example if you
@@ -98,12 +98,12 @@ pub const SystemDescription = struct {
                     .aarch64, .riscv64, .x86_64 => return switch (page_size) {
                         .small => 0x1000,
                         .large => 0x200000,
-                        .huge => 0x40000000,
+                        // .huge => 0x40000000,
                     },
                     .aarch32, .riscv32, .x86 => return switch (page_size) {
                         .small => 0x1000,
                         .large => 0x400000,
-                        .huge => 0x40000000,
+                        // .huge => 0x40000000,
                     },
                 }
             }
@@ -113,13 +113,13 @@ pub const SystemDescription = struct {
                     .aarch64, .riscv64, .x86_64 => return switch (page_size) {
                         0x1000 => .small,
                         0x200000 => .large,
-                        0x40000000 => .huge,
+                        // 0x40000000 => .huge,
                         else => return error.InvalidPageSize,
                     },
                     .aarch32, .riscv32, .x86 => return switch (page_size) {
                         0x1000 => .small,
                         0x400000 => .large,
-                        0x40000000 => .huge,
+                        // 0x40000000 => .huge,
                         else => return error.InvalidPageSize,
                     },
                 }
@@ -128,7 +128,7 @@ pub const SystemDescription = struct {
             pub fn optimal(sdf: *SystemDescription, region_size: usize) PageSize {
                 // @ivanv: would be better if we did some meta programming in case the
                 // number of elements in PageSize change
-                if (region_size % PageSize.huge.toSize(sdf.arch) == 0) return .huge;
+                // if (region_size % PageSize.huge.toSize(sdf.arch) == 0) return .huge;
                 if (region_size % PageSize.large.toSize(sdf.arch) == 0) return .large;
 
                 return .small;
@@ -568,7 +568,7 @@ pub const SystemDescription = struct {
         }
     };
 
-    pub fn create(allocator: Allocator, arch: Arch) !SystemDescription {
+    pub fn create(allocator: Allocator, arch: Arch) SystemDescription {
         var xml_data = ArrayList(u8).init(allocator);
         return SystemDescription{
             .allocator = allocator,

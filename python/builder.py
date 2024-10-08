@@ -46,7 +46,7 @@ class ZigBuilder(build_ext):
                 f"{modpath}",
                 f"-Dpysdfgen-emit={self.get_ext_filename(ext.name)}",
                 # "-fallow-shlib-undefined",
-                *[f"-I{d}" for d in self.include_dirs],
+                # *[f"-I{d}" for d in self.include_dirs],
                 # ext.sources[0],
             ]
         )

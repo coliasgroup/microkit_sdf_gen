@@ -31,25 +31,13 @@ var classes: std.ArrayList(Config.DeviceClass) = undefined;
 
 const CONFIG_FILENAME = "config.json";
 
-/// Assumes probe() has been called
-pub fn findDriver(compatibles: []const []const u8, class: Config.DeviceClass.Class) ?Config.Driver {
-    for (drivers.items) |driver| {
-        // This is yet another point of weirdness with device trees. It is often
-        // the case that there are multiple compatible strings for a device and
-        // accompying driver. So we get the user to provide a list of compatible
-        // strings, and we check for a match with any of the compatible strings
-        // of a driver.
-        for (compatibles) |compatible| {
-            for (driver.compatible) |driver_compatible| {
-                if (std.mem.eql(u8, driver_compatible, compatible) and driver.class == class) {
-                    // We have found a compatible driver
-                    return driver;
-                }
-            }
-        }
-    }
+/// Whether or not we have probed sDDF
+// TODO: should probably just happen upon `init` of sDDF, then
+// we pass around sddf everywhere?
+var probed = false;
 
-    return null;
+fn fmt(allocator: Allocator, comptime s: []const u8, args: anytype) []u8 {
+    return std.fmt.allocPrint(allocator, s, args) catch @panic("OOM");
 }
 
 /// Assumes probe() has been called
@@ -106,8 +94,8 @@ pub fn probe(allocator: Allocator, path: []const u8) !void {
     // TODO: we could init capacity with number of DeviceClassType fields
     classes = std.ArrayList(Config.DeviceClass).init(allocator);
 
-    std.log.info("starting sDDF probe", .{});
-    std.log.info("opening sDDF root dir '{s}'", .{path});
+    std.log.debug("starting sDDF probe", .{});
+    std.log.debug("opening sDDF root dir '{s}'", .{path});
     var sddf = try std.fs.cwd().openDir(path, .{});
     defer sddf.close();
 
@@ -152,6 +140,9 @@ pub fn probe(allocator: Allocator, path: []const u8) !void {
             }
         }
     }
+
+    // Probing finished
+    probed = true;
 }
 
 pub const Config = struct {
@@ -235,14 +226,7 @@ pub const Config = struct {
             serial,
             timer,
             blk,
-
-            const dir_list = [_][]const u8{
-                "network",
-                "serial",
-                "timer",
-                "blk",
-                "blk/mmc",
-            };
+            i2c,
 
             pub fn fromStr(str: []const u8) Class {
                 inline for (std.meta.fields(Class)) |field| {
@@ -261,6 +245,7 @@ pub const Config = struct {
                     .serial => &.{ "serial"},
                     .timer => &.{ "timer"},
                     .blk => &.{ "blk", "blk/mmc"},
+                    .i2c => &.{ "i2c"},
                 };
             }
         };
@@ -322,7 +307,7 @@ pub const DeviceTree = struct {
         version: Version,
 
         const compatible = compatible_v2 ++ compatible_v3;
-        const compatible_v2 = [_][]const u8{ "arm,gic-v2", "arm,cortex-a15-gic" };
+        const compatible_v2 = [_][]const u8{ "arm,gic-v2", "arm,cortex-a15-gic", "arm,gic-400" };
         const compatible_v3 = [_][]const u8{ "arm,gic-v3" };
 
         pub fn fromDtb(d: *dtb.Node) ArmGic {
@@ -421,19 +406,35 @@ pub const DeviceTree = struct {
     // to find the CPU visible address rather than some address relative to the
     // particular bus the address is on. We also align to the smallest page size;
     // Assumes smallest page size is 0x1000;
-    pub fn regToPaddr(_: *dtb.Node, paddr: u128) u64 {
+    pub fn regToPaddr(device: *dtb.Node, paddr: u128) u64 {
         // TODO: casting from u128 to u64
-        const device_paddr: u64 = @intCast((paddr >> 12) << 12);
+        var device_paddr: u64 = @intCast((paddr >> 12) << 12);
         // TODO: doesn't work on the maaxboard
-        // var parent_node_maybe: ?*dtb.Node = device.parent;
-        // while (parent_node_maybe) |parent_node| : (parent_node_maybe = parent_node.parent) {
-        //     const parent_node_reg = parent_node.prop(.Reg);
-        //     if (parent_node_reg) |reg| {
-        //         device_paddr += @intCast(reg[0][0]);
-        //     }
-        // }
+        var parent_node_maybe: ?*dtb.Node = device.parent;
+        while (parent_node_maybe) |parent_node| : (parent_node_maybe = parent_node.parent) {
+            const parent_node_compatible = parent_node.prop(.Compatible);
+            if (parent_node_compatible) |compatible| {
+                // TODO: this is the only pattern I can notice for when this behaviour is necessary on the odroidc4
+                if (isCompatible(compatible, &.{ "simple-bus" })) {
+                    const parent_node_reg = parent_node.prop(.Reg);
+                    if (parent_node_reg) |reg| {
+                        device_paddr += @intCast(reg[0][0]);
+                    }
+                }
+            }
+        }
 
         return device_paddr;
+    }
+
+    pub fn regToSize(size: u128) u64 {
+        // TODO: store page size somewhere
+        if (size < 0x1000) {
+            return 0x1000;
+        } else {
+            // TODO: round to page size
+            return @intCast(size);
+        }
     }
 };
 
@@ -482,6 +483,111 @@ pub const TimerSystem = struct {
             // each client and the driver.
             system.sdf.addChannel(Channel.create(system.driver, client));
         }
+    }
+};
+
+pub const I2cSystem = struct {
+    allocator: Allocator,
+    sdf: *SystemDescription,
+    driver: *Pd,
+    device: ?*dtb.Node,
+    virt: *Pd,
+    clients: std.ArrayList(*Pd),
+    region_req_size: usize,
+    region_resp_size: usize,
+    region_data_size: usize,
+
+    pub const Options = struct {
+        region_req_size: usize = 0x1000,
+        region_resp_size: usize = 0x1000,
+        region_data_size: usize = 0x1000,
+    };
+
+    pub fn init(allocator: Allocator, sdf: *SystemDescription, device: ?*dtb.Node, driver: *Pd, virt: *Pd, options: Options) I2cSystem {
+        return .{
+            .allocator = allocator,
+            .sdf = sdf,
+            .clients = std.ArrayList(*Pd).init(allocator),
+            .driver = driver,
+            .device = device,
+            .virt = virt,
+            .region_req_size = options.region_req_size,
+            .region_resp_size = options.region_resp_size,
+            .region_data_size = options.region_data_size,
+        };
+    }
+
+    pub fn addClient(system: *I2cSystem, client: *Pd) void {
+        system.clients.append(client) catch @panic("Could not add client to I2cSystem");
+    }
+
+    pub fn connectDriver(system: *I2cSystem) void {
+        var sdf = system.sdf;
+        var driver = system.driver;
+        var virt = system.virt;
+
+        // Create all the MRs between the driver and virtualiser
+        const mr_req = Mr.create(system.sdf, "i2c_driver_request", system.region_req_size, null, .small);
+        const mr_resp = Mr.create(system.sdf, "i2c_driver_response", system.region_resp_size, null, .small);
+
+        sdf.addMemoryRegion(mr_req);
+        sdf.addMemoryRegion(mr_resp);
+
+        driver.addMap(.create(mr_req, 0x4_000_000, .rw, true, "i2c_req_queue"));
+        driver.addMap(.create(mr_resp, 0x4_001_000, .rw, true, "i2c_resp_queue"));
+
+        virt.addMap(.create(mr_req, 0x10_000_000, .rw, true, "driver_request_region"));
+        virt.addMap(.create(mr_resp, 0x10_001_000, .rw, true, "driver_response_region"));
+    }
+
+    pub fn connectClient(system: *I2cSystem, client: *Pd) void {
+        var sdf = system.sdf;
+        const virt = system.virt;
+        var driver = system.driver;
+
+        // TODO: use optimal size
+        const mr_req = Mr.create(system.sdf, fmt(system.allocator, "i2c_client_request_{s}", .{ client.name }), system.region_req_size, null, .small);
+        const mr_resp = Mr.create(system.sdf, fmt(system.allocator, "i2c_client_response_{s}", .{ client.name }), system.region_resp_size, null, .small);
+        const mr_data = Mr.create(system.sdf, fmt(system.allocator, "i2c_client_data_{s}", .{ client.name }), system.region_data_size, null, .small);
+
+        sdf.addMemoryRegion(mr_req);
+        sdf.addMemoryRegion(mr_resp);
+        sdf.addMemoryRegion(mr_data);
+
+        driver.addMap(.create(mr_data, 0x10_000_000, .rw, true, null));
+
+        virt.addMap(.create(mr_req, 0x4_000_000, .rw, true, null));
+        virt.addMap(.create(mr_resp, 0x5_000_000, .rw, true, null));
+
+        client.addMap(.create(mr_req, 0x10_000_000, .rw, true, "i2c_req_queue"));
+        client.addMap(.create(mr_resp, 0x10_001_000, .rw, true, "i2c_resp_queue"));
+        client.addMap(.create(mr_data, 0x10_002_000, .rw, true, "i2c_data_region"));
+
+        // Create a channel between the virtualiser and client
+        sdf.addChannel(.create(virt, client));
+    }
+
+    pub fn connect(system: *I2cSystem) !void {
+        const sdf = system.sdf;
+
+        // 1. Create the device resources for the driver
+        if (system.device) |device| {
+            try createDriver(sdf, system.driver, device, .i2c);
+        }
+        // 2. Connect the driver to the virtualiser
+        system.connectDriver();
+        // 3. Connect each client to the virtualiser
+        // TODO: we need to fix our code for multiple clients
+        assert(system.clients.items.len == 1);
+        system.connectClient(system.clients.items[0]);
+
+        // The virtualiser needs to be able to accept PPCs
+        system.virt.pp = true;
+
+        // Create a channel between the driver and virtualiser for notifications
+        // TODO: restriction of what the driver channel is in the virtualiser forces
+        // us to allocate teh channel after all the client channels have been allocated
+        sdf.addChannel(.create(system.driver, system.virt));
     }
 };
 
@@ -1081,9 +1187,32 @@ pub const NetworkSystem = struct {
     }
 };
 
+/// Assumes probe() has been called
+fn findDriver(compatibles: []const []const u8, class: Config.DeviceClass.Class) ?Config.Driver {
+    assert(probed);
+    for (drivers.items) |driver| {
+        // This is yet another point of weirdness with device trees. It is often
+        // the case that there are multiple compatible strings for a device and
+        // accompying driver. So we get the user to provide a list of compatible
+        // strings, and we check for a match with any of the compatible strings
+        // of a driver.
+        for (compatibles) |compatible| {
+            for (driver.compatible) |driver_compatible| {
+                if (std.mem.eql(u8, driver_compatible, compatible) and driver.class == class) {
+                    // We have found a compatible driver
+                    return driver;
+                }
+            }
+        }
+    }
+
+    return null;
+}
+
 /// Given the DTB node for the device and the SDF program image, we can figure
 /// all the resources that need to be added to the system description.
 pub fn createDriver(sdf: *SystemDescription, pd: *Pd, device: *dtb.Node, class: Config.DeviceClass.Class) !void {
+    if (!probed) return error.CalledBeforeProbe;
     // First thing to do is find the driver configuration for the device given.
     // The way we do that is by searching for the compatible string described in the DTB node.
     const compatible = device.prop(.Compatible).?;
