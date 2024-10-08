@@ -42,10 +42,19 @@ Both of these solutions are very much in a work-in-progress state.
 
 ## Developing
 
+You will need an up-to-date, master version of Zig. Please see https://ziglang.org/download/.
+
 ### C bindings
 
 ```sh
 zig build c
+```
+
+The library will be at `zig-out/lib/csdfgen`.
+
+To run an example C program that uses the bindings, run:
+```sh
+zig build c_example
 ```
 
 ### Python bindings

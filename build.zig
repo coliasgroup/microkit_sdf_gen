@@ -61,6 +61,7 @@ pub fn build(b: *std.Build) !void {
     });
     csdfgen.linkLibC();
     csdfgen.root_module.addImport("sdf", modsdf);
+    b.installArtifact(csdfgen);
 
     const pysdfgen_bin = b.option([]const u8, "pysdfgen-emit", "Build pysdfgen library") orelse "pysdfgen.so";
     const pysdfgen = b.addSharedLibrary(.{
@@ -91,7 +92,10 @@ pub fn build(b: *std.Build) !void {
     const pysdfgen_install = b.addInstallFileWithDir(pysdfgen.getEmittedBin(), .lib, pysdfgen_bin);
     pysdfgen_step.dependOn(&pysdfgen_install.step);
 
-    const c_example_step = b.step("c", "Example of using csdfgen with C");
+    const c_step = b.step("c", "Static library for C bindings");
+    c_step.dependOn(&b.addInstallFileWithDir(csdfgen.getEmittedBin(), .lib, "csdfgen").step);
+    c_step.dependOn(&csdfgen.step);
+
     const c_example = b.addExecutable(.{
         .name = "c_example",
         .target = target,
@@ -103,9 +107,8 @@ pub fn build(b: *std.Build) !void {
     c_example.linkLibC();
     const c_example_cmd = b.addRunArtifact(c_example);
 
+    const c_example_step = b.step("c_example", "Run example program using C bindings");
     c_example_step.dependOn(&c_example_cmd.step);
-    const c_example_install = b.addInstallArtifact(c_example, .{});
-    c_example_step.dependOn(&c_example_install.step);
 
     // wasm executable
     const wasm_target = b.resolveTargetQuery(.{
