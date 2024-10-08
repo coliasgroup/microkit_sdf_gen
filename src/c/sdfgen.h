@@ -1,10 +1,21 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+/* High-level system functions */
 void *sdfgen_create();
+void sdfgen_deinit(void *sdf);
 void *sdfgen_to_xml(void *sdf);
 
+/* DTB-related functionality */
+
+// Parse the DTB at a given path
+//
+// Returns NULL if the path cannot be accessed or the bytes cannot be
+// parsed.
 void *sdfgen_dtb_parse(char *path);
+void *sdfgen_dtb_parse_from_bytes(char *bytes, uint32_t size);
+void *sdfgen_dtb_deinit(void *blob);
+
 void *sdfgen_dtb_node(void *blob, char *node);
 
 void *sdfgen_pd_create(char *name, char *elf);

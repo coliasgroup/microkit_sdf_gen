@@ -18,11 +18,12 @@ typedef struct {
 static int
 DeviceTree_init(DeviceTreeObject *self, PyObject *args)
 {
-    char *path;
-    if (!PyArg_ParseTuple(args, "s", &path)) {
+    PyObject *bytes;
+    // TODO: could make the type needed a bit more lax? Use y* instead?
+    if (!PyArg_ParseTuple(args, "S", &bytes)) {
         return -1;
     }
-    self->blob = sdfgen_dtb_parse(path);
+    self->blob = sdfgen_dtb_parse_from_bytes(PyBytes_AsString(bytes), PyBytes_Size(bytes));
 
     return 0;
 }

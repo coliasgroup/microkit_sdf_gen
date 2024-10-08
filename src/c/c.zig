@@ -21,8 +21,10 @@ export fn sdfgen_create() *anyopaque {
     return sdf;
 }
 
-// TODO
-export fn sdfgen_destroy(_: *SystemDescription) void {}
+export fn sdfgen_destroy(c_sdf: *align(8) anyopaque) void {
+    const sdf: *SystemDescription = @ptrCast(c_sdf);
+    sdf.destroy();
+}
 
 // TODO: handle deallocation
 export fn sdfgen_to_xml(c_sdf: *align(8) anyopaque) [*c]u8 {
@@ -46,6 +48,15 @@ export fn sdfgen_dtb_parse(path: [*c]u8) ?*anyopaque {
     };
     const blob = modsdf.dtb.parse(allocator, bytes) catch |e| {
         std.log.err("could not parse DTB '{s}' with error: {any}", .{ path, e });
+        return null;
+    };
+
+    return blob;
+}
+
+export fn sdfgen_dtb_parse_from_bytes(bytes: [*c]u8, size: u32) ?*anyopaque {
+    const blob = modsdf.dtb.parse(allocator, bytes[0..size]) catch |e| {
+        std.log.err("could not parse DTB from bytes with error: {any}", .{ e });
         return null;
     };
 

@@ -4,7 +4,8 @@ if __name__ == '__main__':
     sdf = SystemDescription()
     sddf = Sddf("/Users/ivanv/ts/lionsos_tutorial/lionsos/dep/sddf")
 
-    dtb = DeviceTree("/Users/ivanv/ts/lionsos_tutorial/qemu_virt_aarch64.dtb")
+    with open("/Users/ivanv/ts/lionsos_tutorial/qemu_virt_aarch64.dtb", "rb") as f:
+        dtb = DeviceTree(f.read())
 
     i2c_reactor_client = ProtectionDomain("i2c_reactor_client", "reactor_client.elf", priority=198)
     i2c_virt = ProtectionDomain("i2c_virt", "i2c_virt.elf", priority=199)
