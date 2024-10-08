@@ -51,42 +51,40 @@ pub fn build(b: *std.Build) !void {
     });
     modsdf.addImport("dtb", dtbzig_dep.module("dtb"));
 
-    const pysdfgen_bin = b.option([]const u8, "pysdfgen-emit", "Name of pysdfgen library") orelse "pysdfgen.so";
-    const pysdfgen = b.addSharedLibrary(.{
-        .name = "pysdfgen",
-        .root_source_file = b.path("python/sdfgen_module.zig"),
-        .target = target,
-        .optimize = optimize,
-    });
-    pysdfgen.linker_allow_shlib_undefined = true;
-    pysdfgen.addIncludePath(.{ .cwd_relative = "/opt/homebrew/opt/python@3.10/Frameworks/Python.framework/Versions/3.10/include/python3.10" });
-    pysdfgen.root_module.addImport("sdf", modsdf);
-    pysdfgen.linkLibC();
-    // TODO: should probably check if the library exists first...
-    // pysdfgen.linkSystemLibrary("python3");
-    // pysdfgen.linkFramework("Python");
-    b.installArtifact(pysdfgen);
-
-    const pysdfgen_step = b.step("pysdfgen", "Library for the Python sdfgen module");
-    const pysdfgen_install = b.addInstallFileWithDir(pysdfgen.getEmittedBin(), .lib, pysdfgen_bin);
-    pysdfgen_step.dependOn(&pysdfgen_install.step);
-
-    const libsdfgen = b.addStaticLibrary(.{
+    const csdfgen = b.addStaticLibrary(.{
         .name = "sdfgen",
         .root_source_file = b.path("src/c/c.zig"),
         .target = target,
         .optimize = optimize,
     });
-    libsdfgen.root_module.addImport("sdf", modsdf);
+    csdfgen.root_module.addImport("sdf", modsdf);
 
-    const c_example_step = b.step("c", "Example of using libsdfgen with C");
+    const pysdfgen_bin = b.option([]const u8, "pysdfgen-emit", "Build pysdfgen library") orelse "pysdfgen.so";
+    const pysdfgen = b.addSharedLibrary(.{
+        .name = "pysdfgen",
+        .target = target,
+        .optimize = optimize,
+    });
+    pysdfgen.linkLibrary(csdfgen);
+    pysdfgen.linker_allow_shlib_undefined = true;
+    pysdfgen.addCSourceFile(.{ .file = b.path("python/module.c") });
+    pysdfgen.addIncludePath(.{ .cwd_relative = "/opt/homebrew/opt/python@3.12/Frameworks/Python.framework/Versions/3.12/include/python3.12" });
+    pysdfgen.linkLibC();
+    pysdfgen.addIncludePath(b.path("src/c"));
+    b.installArtifact(pysdfgen);
+
+    const pysdfgen_step = b.step("python", "Library for the Python sdfgen module");
+    const pysdfgen_install = b.addInstallFileWithDir(pysdfgen.getEmittedBin(), .lib, pysdfgen_bin);
+    pysdfgen_step.dependOn(&pysdfgen_install.step);
+
+    const c_example_step = b.step("c", "Example of using csdfgen with C");
     const c_example = b.addExecutable(.{
         .name = "c_example",
         .target = target,
         .optimize = optimize,
     });
     c_example.addCSourceFile(.{ .file = b.path("c/example.c") });
-    c_example.linkLibrary(libsdfgen);
+    c_example.linkLibrary(csdfgen);
     c_example.addIncludePath(b.path("src/c"));
     const c_example_cmd = b.addRunArtifact(c_example);
 

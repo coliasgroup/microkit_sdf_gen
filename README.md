@@ -40,3 +40,28 @@ well, even small changes to a large SDF file are difficult to make and ensure ar
 
 Both of these solutions are very much in a work-in-progress state.
 
+## Developing
+
+### C bindings
+
+```sh
+zig build c
+```
+
+### Python bindings
+
+```sh
+cd python
+zig build python
+python3 -m venv env
+source env/bin/activate
+python3 -m pip install .
+```
+
+
+From here you can do something like:
+```sh
+python3
+>>> import sdfgen
+```
+

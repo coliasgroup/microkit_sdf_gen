@@ -39,7 +39,7 @@ class ZigBuilder(build_ext):
             [
                 "zig",
                 "build",
-                "pysdfgen",
+                "python",
                 "-Doptimize=ReleaseFast",
                 *(["-target", "x86_64-windows-msvc"] if windows else []),
                 "--prefix-lib-dir",

@@ -331,16 +331,16 @@ pub const SystemDescription = struct {
         const MAX_IRQS = MAX_IDS;
         const MAX_CHILD_PDS = MAX_IDS;
 
-        pub fn create(sdf: *SystemDescription, name: []const u8, program_image: ?[]const u8) ProtectionDomain {
+        pub fn create(allocator: Allocator, name: []const u8, program_image: ?[]const u8) ProtectionDomain {
             return ProtectionDomain{
                 .name = name,
                 .program_image = program_image,
-                .maps = ArrayList(Map).init(sdf.allocator),
-                .child_pds = ArrayList(*ProtectionDomain).initCapacity(sdf.allocator, MAX_CHILD_PDS) catch @panic("Could not allocate child_pds"),
-                .irqs = ArrayList(Interrupt).initCapacity(sdf.allocator, MAX_IRQS) catch @panic("Could not allocate irqs"),
+                .maps = ArrayList(Map).init(allocator),
+                .child_pds = ArrayList(*ProtectionDomain).initCapacity(allocator, MAX_CHILD_PDS) catch @panic("Could not allocate child_pds"),
+                .irqs = ArrayList(Interrupt).initCapacity(allocator, MAX_IRQS) catch @panic("Could not allocate irqs"),
                 .vm = null,
                 .ids = std.bit_set.StaticBitSet(MAX_IDS).initEmpty(),
-                .setvars = ArrayList(SetVar).init(sdf.allocator),
+                .setvars = ArrayList(SetVar).init(allocator),
                 .budget = null,
                 .period = null,
             };

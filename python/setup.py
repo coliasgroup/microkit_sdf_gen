@@ -3,7 +3,7 @@ from pathlib import Path
 
 from builder import ZigBuilder
 
-sdfgen = Extension("sdfgen", sources=["sdfgen_module.zig"])
+sdfgen = Extension("sdfgen", sources=["module.c"])
 
 setup(
     name="sdfgen",
