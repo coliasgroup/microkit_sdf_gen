@@ -997,7 +997,7 @@ pub const NetworkSystem = struct {
 
     pub fn addClientWithCopier(system: *NetworkSystem, client: *Pd, copier: *Pd) void {
         system.addClient(client);
-        system.copiers.append(copier) catch @panic("Could not add copier to NetworkSystem");
+        system.copiers.append(copier) catch @panic("Could not add client with copier to NetworkSystem");
     }
 
     fn rxConnectDriver(system: *NetworkSystem) Mr {

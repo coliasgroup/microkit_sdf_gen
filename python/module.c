@@ -15,6 +15,21 @@ typedef struct {
     void *blob;
 } DeviceTreeObject;
 
+typedef struct {
+    PyObject_HEAD
+    void *node;
+} DeviceTreeNodeObject;
+
+static PyTypeObject DeviceTreeNodeType = {
+    .ob_base = PyVarObject_HEAD_INIT(NULL, 0)
+    .tp_name = "sdfgen.DeviceTreeNode",
+    .tp_doc = PyDoc_STR("DeviceTreeNode"),
+    .tp_basicsize = sizeof(DeviceTreeNodeObject),
+    .tp_itemsize = 0,
+    .tp_flags = Py_TPFLAGS_DEFAULT,
+    .tp_new = PyType_GenericNew,
+};
+
 static int
 DeviceTree_init(DeviceTreeObject *self, PyObject *args)
 {
@@ -23,6 +38,7 @@ DeviceTree_init(DeviceTreeObject *self, PyObject *args)
     if (!PyArg_ParseTuple(args, "S", &bytes)) {
         return -1;
     }
+    Py_INCREF(bytes);
     self->blob = sdfgen_dtb_parse_from_bytes(PyBytes_AsString(bytes), PyBytes_Size(bytes));
 
     return 0;
@@ -31,7 +47,6 @@ DeviceTree_init(DeviceTreeObject *self, PyObject *args)
 static PyObject *
 DeviceTree_node(DeviceTreeObject *self, PyObject *args) {
     char *node_str;
-    printf("here\n");
     if (!PyArg_ParseTuple(args, "s", &node_str)) {
         // TODO: raise exception?
         return NULL;
@@ -40,9 +55,15 @@ DeviceTree_node(DeviceTreeObject *self, PyObject *args) {
     if (node == NULL) {
         Py_RETURN_NONE;
     }
-    // TODO: how does this work with the GC? We want to increase the refcount
-    // whenever we have a pointer to the node right?
-    return PyCapsule_New(node, "node_str", NULL);
+
+    // TODO: this depends on the original bytes of the DeviceTreeObject
+    // Need to be careful with GC
+    DeviceTreeNodeObject *obj = PyObject_New(DeviceTreeNodeObject, &DeviceTreeNodeType);
+    obj->node = node;
+    Py_INCREF(obj);
+    Py_INCREF(self);
+
+    return (PyObject *)obj;
 }
 
 static PyMethodDef DeviceTree_methods[] = {
@@ -102,6 +123,82 @@ static PyTypeObject ProtectionDomainType = {
 typedef struct {
     PyObject_HEAD
     void *system;
+} SddfNetworkObject;
+
+static int
+SddfNetwork_init(SddfNetworkObject *self, PyObject *args)
+{
+    // TODO: check args
+    SystemDescriptionObject *sdf_obj;
+    PyObject *device_obj;
+    ProtectionDomainObject *driver_obj;
+    ProtectionDomainObject *virt_rx_obj;
+    ProtectionDomainObject *virt_tx_obj;
+
+    PyArg_ParseTuple(args, "OOOOO", &sdf_obj, &device_obj, &driver_obj, &virt_rx_obj, &virt_tx_obj);
+
+    /* It is valid to pass NULL as the device node pointer, so we figure that out here. */
+    void *device;
+    if (device_obj == Py_None) {
+        device = NULL;
+    } else {
+        device = ((DeviceTreeNodeObject *)device_obj)->node;
+    }
+
+    self->system = sdfgen_sddf_net(sdf_obj->sdf, device, driver_obj->pd, virt_rx_obj->pd, virt_tx_obj->pd);
+    return 0;
+}
+
+static PyObject *
+SddfNetwork_add_client_with_copier(SddfNetworkObject *self, PyObject *args)
+{
+    // TODO: do we need to count refernce to pds?
+    ProtectionDomainObject *client_obj;
+    ProtectionDomainObject *copier_obj;
+
+    if (!PyArg_ParseTuple(args, "OO", &client_obj, &copier_obj)) {
+        // TODO: raise exception?
+        return NULL;
+    }
+
+    sdfgen_sddf_net_add_client_with_copier(self->system, client_obj->pd, copier_obj->pd);
+
+    Py_RETURN_NONE;
+}
+
+static PyObject *
+SddfNetwork_connect(SddfNetworkObject *self, PyObject *Py_UNUSED(ignored))
+{
+    sdfgen_sddf_net_connect(self->system);
+
+    Py_RETURN_NONE;
+}
+
+static PyMethodDef SddfNetwork_methods[] = {
+    {"add_client_with_copier", (PyCFunction) SddfNetwork_add_client_with_copier, METH_VARARGS,
+     "Add a client with a copier component to the system"
+    },
+    {"connect", (PyCFunction) SddfNetwork_connect, METH_NOARGS,
+     "Generate all resources for system"
+    },
+    {NULL}  /* Sentinel */
+};
+
+static PyTypeObject SddfNetworkType = {
+    .ob_base = PyVarObject_HEAD_INIT(NULL, 0)
+    .tp_name = "sdfgen.Sddf.Network",
+    .tp_doc = PyDoc_STR("Sddf.Network"),
+    .tp_basicsize = sizeof(SddfNetworkObject),
+    .tp_itemsize = 0,
+    .tp_flags = Py_TPFLAGS_DEFAULT,
+    .tp_new = PyType_GenericNew,
+    .tp_init = (initproc) SddfNetwork_init,
+    .tp_methods = SddfNetwork_methods,
+};
+
+typedef struct {
+    PyObject_HEAD
+    void *system;
 } SddfBlockObject;
 
 static int
@@ -115,12 +212,12 @@ SddfBlock_init(SddfBlockObject *self, PyObject *args)
 
     PyArg_ParseTuple(args, "OOOO", &sdf_obj, &device_obj, &driver_obj, &virt_obj);
 
+    /* It is valid to pass NULL as the device node pointer, so we figure that out here. */
     void *device;
     if (device_obj == Py_None) {
         device = NULL;
     } else {
-        // TODO: better capsule name
-        device = PyCapsule_GetPointer(device_obj, "node_str");
+        device = ((DeviceTreeNodeObject *)device_obj)->node;
     }
 
     self->system = sdfgen_sddf_block(sdf_obj->sdf, device, driver_obj->pd, virt_obj->pd);
@@ -183,12 +280,12 @@ SddfI2c_init(SddfI2cObject *self, PyObject *args)
 
     PyArg_ParseTuple(args, "OOOO", &sdf_obj, &device_obj, &driver_obj, &virt_obj);
 
+    /* It is valid to pass NULL as the device node pointer, so we figure that out here. */
     void *device;
     if (device_obj == Py_None) {
         device = NULL;
     } else {
-        // TODO: better capsule name
-        device = PyCapsule_GetPointer(device_obj, "node_str");
+        device = ((DeviceTreeNodeObject *)device_obj)->node;
     }
 
     self->system = sdfgen_sddf_i2c(sdf_obj->sdf, device, driver_obj->pd, virt_obj->pd);
@@ -332,6 +429,10 @@ PyInit_sdfgen(void)
         return NULL;
     }
 
+    if (PyType_Ready(&DeviceTreeNodeType) < 0) {
+        return NULL;
+    }
+
     if (PyType_Ready(&ProtectionDomainType) < 0) {
         return NULL;
     }
@@ -347,6 +448,12 @@ PyInit_sdfgen(void)
     }
     Py_INCREF(&SddfBlockType);
     PyDict_SetItemString(SddfType.tp_dict, "Block", (PyObject *)&SddfBlockType);
+
+    if (PyType_Ready(&SddfNetworkType) < 0) {
+        return NULL;
+    }
+    Py_INCREF(&SddfNetworkType);
+    PyDict_SetItemString(SddfType.tp_dict, "Network", (PyObject *)&SddfNetworkType);
 
     if (PyType_Ready(&SddfType) < 0) {
         return NULL;
@@ -367,6 +474,13 @@ PyInit_sdfgen(void)
     Py_INCREF(&DeviceTreeType);
     if (PyModule_AddObject(m, "DeviceTree", (PyObject *) &DeviceTreeType) < 0) {
         Py_DECREF(&DeviceTreeType);
+        Py_DECREF(m);
+        return NULL;
+    }
+
+    Py_INCREF(&DeviceTreeNodeType);
+    if (PyModule_AddObject(m, "DeviceTreeNode", (PyObject *) &DeviceTreeNodeType) < 0) {
+        Py_DECREF(&DeviceTreeNodeType);
         Py_DECREF(m);
         return NULL;
     }

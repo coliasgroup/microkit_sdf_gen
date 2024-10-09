@@ -1,3 +1,5 @@
+/* C bindings for the sdfgen tooling */
+
 #include <stdbool.h>
 #include <stdint.h>
 
@@ -9,7 +11,6 @@ void *sdfgen_to_xml(void *sdf);
 /* DTB-related functionality */
 
 // Parse the DTB at a given path
-//
 // Returns NULL if the path cannot be accessed or the bytes cannot be
 // parsed.
 void *sdfgen_dtb_parse(char *path);
@@ -31,3 +32,7 @@ bool sdfgen_sddf_i2c_connect(void *system);
 void *sdfgen_sddf_block(void *sdf, void *device, void *driver, void *virt);
 void sdfgen_sddf_block_add_client(void *system, void *client);
 bool sdfgen_sddf_block_connect(void *system);
+
+void *sdfgen_sddf_net(void *sdf, void *device, void *driver, void *virt_rx, void *virt_tx);
+void sdfgen_sddf_net_add_client_with_copier(void *system, void *client, void *copier);
+bool sdfgen_sddf_net_connect(void *system);

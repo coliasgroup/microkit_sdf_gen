@@ -11,6 +11,8 @@ const SystemDescription = modsdf.sdf.SystemDescription;
 const Pd = SystemDescription.ProtectionDomain;
 
 // TODO: do proper error logging
+// TODO: handle passing options to sDDF systems
+// TODO: handle deallocation. For `*_connect` we should probably deallocate the system
 
 // TODO: handle deallocation
 // TODO: handle architecture
@@ -128,7 +130,7 @@ export fn sdfgen_sddf_i2c_connect(system: *align(8) anyopaque) bool {
     return true;
 }
 
-export fn sdfgen_sddf_block(c_sdf: *align(8) anyopaque, c_device: ?*align(8) anyopaque, driver: *align(8) anyopaque, virt: *align(8) anyopaque) *anyopaque {
+export fn sdfgen_sddf_block(c_sdf: *align(8) anyopaque, c_device: *align(8) anyopaque, driver: *align(8) anyopaque, virt: *align(8) anyopaque) *anyopaque {
     const sdf: *SystemDescription = @ptrCast(c_sdf);
     const block = allocator.create(sddf.BlockSystem) catch @panic("OOM");
     block.* = sddf.BlockSystem.init(allocator, sdf, @ptrCast(c_device), @ptrCast(driver), @ptrCast(virt), .{});
@@ -137,13 +139,34 @@ export fn sdfgen_sddf_block(c_sdf: *align(8) anyopaque, c_device: ?*align(8) any
 }
 
 export fn sdfgen_sddf_block_add_client(system: *align(8) anyopaque, client: *align(8) anyopaque) void {
-    const i2c: *sddf.BlockSystem = @ptrCast(system);
-    i2c.addClient(@ptrCast(client));
+    const block: *sddf.BlockSystem = @ptrCast(system);
+    block.addClient(@ptrCast(client));
 }
 
 export fn sdfgen_sddf_block_connect(system: *align(8) anyopaque) bool {
-    const blk: *sddf.BlockSystem = @ptrCast(system);
-    blk.connect() catch return false;
+    const block: *sddf.BlockSystem = @ptrCast(system);
+    block.connect() catch return false;
+    defer allocator.destroy(block);
+
+    return true;
+}
+
+export fn sdfgen_sddf_net(c_sdf: *align(8) anyopaque, c_device: *align(8) anyopaque, driver: *align(8) anyopaque, virt_rx: *align(8) anyopaque, virt_tx: *align(8) anyopaque) *anyopaque {
+    const sdf: *SystemDescription = @ptrCast(c_sdf);
+    const net = allocator.create(sddf.NetworkSystem) catch @panic("OOM");
+    net.* = sddf.NetworkSystem.init(allocator, sdf, @ptrCast(c_device), @ptrCast(driver), @ptrCast(virt_rx), @ptrCast(virt_tx), .{});
+
+    return net;
+}
+
+export fn sdfgen_sddf_net_add_client_with_copier(system: *align(8) anyopaque, client: *align(8) anyopaque, copier: *align(8) anyopaque) void {
+    const net: *sddf.NetworkSystem = @ptrCast(system);
+    net.addClientWithCopier(@ptrCast(client), @ptrCast(copier));
+}
+
+export fn sdfgen_sddf_net_connect(system: *align(8) anyopaque) bool {
+    const net: *sddf.NetworkSystem = @ptrCast(system);
+    net.connect() catch return false;
 
     return true;
 }
