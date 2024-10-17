@@ -8,6 +8,10 @@ const Mr = SystemDescription.MemoryRegion;
 const Map = SystemDescription.Map;
 const Channel = SystemDescription.Channel;
 
+fn fmt(allocator: Allocator, comptime s: []const u8, args: anytype) []u8 {
+    return std.fmt.allocPrint(allocator, s, args) catch @panic("OOM");
+}
+
 pub const FileSystem = struct {
     allocator: Allocator,
     sdf: *SystemDescription,
@@ -51,8 +55,8 @@ pub const FileSystem = struct {
         const fs = system.fs;
         const client = system.client;
 
-        const fs_command_queue = Mr.create(allocator, "fs_command_queue", system.command_queue_size, null, .small);
-        const fs_completion_queue = Mr.create(allocator, "fs_completion_queue", system.completion_queue_size, null, .small);
+        const fs_command_queue = Mr.create(allocator, fmt(allocator, "fs_{s}_command_queue", .{ fs.name }), system.command_queue_size, null, .small);
+        const fs_completion_queue = Mr.create(allocator, fmt(allocator, "fs_{s}_completion_queue", .{ fs.name }), system.completion_queue_size, null, .small);
 
         system.sdf.addMemoryRegion(fs_command_queue);
         system.sdf.addMemoryRegion(fs_completion_queue);
@@ -61,7 +65,7 @@ pub const FileSystem = struct {
             if (system.data_mr) |data_mr| {
                 break :blk data_mr;
             } else {
-                const mr = Mr.create(allocator, "fs_share", system.data_size, null, .large);
+                const mr = Mr.create(allocator, fmt(allocator, "fs_{s}_share", .{ fs.name }), system.data_size, null, .large);
                 system.sdf.addMemoryRegion(mr);
                 break :blk mr;
             }
@@ -76,5 +80,22 @@ pub const FileSystem = struct {
         client.addMap(.create(fs_share, client.getMapVaddr(&fs_share), .rw, true, "fs_share"));
 
         system.sdf.addChannel(Channel.create(fs, client));
+
+        // Special things for FATFS
+        const fatfs_metadata = Mr.create(allocator, fmt(allocator, "{s}_metadata", .{ fs.name }), 0x200_000, null, .large);
+        fs.addMap(Map.create(fatfs_metadata, 0x40_000_000, .rw, true, "fs_metadata"));
+        system.sdf.addMemoryRegion(fatfs_metadata);
+        const stack1 = Mr.create(allocator, fmt(allocator, "{s}_stack1", .{ fs.name }), 0x40_000, null, .small);
+        const stack2 = Mr.create(allocator, fmt(allocator, "{s}_stack2", .{ fs.name }), 0x40_000, null, .small);
+        const stack3 = Mr.create(allocator, fmt(allocator, "{s}_stack3", .{ fs.name }), 0x40_000, null, .small);
+        const stack4 = Mr.create(allocator, fmt(allocator, "{s}_stack4", .{ fs.name }), 0x40_000, null, .small);
+        system.sdf.addMemoryRegion(stack1);
+        system.sdf.addMemoryRegion(stack2);
+        system.sdf.addMemoryRegion(stack3);
+        system.sdf.addMemoryRegion(stack4);
+        fs.addMap(.create(stack1, 0xA0_000_000, .rw, true, "worker_thread_stack_one"));
+        fs.addMap(.create(stack2, 0xB0_000_000, .rw, true, "worker_thread_stack_two"));
+        fs.addMap(.create(stack3, 0xC0_000_000, .rw, true, "worker_thread_stack_three"));
+        fs.addMap(.create(stack4, 0xD0_000_000, .rw, true, "worker_thread_stack_four"));
     }
 };
