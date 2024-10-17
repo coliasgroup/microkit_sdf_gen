@@ -3,7 +3,7 @@ from pathlib import Path
 
 # from builder import ZigBuilder
 
-sdfgen = Extension("sdfgen", sources=["module.c"], include_dirs=["/Users/ivanv/ts/microkit_sdf_gen/src/c"])
+sdfgen = Extension("sdfgen", sources=["module.c"], include_dirs=["../src/c"])
 
 setup(
     name="sdfgen",
