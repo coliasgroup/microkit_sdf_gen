@@ -16,10 +16,10 @@ class ZigBuilder(build_ext):
             "zig",
             "build",
             "python",
-            "-Doptimize=ReleaseFast",
+            # "-Doptimize=ReleaseFast",
+            f"-Dpysdfgen-emit={self.get_ext_filename(ext.name)}",
             "--prefix-lib-dir",
             f"{modpath}",
-            f"-Dpysdfgen-emit={self.get_ext_filename(ext.name)}",
         ]
         args.extend(include_args)
 

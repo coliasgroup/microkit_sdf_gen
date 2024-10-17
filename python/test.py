@@ -22,9 +22,11 @@ if __name__ == '__main__':
     net_virt_rx = ProtectionDomain("net_virt", "net_virt_rx.elf", priority=199)
     net_virt_tx = ProtectionDomain("net_virt", "net_virt_tx.elf", priority=199)
 
-    net_micropython_copier = ProtectionDomain("net_micropython_copier", "net_micropython_copier.elf", priority=199)
+    timer_driver = ProtectionDomain("timer_driver", "driver_timer_arm.elf", priority=220)
 
-    micropython = ProtectionDomain("micropython", "micropython.elf", priority=100)
+    # net_micropython_copier = ProtectionDomain("net_micropython_copier", "net_micropython_copier.elf", priority=199)
+
+    # micropython = ProtectionDomain("micropython", "micropython.elf", priority=100)
 
     # For our I2C system, we don't actually have a device used by the driver, since it's all emulated
     # in software, so we pass None as the device parameter
@@ -36,10 +38,14 @@ if __name__ == '__main__':
     blk_system = Sddf.Block(sdf, blk_node, blk_driver, blk_virt)
     blk_system.add_client(i2c_reactor_client)
 
-    net_node = dtb.node("virtio_mmio@a003c00")
-    assert net_node is not None
-    net_system = Sddf.Network(sdf, net_node, net_driver, net_virt_rx, net_virt_tx)
-    net_system.add_client_with_copier(micropython, net_micropython_copier)
+    timer_system = Sddf.Timer(sdf, dtb.node("timer"), timer_driver)
+    print("heree")
+    timer_system.add_client(i2c_reactor_client)
+
+    # net_node = dtb.node("virtio_mmio@a003c00")
+    # assert net_node is not None
+    # net_system = Sddf.Network(sdf, net_node, net_driver, net_virt_rx, net_virt_tx)
+    # net_system.add_client_with_copier(micropython, net_micropython_copier)
 
     pds = [
         i2c_reactor_client,
@@ -47,17 +53,19 @@ if __name__ == '__main__':
         i2c_reactor_driver,
         blk_driver,
         blk_virt,
-        net_driver,
-        net_virt_rx,
-        net_virt_tx,
-        net_micropython_copier,
-        micropython
+        timer_driver,
+        # net_driver,
+        # net_virt_rx,
+        # net_virt_tx,
+        # net_micropython_copier,
+        # micropython
     ]
     for pd in pds:
         sdf.add_pd(pd)
 
     i2c_system.connect()
     blk_system.connect()
-    net_system.connect()
+    # net_system.connect()
+    timer_system.connect()
 
     print(sdf.xml())

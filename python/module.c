@@ -334,6 +334,73 @@ static PyTypeObject SddfI2cType = {
 
 typedef struct {
     PyObject_HEAD
+    void *system;
+} SddfTimerObject;
+
+static int
+SddfTimer_init(SddfTimerObject *self, PyObject *args)
+{
+    // TODO: check args
+    SystemDescriptionObject *sdf_obj;
+    PyObject *device_obj;
+    ProtectionDomainObject *driver_obj;
+
+    PyArg_ParseTuple(args, "OOO", &sdf_obj, &device_obj, &driver_obj);
+
+    /* It is valid to pass NULL as the device node pointer, so we figure that out here. */
+    void *device;
+    if (device_obj == Py_None) {
+        device = NULL;
+    } else {
+        device = ((DeviceTreeNodeObject *)device_obj)->node;
+    }
+
+    self->system = sdfgen_sddf_timer(sdf_obj->sdf, device, driver_obj->pd);
+    return 0;
+}
+
+static PyObject *
+SddfTimer_add_client(SddfTimerObject *self, PyObject *py_pd)
+{
+    // TODO: do we need to count refernce to py_pd?
+    ProtectionDomainObject *pd_obj = (ProtectionDomainObject *)py_pd;
+    sdfgen_sddf_timer_add_client(self->system, pd_obj->pd);
+
+    Py_RETURN_NONE;
+}
+
+static PyObject *
+SddfTimer_connect(SddfTimerObject *self, PyObject *Py_UNUSED(ignored))
+{
+    sdfgen_sddf_timer_connect(self->system);
+
+    Py_RETURN_NONE;
+}
+
+static PyMethodDef SddfTimer_methods[] = {
+    {"add_client", (PyCFunction) SddfTimer_add_client, METH_O,
+     "Add a client to the system"
+    },
+    {"connect", (PyCFunction) SddfTimer_connect, METH_NOARGS,
+     "Generate all resources for system"
+    },
+    {NULL}  /* Sentinel */
+};
+
+static PyTypeObject SddfTimerType = {
+    .ob_base = PyVarObject_HEAD_INIT(NULL, 0)
+    .tp_name = "sdfgen.Sddf.Timer",
+    .tp_doc = PyDoc_STR("Sddf.Timer"),
+    .tp_basicsize = sizeof(SddfTimerObject),
+    .tp_itemsize = 0,
+    .tp_flags = Py_TPFLAGS_DEFAULT,
+    .tp_new = PyType_GenericNew,
+    .tp_init = (initproc) SddfTimer_init,
+    .tp_methods = SddfTimer_methods,
+};
+
+typedef struct {
+    PyObject_HEAD
 } SddfObject;
 
 static int
@@ -436,6 +503,12 @@ PyInit_sdfgen(void)
     if (PyType_Ready(&ProtectionDomainType) < 0) {
         return NULL;
     }
+
+    if (PyType_Ready(&SddfTimerType) < 0) {
+        return NULL;
+    }
+    Py_INCREF(&SddfTimerType);
+    PyDict_SetItemString(SddfType.tp_dict, "Timer", (PyObject *)&SddfTimerType);
 
     if (PyType_Ready(&SddfI2cType) < 0) {
         return NULL;

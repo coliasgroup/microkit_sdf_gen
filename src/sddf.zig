@@ -448,7 +448,7 @@ pub const TimerSystem = struct {
     /// Client PDs serviced by the timer driver
     clients: std.ArrayList(*Pd),
 
-    pub fn init(allocator: Allocator, sdf: *SystemDescription, driver: *Pd, device: *dtb.Node) TimerSystem {
+    pub fn init(allocator: Allocator, sdf: *SystemDescription, device: *dtb.Node, driver: *Pd) TimerSystem {
         // First we have to set some properties on the driver. It is currently our policy that every timer
         // driver should be passive.
         driver.passive = true;
@@ -769,8 +769,8 @@ pub const SerialSystem = struct {
     rx: bool,
 
     pub const Options = struct {
-        driver_data_size: usize = 0x4000,
-        client_data_size: usize = 0x2000,
+        driver_data_size: usize = 0x10000,
+        client_data_size: usize = 0x10000,
         queue_size: usize = 0x1000,
         rx: bool = true,
     };

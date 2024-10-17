@@ -25,6 +25,10 @@ void sdfgen_pd_set_priority(void *pd, uint8_t priority);
 
 void *sdfgen_sddf_init(char *path);
 
+void *sdfgen_sddf_timer(void *sdf, void *device, void *driver);
+void sdfgen_sddf_timer_add_client(void *system, void *client);
+bool sdfgen_sddf_timer_connect(void *system);
+
 void *sdfgen_sddf_i2c(void *sdf, void *device, void *driver, void *virt);
 void sdfgen_sddf_i2c_add_client(void *system, void *client);
 bool sdfgen_sddf_i2c_connect(void *system);

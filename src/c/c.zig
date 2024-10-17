@@ -110,6 +110,26 @@ export fn sdfgen_sddf_init(path: [*c]u8) bool {
     return true;
 }
 
+export fn sdfgen_sddf_timer(c_sdf: *align(8) anyopaque, c_device: ?*align(8) anyopaque, driver: *align(8) anyopaque) *anyopaque {
+    const sdf: *SystemDescription = @ptrCast(c_sdf);
+    const timer = allocator.create(sddf.TimerSystem) catch @panic("OOM");
+    timer.* = sddf.TimerSystem.init(allocator, sdf, @ptrCast(c_device), @ptrCast(driver));
+
+    return timer;
+}
+
+export fn sdfgen_sddf_timer_add_client(system: *align(8) anyopaque, client: *align(8) anyopaque) void {
+    const timer: *sddf.TimerSystem = @ptrCast(system);
+    timer.addClient(@ptrCast(client));
+}
+
+export fn sdfgen_sddf_timer_connect(system: *align(8) anyopaque) bool {
+    const timer: *sddf.TimerSystem = @ptrCast(system);
+    timer.connect() catch return false;
+
+    return true;
+}
+
 export fn sdfgen_sddf_i2c(c_sdf: *align(8) anyopaque, c_device: ?*align(8) anyopaque, driver: *align(8) anyopaque, virt: *align(8) anyopaque) *anyopaque {
     const sdf: *SystemDescription = @ptrCast(c_sdf);
     const i2c = allocator.create(sddf.I2cSystem) catch @panic("OOM");

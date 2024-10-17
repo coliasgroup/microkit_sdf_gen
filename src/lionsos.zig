@@ -47,32 +47,33 @@ pub const FileSystem = struct {
     }
 
     pub fn connect(system: *const FileSystem) void {
+        const allocator = system.allocator;
         const fs = system.fs;
         const client = system.client;
 
-        const fs_command_queue = Mr.create(system.sdf, "fs_command_queue", system.command_queue_size, null, .small);
-        const fs_completion_queue = Mr.create(system.sdf, "fs_completion_queue", system.completion_queue_size, null, .small);
+        const fs_command_queue = Mr.create(allocator, "fs_command_queue", system.command_queue_size, null, .small);
+        const fs_completion_queue = Mr.create(allocator, "fs_completion_queue", system.completion_queue_size, null, .small);
 
         system.sdf.addMemoryRegion(fs_command_queue);
         system.sdf.addMemoryRegion(fs_completion_queue);
 
-        const fs_data = blk: {
+        const fs_share = blk: {
             if (system.data_mr) |data_mr| {
                 break :blk data_mr;
             } else {
-                const mr = Mr.create(system.sdf, "fs_data", system.data_size, null, .large);
+                const mr = Mr.create(allocator, "fs_share", system.data_size, null, .large);
                 system.sdf.addMemoryRegion(mr);
                 break :blk mr;
             }
         };
 
-        fs.addMap(Map.create(fs_command_queue, fs.getMapVaddr(&fs_command_queue), .rw, true, "fs_command_queue"));
-        fs.addMap(Map.create(fs_completion_queue, fs.getMapVaddr(&fs_completion_queue), .rw, true, "fs_completion_queue"));
-        fs.addMap(Map.create(fs_data, fs.getMapVaddr(&fs_data), .rw, true, "fs_data"));
+        fs.addMap(.create(fs_command_queue, fs.getMapVaddr(&fs_command_queue), .rw, true, "fs_command_queue"));
+        fs.addMap(.create(fs_completion_queue, fs.getMapVaddr(&fs_completion_queue), .rw, true, "fs_completion_queue"));
+        fs.addMap(.create(fs_share, fs.getMapVaddr(&fs_share), .rw, true, "fs_share"));
 
-        client.addMap(Map.create(fs_command_queue, client.getMapVaddr(&fs_command_queue), .rw, true, "fs_command_queue"));
-        client.addMap(Map.create(fs_completion_queue, client.getMapVaddr(&fs_completion_queue), .rw, true, "fs_completion_queue"));
-        client.addMap(Map.create(fs_data, client.getMapVaddr(&fs_data), .rw, true, "fs_data"));
+        client.addMap(.create(fs_command_queue, client.getMapVaddr(&fs_command_queue), .rw, true, "fs_command_queue"));
+        client.addMap(.create(fs_completion_queue, client.getMapVaddr(&fs_completion_queue), .rw, true, "fs_completion_queue"));
+        client.addMap(.create(fs_share, client.getMapVaddr(&fs_share), .rw, true, "fs_share"));
 
         system.sdf.addChannel(Channel.create(fs, client));
     }
