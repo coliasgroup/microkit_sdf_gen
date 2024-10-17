@@ -1,0 +1,32 @@
+name: Build Python package
+
+on: [push]
+
+jobs:
+  build_wheels:
+    name: Build wheels on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        # macos-13 is an intel runner, macos-14 is apple silicon
+        os: [ubuntu-latest, macos-13, macos-14]
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Zig
+        uses: mlugg/setup-zig@v1.2.0
+        with:
+          version: master
+
+      - name: Build wheels
+        uses: pypa/cibuildwheel@v2.21.3
+        env:
+          SDFGEN_PACKAGE_DIR: ${{ github.workspace }}/python
+        with:
+          package-dir: python
+          output-dir: wheelhouse
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cibw-wheels-${{ matrix.os }}-${{ strategy.job-index }}
+          path: ./wheelhouse/*.whl
