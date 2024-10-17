@@ -25,8 +25,8 @@ class ZigBuilder(build_ext):
 
         cwd = os.getcwd()
         package_dir = os.environ.get("SDFGEN_PACKAGE_DIR")
-        assert package_dir is not None
-        os.chdir(package_dir)
+        if package_dir is not None:
+            os.chdir(package_dir)
 
         self.spawn(args)
 

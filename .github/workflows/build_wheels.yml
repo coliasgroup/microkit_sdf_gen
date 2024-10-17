@@ -20,8 +20,6 @@ jobs:
 
       - name: Build wheels
         uses: pypa/cibuildwheel@v2.21.3
-        env:
-          CIBW_ENVIRONMENT: SDFGEN_PACKAGE_DIR=${{ github.workspace }}/python
         with:
           package-dir: python
           output-dir: wheelhouse
