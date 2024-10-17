@@ -5,10 +5,6 @@ import sysconfig
 
 
 class ZigBuilder(build_ext):
-    def initialize_options(self):
-        build_ext.initialize_options(self)
-        self.build_ext_base = '/Users/ivanv/ts/microkit_sdf_gen/python'
-
     def build_extension(self, ext):
         assert len(ext.sources) == 1
 
@@ -17,9 +13,6 @@ class ZigBuilder(build_ext):
 
         include_args = [f"-Dpython-include={include}" for include in self.include_dirs]
         args = [
-            # "cd",
-            # "/Users/ivanv/ts/microkit_sdf_gen/python",
-            # "&&"
             "zig",
             "build",
             "python",
@@ -30,4 +23,9 @@ class ZigBuilder(build_ext):
         ]
         args.extend(include_args)
 
+        cwd = os.getcwd()
+        os.chdir("/Users/ivanv/ts/microkit_sdf_gen/python")
+
         self.spawn(args)
+
+        os.chdir(cwd)
