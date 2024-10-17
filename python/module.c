@@ -95,15 +95,17 @@ ProtectionDomain_init(ProtectionDomainObject *self, PyObject *args, PyObject *kw
     // TODO: check args
     // TODO: handle defaults, better, ideally we wouldn't set the priority unless
     // it was supplied;
-    uint8_t priority = 100;
-    static char *kwlist[] = { "name", "elf", "priority", NULL };
+    unsigned short int priority = 100;
+    int pp = false;
+    static char *kwlist[] = { "name", "elf", "priority", "pp", NULL };
     char *name;
     char *elf;
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "ss|$h", kwlist, &name, &elf, &priority)) {
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "ss|$Hp", kwlist, &name, &elf, &priority, &pp)) {
         return -1;
     }
     self->pd = sdfgen_pd_create(name, elf);
     sdfgen_pd_set_priority(self->pd, priority);
+    sdfgen_pd_set_pp(self->pd, pp);
 
     return 0;
 }
@@ -117,6 +119,35 @@ static PyTypeObject ProtectionDomainType = {
     .tp_flags = Py_TPFLAGS_DEFAULT,
     .tp_new = PyType_GenericNew,
     .tp_init = (initproc) ProtectionDomain_init,
+};
+
+typedef struct {
+    PyObject_HEAD
+    void *ch;
+} ChannelObject;
+
+static int
+Channel_init(ChannelObject *self, PyObject *args, PyObject *kwds)
+{
+    // TODO: check args
+    ProtectionDomainObject *pd_a_obj;
+    ProtectionDomainObject *pd_b_obj;
+
+    PyArg_ParseTuple(args, "OO", &pd_a_obj, &pd_b_obj);
+    self->ch = sdfgen_channel_create(pd_a_obj->pd, pd_b_obj->pd);
+
+    return 0;
+}
+
+static PyTypeObject ChannelType = {
+    .ob_base = PyVarObject_HEAD_INIT(NULL, 0)
+    .tp_name = "sdfgen.Channel",
+    .tp_doc = PyDoc_STR("Channel"),
+    .tp_basicsize = sizeof(ChannelObject),
+    .tp_itemsize = 0,
+    .tp_flags = Py_TPFLAGS_DEFAULT,
+    .tp_new = PyType_GenericNew,
+    .tp_init = (initproc) Channel_init,
 };
 
 typedef struct {
@@ -425,6 +456,66 @@ static PyTypeObject SddfType = {
     .tp_init = (initproc) Sddf_init,
 };
 
+typedef struct {
+    PyObject_HEAD
+    void *system;
+} LionsFileSystemObject;
+
+static int
+LionsFileSystem_init(LionsFileSystemObject *self, PyObject *args)
+{
+    // TODO: check args
+    SystemDescriptionObject *sdf_obj;
+    ProtectionDomainObject *fs_obj;
+    ProtectionDomainObject *client_obj;
+
+    PyArg_ParseTuple(args, "OOO", &sdf_obj, &fs_obj, &client_obj);
+
+    self->system = sdfgen_lionsos_fs(sdf_obj->sdf, fs_obj->pd, client_obj->pd);
+    return 0;
+}
+
+static PyObject *
+LionsFileSystem_connect(LionsFileSystemObject *self, PyObject *Py_UNUSED(ignored))
+{
+    sdfgen_lionsos_fs_connect(self->system);
+
+    Py_RETURN_NONE;
+}
+
+static PyMethodDef LionsFileSystem_methods[] = {
+    {"connect", (PyCFunction) LionsFileSystem_connect, METH_NOARGS,
+     "Generate all resources for file system"
+    },
+    {NULL}  /* Sentinel */
+};
+
+static PyTypeObject LionsFileSystemType = {
+    .ob_base = PyVarObject_HEAD_INIT(NULL, 0)
+    .tp_name = "sdfgen.LionsOS.FileSystem",
+    .tp_doc = PyDoc_STR("LionsOS.FileSystem"),
+    .tp_basicsize = sizeof(LionsFileSystemObject),
+    .tp_itemsize = 0,
+    .tp_flags = Py_TPFLAGS_DEFAULT,
+    .tp_new = PyType_GenericNew,
+    .tp_init = (initproc) LionsFileSystem_init,
+    .tp_methods = LionsFileSystem_methods,
+};
+
+typedef struct {
+    PyObject_HEAD
+} LionsObject;
+
+static PyTypeObject LionsType = {
+    .ob_base = PyVarObject_HEAD_INIT(NULL, 0)
+    .tp_name = "sdfgen.LionsOS",
+    .tp_doc = PyDoc_STR("LionsOS"),
+    .tp_basicsize = sizeof(LionsObject),
+    .tp_itemsize = 0,
+    .tp_flags = Py_TPFLAGS_DEFAULT,
+    .tp_new = PyType_GenericNew,
+};
+
 static int
 SystemDescription_init(SystemDescriptionObject *self, PyObject *args, PyObject *kwds)
 {
@@ -443,6 +534,16 @@ SystemDescription_add_pd(SystemDescriptionObject *self, PyObject *py_pd)
 }
 
 static PyObject *
+SystemDescription_add_channel(SystemDescriptionObject *self, PyObject *py_ch)
+{
+    // TODO: do we need to count refernce to py_ch?
+    ChannelObject *ch_obj = (ChannelObject *)py_ch;
+    sdfgen_channel_add(self->sdf, ch_obj->ch);
+
+    Py_RETURN_NONE;
+}
+
+static PyObject *
 SystemDescription_xml(SystemDescriptionObject *self, PyObject *Py_UNUSED(ignored))
 {
     return PyUnicode_FromString(sdfgen_to_xml(self->sdf));
@@ -454,6 +555,9 @@ static PyMethodDef SystemDescription_methods[] = {
     },
     {"add_pd", (PyCFunction) SystemDescription_add_pd, METH_O,
      "Add a ProtectionDomain"
+    },
+    {"add_channel", (PyCFunction) SystemDescription_add_channel, METH_O,
+     "Add a Channel"
     },
     {NULL}  /* Sentinel */
 };
@@ -487,6 +591,11 @@ PyInit_sdfgen(void)
         return NULL;
     }
 
+    LionsType.tp_dict = PyDict_New();
+    if (!LionsType.tp_dict) {
+        return NULL;
+    }
+
     if (PyType_Ready(&SystemDescriptionType) < 0) {
         return NULL;
     }
@@ -500,6 +609,10 @@ PyInit_sdfgen(void)
     }
 
     if (PyType_Ready(&ProtectionDomainType) < 0) {
+        return NULL;
+    }
+
+    if (PyType_Ready(&ChannelType) < 0) {
         return NULL;
     }
 
@@ -528,6 +641,16 @@ PyInit_sdfgen(void)
     PyDict_SetItemString(SddfType.tp_dict, "Network", (PyObject *)&SddfNetworkType);
 
     if (PyType_Ready(&SddfType) < 0) {
+        return NULL;
+    }
+
+    if (PyType_Ready(&LionsFileSystemType) < 0) {
+        return NULL;
+    }
+    Py_INCREF(&LionsFileSystemType);
+    PyDict_SetItemString(LionsType.tp_dict, "FileSystem", (PyObject *)&LionsFileSystemType);
+
+    if (PyType_Ready(&LionsType) < 0) {
         return NULL;
     }
 
@@ -564,9 +687,23 @@ PyInit_sdfgen(void)
         return NULL;
     }
 
+    Py_INCREF(&ChannelType);
+    if (PyModule_AddObject(m, "Channel", (PyObject *) &ChannelType) < 0) {
+        Py_DECREF(&ChannelType);
+        Py_DECREF(m);
+        return NULL;
+    }
+
     Py_INCREF(&SddfType);
     if (PyModule_AddObject(m, "Sddf", (PyObject *) &SddfType) < 0) {
         Py_DECREF(&SddfType);
+        Py_DECREF(m);
+        return NULL;
+    }
+
+    Py_INCREF(&LionsType);
+    if (PyModule_AddObject(m, "LionsOS", (PyObject *) &LionsType) < 0) {
+        Py_DECREF(&LionsType);
         Py_DECREF(m);
         return NULL;
     }

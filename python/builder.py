@@ -17,9 +17,9 @@ class ZigBuilder(build_ext):
 
         include_args = [f"-Dpython-include={include}" for include in self.include_dirs]
         args = [
-            "cd",
-            "/Users/ivanv/ts/microkit_sdf_gen/python",
-            "&&"
+            # "cd",
+            # "/Users/ivanv/ts/microkit_sdf_gen/python",
+            # "&&"
             "zig",
             "build",
             "python",

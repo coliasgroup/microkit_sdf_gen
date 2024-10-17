@@ -7,8 +7,10 @@ const allocator = std.heap.c_allocator;
 
 const dtb = modsdf.dtb;
 const sddf = modsdf.sddf;
+const lionsos = modsdf.lionsos;
 const SystemDescription = modsdf.sdf.SystemDescription;
 const Pd = SystemDescription.ProtectionDomain;
+const Channel = SystemDescription.Channel;
 
 // TODO: do proper error logging
 // TODO: handle passing options to sDDF systems
@@ -104,10 +106,28 @@ export fn sdfgen_pd_set_priority(c_pd: *align(8) anyopaque, priority: u8) void {
     pd.priority = priority;
 }
 
+export fn sdfgen_pd_set_pp(c_pd: *align(8) anyopaque, pp: bool) void {
+    const pd: *Pd = @ptrCast(c_pd);
+    pd.pp = pp;
+}
+
 export fn sdfgen_sddf_init(path: [*c]u8) bool {
     sddf.probe(allocator, std.mem.span(path)) catch return false;
 
     return true;
+}
+
+export fn sdfgen_channel_create(pd_a: *align(8) anyopaque, pd_b: *align(8) anyopaque) *anyopaque {
+    const ch = allocator.create(Channel) catch @panic("OOM");
+    ch.* = Channel.create(@ptrCast(pd_a), @ptrCast(pd_b));
+
+    return ch;
+}
+
+export fn sdfgen_channel_add(c_sdf: *align(8) anyopaque, c_ch: *align(8) anyopaque) void {
+    const sdf: *SystemDescription = @ptrCast(c_sdf);
+    const ch: *Channel = @ptrCast(c_ch);
+    sdf.addChannel(ch.*);
 }
 
 export fn sdfgen_sddf_timer(c_sdf: *align(8) anyopaque, c_device: ?*align(8) anyopaque, driver: *align(8) anyopaque) *anyopaque {
@@ -187,6 +207,21 @@ export fn sdfgen_sddf_net_add_client_with_copier(system: *align(8) anyopaque, cl
 export fn sdfgen_sddf_net_connect(system: *align(8) anyopaque) bool {
     const net: *sddf.NetworkSystem = @ptrCast(system);
     net.connect() catch return false;
+
+    return true;
+}
+
+export fn sdfgen_lionsos_fs(c_sdf: *align(8) anyopaque, c_fs: *align(8) anyopaque, c_client: *align(8) anyopaque) *anyopaque {
+    const sdf: *SystemDescription = @ptrCast(c_sdf);
+    const fs = allocator.create(lionsos.FileSystem) catch @panic("OOM");
+    fs.* = lionsos.FileSystem.init(allocator, sdf, @ptrCast(c_fs), @ptrCast(c_client), .{});
+
+    return fs;
+}
+
+export fn sdfgen_lionsos_fs_connect(system: *align(8) anyopaque) bool {
+    const fs: *lionsos.FileSystem = @ptrCast(system);
+    fs.connect();
 
     return true;
 }

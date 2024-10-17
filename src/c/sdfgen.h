@@ -22,6 +22,10 @@ void *sdfgen_dtb_node(void *blob, char *node);
 void *sdfgen_pd_create(char *name, char *elf);
 void *sdfgen_pd_add(void *sdf, void *pd);
 void sdfgen_pd_set_priority(void *pd, uint8_t priority);
+void sdfgen_pd_set_pp(void *pd, bool pp);
+
+void *sdfgen_channel_create(void *pd_a, void *pd_b);
+void *sdfgen_channel_add(void *sdf, void *channel);
 
 void *sdfgen_sddf_init(char *path);
 
@@ -40,3 +44,6 @@ bool sdfgen_sddf_block_connect(void *system);
 void *sdfgen_sddf_net(void *sdf, void *device, void *driver, void *virt_rx, void *virt_tx);
 void sdfgen_sddf_net_add_client_with_copier(void *system, void *client, void *copier);
 bool sdfgen_sddf_net_connect(void *system);
+
+void *sdfgen_lionsos_fs(void *sdf, void *fs, void *client);
+bool sdfgen_lionsos_fs_connect(void *fs_system);
