@@ -16,7 +16,7 @@ jobs:
       - name: Build wheels
         uses: pypa/cibuildwheel@v2.21.3
         env:
-          CIBW_SKIP: cp36-* cp37-* cp38-*
+          CIBW_SKIP: cp36-* cp37-* cp38-* pp37-* pp38-*
         #   CIBW_BEFORE_ALL_LINUX: >
         #     yum install -y wget &&
         #     wget https://ziglang.org/builds/zig-linux-x86_64-0.14.0-dev.1930+4a2a0f50c.tar.xz &&
