@@ -24,7 +24,9 @@ class ZigBuilder(build_ext):
         args.extend(include_args)
 
         cwd = os.getcwd()
-        os.chdir("/Users/ivanv/ts/microkit_sdf_gen/python")
+        package_dir = os.environ.get("SDFGEN_PACKAGE_DIR")
+        assert package_dir is not None
+        os.chdir(package_dir)
 
         self.spawn(args)
 
