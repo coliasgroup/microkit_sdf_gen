@@ -20,12 +20,12 @@ jobs:
             yum install -y wget &&
             wget https://ziglang.org/builds/zig-linux-x86_64-0.14.0-dev.1930+4a2a0f50c.tar.xz &&
             tar xf zig-linux-x86_64-0.14.0-dev.1930+4a2a0f50c.tar.xz &&
-            export PATH=$(pwd)/zig-linux-x86_64-0.14.0-dev.1930+4a2a0f50c:$PATH
+            export PATH=$(pwd)/zig-linux-x86_64-0.14.0-dev.1930+4a2a0f50c:$PATH &&
             zig version
           CIBW_BEFORE_ALL_MACOS: >
             wget https://ziglang.org/builds/zig-macos-x86_64-0.14.0-dev.1930+4a2a0f50c.tar.xz &&
             tar xf zig-macos-x86_64-0.14.0-dev.1930+4a2a0f50c.tar.xz &&
-            export PATH=$(pwd)/zig-macos-x86_64-0.14.0-dev.1930+4a2a0f50c:$PATH
+            export PATH=$(pwd)/zig-macos-x86_64-0.14.0-dev.1930+4a2a0f50c:$PATH &&
             zig version
         with:
           package-dir: python
