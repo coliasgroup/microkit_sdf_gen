@@ -58,11 +58,11 @@ const MicrokitBoard = enum {
 
 const Example = enum {
     // virtio,
-    virtio_blk,
-    abstractions,
+    // virtio_blk,
+    // abstractions,
     // gdb,
-    kitty,
-    echo_server,
+    // kitty,
+    // echo_server,
     webserver,
 
     pub fn fromStr(str: []const u8) !Example {
@@ -78,12 +78,12 @@ const Example = enum {
     pub fn generate(e: Example, allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !void {
         switch (e) {
             // .virtio => try virtio(sdf),
-            .abstractions => try abstractions(allocator, sdf, blob),
-            .virtio_blk => try virtio_blk(allocator, sdf, blob),
-            // .gdb => try gdb(allocator, sdf, blob),
-            .kitty => try kitty(allocator, sdf, blob),
+            // .abstractions => try abstractions(allocator, sdf, blob),
+            // .virtio_blk => try virtio_blk(allocator, sdf, blob),
+            // // .gdb => try gdb(allocator, sdf, blob),
+            // .kitty => try kitty(allocator, sdf, blob),
             .webserver => try webserver(allocator, sdf, blob),
-            .echo_server => try echo_server(allocator, sdf, blob),
+            // .echo_server => try echo_server(allocator, sdf, blob),
         }
     }
 
@@ -592,17 +592,17 @@ fn webserver(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !vo
         .qemu_virt_aarch64 => blob.child(board.uartNode()).?,
     };
 
-    var uart_driver = Pd.create(sdf, "uart_driver", "uart_driver.elf");
+    var uart_driver = Pd.create(allocator, "uart_driver", "uart_driver.elf");
     sdf.addProtectionDomain(&uart_driver);
 
-    // var serial_virt_rx = Pd.create(sdf, "serial_virt_rx", "serial_virt_rx.elf");
+    // var serial_virt_rx = Pd.create(allocator, "serial_virt_rx", "serial_virt_rx.elf");
     // sdf.addProtectionDomain(&serial_virt_rx);
-    var serial_virt_tx = Pd.create(sdf, "serial_virt_tx", "serial_virt_tx.elf");
+    var serial_virt_tx = Pd.create(allocator, "serial_virt_tx", "serial_virt_tx.elf");
     sdf.addProtectionDomain(&serial_virt_tx);
 
-    var eth_virt_rx = Pd.create(sdf, "eth_virt_rx", "network_virt_rx.elf");
+    var eth_virt_rx = Pd.create(allocator, "eth_virt_rx", "network_virt_rx.elf");
     sdf.addProtectionDomain(&eth_virt_rx);
-    var eth_virt_tx = Pd.create(sdf, "eth_virt_tx", "network_virt_tx.elf");
+    var eth_virt_tx = Pd.create(allocator, "eth_virt_tx", "network_virt_tx.elf");
     sdf.addProtectionDomain(&eth_virt_tx);
 
     const timer_node = switch (board) {
@@ -610,31 +610,31 @@ fn webserver(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !vo
         .qemu_virt_aarch64 => blob.child("timer").?
     };
 
-    var timer_driver = Pd.create(sdf, "timer_driver", "timer_driver.elf");
+    var timer_driver = Pd.create(allocator, "timer_driver", "timer_driver.elf");
     sdf.addProtectionDomain(&timer_driver);
 
-    var micropython = Pd.create(sdf, "micropython", "micropython.elf");
+    var micropython = Pd.create(allocator, "micropython", "micropython.elf");
     sdf.addProtectionDomain(&micropython);
 
-    var fatfs = Pd.create(sdf, "fatfs", "fatfs.elf");
+    var fatfs = Pd.create(allocator, "fatfs", "fatfs.elf");
     sdf.addProtectionDomain(&fatfs);
 
-    var timer_system = sddf.TimerSystem.init(allocator, sdf, &timer_driver, timer_node);
+    var timer_system = sddf.TimerSystem.init(allocator, sdf, timer_node, &timer_driver);
     timer_system.addClient(&micropython);
     // timer_system.addClient(&nfs);
 
-    var serial_system = sddf.SerialSystem.init(allocator, sdf, uart_node, &uart_driver, &serial_virt_tx, null, .{ .rx = false });
+    var serial_system = try sddf.SerialSystem.init(allocator, sdf, uart_node, &uart_driver, &serial_virt_tx, null, .{ .rx = false });
     serial_system.addClient(&micropython);
     // serial_system.addClient(&nfs);
 
     const blk_node = switch (board) {
         .odroidc4 => @panic("no block for odroidc4"),
-        .qemu_virt_aarch64 => blob.child("virtio_mmio@a002000").?,
+        .qemu_virt_aarch64 => blob.child("virtio_mmio@a002e00").?,
     };
 
-    var blk_driver = Pd.create(sdf, "blk_driver", "blk_driver.elf");
+    var blk_driver = Pd.create(allocator, "blk_driver", "blk_driver.elf");
     sdf.addProtectionDomain(&blk_driver);
-    var blk_virt = Pd.create(sdf, "blk_virt", "blk_virt.elf");
+    var blk_virt = Pd.create(allocator, "blk_virt", "blk_virt.elf");
     sdf.addProtectionDomain(&blk_virt);
 
     var blk_system = sddf.BlockSystem.init(allocator, sdf, blk_node, &blk_driver, &blk_virt, .{});
@@ -644,10 +644,10 @@ fn webserver(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !vo
         .odroidc4 => blob.child("soc").?.child("ethernet@ff3f0000").?,
         .qemu_virt_aarch64 => blob.child("virtio_mmio@a003e00").?,
     };
-    var eth_driver = Pd.create(sdf, "eth_driver", "eth_driver.elf");
+    var eth_driver = Pd.create(allocator, "eth_driver", "eth_driver.elf");
     sdf.addProtectionDomain(&eth_driver);
 
-    var eth_copy_mp = Pd.create(sdf, "eth_copy_mp", "copy.elf");
+    var eth_copy_mp = Pd.create(allocator, "eth_copy_mp", "copy.elf");
     sdf.addProtectionDomain(&eth_copy_mp);
     // var eth_copy_nfs = Pd.create(sdf, "eth_copy_nfs", "copy.elf");
     // sdf.addProtectionDomain(&eth_copy_nfs);
@@ -694,7 +694,7 @@ fn webserver(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !vo
     try serial_system.connect();
     _ = try blk_system.connect();
 
-    const fatfs_metadata = Mr.create(sdf, "fatfs_metadata", 0x200_000, null, .large);
+    const fatfs_metadata = Mr.create(allocator, "fatfs_metadata", 0x200_000, null, .large);
     std.debug.print("metadata vaddr {x}\n", .{ fatfs.getMapVaddr(&fatfs_metadata) });
     // TODO: fix
     fatfs.addMap(Map.create(fatfs_metadata, 0x40_000_000, .rw, true, "fs_metadata"));
@@ -923,6 +923,6 @@ pub fn main() !void {
     // For now, and for simplicity, let's leave this as a problem to solve later. Right
     // now we will keep the device tree as the source of truth.
 
-    var sdf = try SystemDescription.create(allocator, board.arch());
+    var sdf = SystemDescription.create(allocator, board.arch());
     try example.generate(allocator, &sdf, blob);
 }
