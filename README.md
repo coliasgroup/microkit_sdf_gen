@@ -44,6 +44,23 @@ Both of these solutions are very much in a work-in-progress state.
 
 You will need an up-to-date, master version of Zig. Please see https://ziglang.org/download/.
 
+### Zig bindings
+
+The source code for the sdfgen tooling is written in Zig, and so we simply expose a module called
+`sdf` in `build.zig`.
+
+To build and run an example of the Zig bindings being used run:
+```sh
+zig build sdfgen -- --example webserver --board qemu_virt_aarch64
+```
+
+The source code is in `examples/sdfgen.zig`.
+
+To see all the options run:
+```sh
+zig build sdfgen -- --help
+```
+
 ### C bindings
 
 ```sh
