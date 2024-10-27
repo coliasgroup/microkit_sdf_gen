@@ -5,6 +5,7 @@ pub fn build(b: *std.Build) !void {
     const optimize = b.standardOptimizeOption(.{});
 
     const dtbzig_dep = b.dependency("dtb.zig", .{});
+    const dtb_module = dtbzig_dep.module("dtb");
 
     const python_include = b.option([]const []const u8, "python-include", "Include directory for Python bindings") orelse &.{};
 
@@ -15,17 +16,22 @@ pub fn build(b: *std.Build) !void {
         .optimize = optimize,
     });
 
+    const sdf_module = b.addModule("sdf", .{
+        .root_source_file = b.path("src/mod.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    sdf_module.addImport("dtb", dtb_module);
+
     const sdfgen_step = b.step("sdfgen", "Utility for testing and developing examples of SDF auto-generation");
     const sdfgen = b.addExecutable(.{
         .name = "sdfgen",
-        .root_source_file = b.path("src/sdfgen.zig"),
+        .root_source_file = b.path("examples/sdfgen.zig"),
         .target = target,
         .optimize = optimize,
     });
 
-    // We want to be able to import the 'dtb.zig' library as a module.
-    const dtb_module = dtbzig_dep.module("dtb");
-    sdfgen.root_module.addImport("dtb", dtb_module);
+    sdfgen.root_module.addImport("sdf", sdf_module);
 
     const sdfgen_cmd = b.addRunArtifact(sdfgen);
     if (b.args) |args| {
