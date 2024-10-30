@@ -4,44 +4,52 @@ const std = @import("std");
 /// Three regions for each client:
 /// request, response, configuration
 
-const Resources = struct {
-    const Block = struct {
-        const Virt = extern struct {
+pub const Resources = struct {
+    pub const Block = struct {
+        pub const Virt = extern struct {
             const MAX_NUM_CLIENTS = 62;
 
-            const Client = extern struct {
+            pub fn create(driver: Driver, clients: []const Client) Virt {
+                const clients_array = std.mem.zeroes([MAX_NUM_CLIENTS]Client);
+                return .{
+                    .num_clients = clients.len,
+                    .driver = driver,
+                    .clients = clients_array,
+                };
+            }
+
+            pub const Client = extern struct {
                 req_queue: u64,
                 resp_queue: u64,
                 storage_info: u64,
                 data_vaddr: u64,
                 data_paddr: u64,
                 data_size: u64,
-                queue_capacity: u64,
+                queue_mr_size: u64,
                 partition: u32,
             };
 
+            pub const Driver = extern struct {
+                storage_info: u64,
+                req_queue: u64,
+                resp_queue: u64,
+                data_vaddr: u64,
+                data_paddr: u64,
+                data_size: u64,
+            };
+
             num_clients: u64,
-            driver_storage_info: u64,
-            driver_req_queue: u64,
-            driver_resp_queue: u64,
-            driver_data_vaddr: u64,
-            driver_data_paddr: u64,
-            driver_data_size: u64,
+            driver: Driver,
             clients: [MAX_NUM_CLIENTS]Client,
         };
     };
-};
-
-const myStruct = struct {
-    x: usize,
-    y: usize,
 };
 
 pub fn serialize(s: anytype, path: []const u8) !void {
     const bytes = std.mem.toBytes(s);
     const serialize_file = try std.fs.cwd().createFile(path, .{});
     defer serialize_file.close();
-    std.debug.print("bytes len: {}, bytes: {any}\n", .{ bytes.len, bytes });
+    std.debug.print("serialising:\n{}", .{ s });
     try serialize_file.writeAll(&bytes);
 }
 
@@ -58,12 +66,14 @@ pub fn main() !void {
     }} ** 62;
     const virt_metadata: Resources.Block.Virt = .{
         .num_clients = 1,
-        .driver_storage_info = 0x1000,
-        .driver_req_queue = 0x2000,
-        .driver_resp_queue = 0x3000,
-        .driver_data_vaddr = 0x4000,
-        .driver_data_paddr = 0x5000,
-        .driver_data_size = 0x6000,
+        .driver = .{
+            .storage_info = 0x1000,
+            .req_queue = 0x2000,
+            .resp_queue = 0x3000,
+            .data_vaddr = 0x4000,
+            .data_paddr = 0x5000,
+            .data_size = 0x6000,
+        },
         .clients = clients,
     };
 

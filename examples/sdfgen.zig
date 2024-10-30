@@ -32,6 +32,14 @@ const MicrokitBoard = enum {
         return error.BoardNotFound;
     }
 
+    pub fn paddrTop(b: MicrokitBoard) u64 {
+        // TODO: just get this from the DTS
+        return switch (b) {
+            .qemu_virt_aarch64 => 0xc0000000,
+            .odroidc4 => 0x80000000,
+        };
+    }
+
     pub fn arch(b: MicrokitBoard) SystemDescription.Arch {
         return switch (b) {
             .qemu_virt_aarch64, .odroidc4 => .aarch64,
@@ -602,6 +610,8 @@ fn blk(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !void {
 
     _ = try blk_system.connect();
 
+    try blk_system.serialiseConfig();
+
     try sdf.print();
 }
 
@@ -947,6 +957,6 @@ pub fn main() !void {
     // For now, and for simplicity, let's leave this as a problem to solve later. Right
     // now we will keep the device tree as the source of truth.
 
-    var sdf = SystemDescription.create(allocator, board.arch());
+    var sdf = SystemDescription.create(allocator, board.arch(), board.paddrTop());
     try example.generate(allocator, &sdf, blob);
 }

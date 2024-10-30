@@ -22,6 +22,8 @@ pub const SystemDescription = struct {
     mrs: ArrayList(MemoryRegion),
     /// Channels that should be exported
     channels: ArrayList(Channel),
+    /// Highest allocatable physical address on the platform
+    paddr_top: u64,
 
     /// Supported architectures by seL4
     pub const Arch = enum(c_int) {
@@ -56,10 +58,24 @@ pub const SystemDescription = struct {
         allocator: Allocator,
         name: []const u8,
         size: usize,
-        phys_addr: ?usize,
+        phys_addr: ?u64,
         page_size: PageSize,
 
         pub fn create(allocator: Allocator, name: []const u8, size: usize, phys_addr: ?usize, page_size: PageSize) MemoryRegion {
+            return MemoryRegion{
+                .allocator = allocator,
+                .name = allocator.dupe(u8, name) catch "Could not allocate name for MemoryRegion",
+                .size = size,
+                .phys_addr = phys_addr,
+                .page_size = page_size,
+            };
+        }
+
+        pub fn createPhysical(allocator: Allocator, sdf: *SystemDescription, name: []const u8, size: usize, page_size: PageSize) MemoryRegion {
+            const phys_addr = sdf.paddr_top - size;
+            // TODO: handle alignment.
+            std.debug.assert(phys_addr % page_size.toInt(sdf.arch) == 0);
+            sdf.paddr_top = phys_addr;
             return MemoryRegion{
                 .allocator = allocator,
                 .name = allocator.dupe(u8, name) catch "Could not allocate name for MemoryRegion",
@@ -74,7 +90,7 @@ pub const SystemDescription = struct {
         }
 
         pub fn toXml(mr: MemoryRegion, sdf: *SystemDescription, writer: ArrayList(u8).Writer, separator: []const u8) !void {
-            const xml = try allocPrint(sdf.allocator, "{s}<memory_region name=\"{s}\" size=\"0x{x}\" page_size=\"0x{x}\"", .{ separator, mr.name, mr.size, mr.page_size.toSize(sdf.arch) });
+            const xml = try allocPrint(sdf.allocator, "{s}<memory_region name=\"{s}\" size=\"0x{x}\" page_size=\"0x{x}\"", .{ separator, mr.name, mr.size, mr.page_size.toInt(sdf.arch) });
             defer sdf.allocator.free(xml);
 
             var final_xml: []const u8 = undefined;
@@ -93,7 +109,7 @@ pub const SystemDescription = struct {
             large,
             // huge,
 
-            pub fn toSize(page_size: PageSize, arch: Arch) usize {
+            pub fn toInt(page_size: PageSize, arch: Arch) usize {
                 // TODO: on RISC-V we are assuming that it's Sv39. For example if you
                 // had a 64-bit system with Sv32, the page sizes would be different...
                 switch (arch) {
@@ -131,7 +147,7 @@ pub const SystemDescription = struct {
                 // @ivanv: would be better if we did some meta programming in case the
                 // number of elements in PageSize change
                 // if (region_size % PageSize.huge.toSize(sdf.arch) == 0) return .huge;
-                if (region_size % PageSize.large.toSize(sdf.arch) == 0) return .large;
+                if (region_size % PageSize.large.toInt(sdf.arch) == 0) return .large;
 
                 return .small;
             }
@@ -427,7 +443,7 @@ pub const SystemDescription = struct {
                 if (map.vaddr >= next_vaddr) {
                     next_vaddr = map.vaddr + map.mr.size;
                     // TODO: fix this
-                    const page_size = mr.page_size.toSize(.aarch64);
+                    const page_size = mr.page_size.toInt(.aarch64);
                     const diff = next_vaddr % page_size;
                     if (diff != 0) {
                         // In the case the next virtual address is not page aligned, we need
@@ -570,7 +586,7 @@ pub const SystemDescription = struct {
         }
     };
 
-    pub fn create(allocator: Allocator, arch: Arch) SystemDescription {
+    pub fn create(allocator: Allocator, arch: Arch, paddr_top: u64) SystemDescription {
         var xml_data = ArrayList(u8).init(allocator);
         return SystemDescription{
             .allocator = allocator,
@@ -580,6 +596,7 @@ pub const SystemDescription = struct {
             .pds = ArrayList(*ProtectionDomain).init(allocator),
             .mrs = ArrayList(MemoryRegion).init(allocator),
             .channels = ArrayList(Channel).init(allocator),
+            .paddr_top = paddr_top,
         };
     }
 
@@ -611,14 +628,6 @@ pub const SystemDescription = struct {
         return pd;
     }
 
-
-    // pub fn addPd(sdf: *SystemDescription, name: []const u8, program_image: ProtectionDomain.ProgramImage) ProtectionDomain {
-    //     var pd = ProtectionDomain.create(sdf, name, program_image);
-    //     sdf.addProtectionDomain(&pd);
-
-    //     return pd;
-    // }
-
     pub fn toXml(sdf: *SystemDescription) ![:0]const u8 {
         const writer = sdf.xml_data.writer();
         _ = try writer.write("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<system>\n");
@@ -640,25 +649,6 @@ pub const SystemDescription = struct {
         _ = try writer.write("</system>\n" ++ "\x00");
 
         return sdf.xml_data.items[0..sdf.xml_data.items.len-1:0];
-    }
-
-    /// Export the necessary #defines for channel IDs, IRQ IDs and child
-    /// PD IDs.
-    pub fn exportCHeader(sdf: *SystemDescription, pd: *ProtectionDomain) ![]const u8 {
-        var header = try allocPrint(sdf.allocator, "", .{});
-        for (sdf.channels.items) |ch| {
-            if (ch.pd1 != pd and ch.pd2 != pd) continue;
-
-            const ch_id = if (ch.pd1 == pd) ch.pd1_end_id else ch.pd2_end_id;
-            const ch_pd_name = if (ch.pd1 == pd) ch.pd2.name else ch.pd1.name;
-            header = try allocPrint(sdf.allocator, "{s}#define {s}_CH {}\n", .{ header, ch_pd_name, ch_id });
-        }
-        // for (pd.irqs.items) |irq| {
-        //     header = try allocPrint(sdf.allocator, "{s}#define IRQ {}\n", .{ header, irq.irq });
-        //     header = try allocPrint(sdf.allocator, "{s}#define IRQ_CH {}\n", .{ header, irq.id });
-        // }
-
-        return header;
     }
 
     pub fn print(sdf: *SystemDescription) !void {
