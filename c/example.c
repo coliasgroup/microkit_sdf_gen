@@ -4,7 +4,7 @@
 int main() {
     sdfgen_sddf_init("/Users/ivanv/ts/lionsos_tutorial/lionsos/dep/sddf");
 
-    void *sdf = sdfgen_create();
+    void *sdf = sdfgen_create(0xa0000000);
     void *i2c_reactor_client = sdfgen_pd_create("i2c_reactor_client", "reactor_client.elf");
     void *i2c_virt = sdfgen_pd_create("i2c_virt", "i2c_virt.elf");
     void *i2c_reactor_driver = sdfgen_pd_create("i2c_reactor_driver", "reactor_driver.elf");

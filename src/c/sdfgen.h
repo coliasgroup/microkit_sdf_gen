@@ -4,7 +4,7 @@
 #include <stdint.h>
 
 /* High-level system functions */
-void *sdfgen_create();
+void *sdfgen_create(uint64_t paddr_top);
 void sdfgen_deinit(void *sdf);
 void *sdfgen_to_xml(void *sdf);
 

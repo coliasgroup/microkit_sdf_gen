@@ -18,9 +18,9 @@ const Channel = SystemDescription.Channel;
 
 // TODO: handle deallocation
 // TODO: handle architecture
-export fn sdfgen_create() *anyopaque {
+export fn sdfgen_create(paddr_top: u64) *anyopaque {
     const sdf = allocator.create(SystemDescription) catch @panic("OOM");
-    sdf.* = SystemDescription.create(allocator, .aarch64);
+    sdf.* = SystemDescription.create(allocator, .aarch64, paddr_top);
 
     return sdf;
 }
