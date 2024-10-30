@@ -52,8 +52,16 @@ pub fn serialize(s: anytype, path: []const u8) !void {
     const bytes = std.mem.toBytes(s);
     const serialize_file = try std.fs.cwd().createFile(path, .{});
     defer serialize_file.close();
-    std.debug.print("serialising:\n{}", .{ s });
     try serialize_file.writeAll(&bytes);
+}
+
+pub fn jsonify(s: anytype, path: []const u8) !void {
+    const json_file = try std.fs.cwd().createFile(path, .{});
+    defer json_file.close();
+
+    const writer = json_file.writer();
+
+    try std.json.stringify(s, .{}, writer);
 }
 
 pub fn main() !void {

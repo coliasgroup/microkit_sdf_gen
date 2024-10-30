@@ -732,7 +732,6 @@ pub const BlockSystem = struct {
         const queue_mr_size = system.queue_mr_size;
 
         const mr_config = Mr.create(allocator, fmt(allocator, "blk_client_{s}_config", .{ client.name }), REGION_CONFIG_SIZE, null, .small);
-        // const config_setvar: ?[]const u8 = if (i == 0) "blk_client_storage_info" else null;
         const map_config_virt = Map.create(mr_config, system.virt.getMapVaddr(&mr_config), .rw, true, null);
         const map_config_client = Map.create(mr_config, client.getMapVaddr(&mr_config), .r, true, "blk_storage_info");
 
@@ -741,7 +740,6 @@ pub const BlockSystem = struct {
         client.addMap(map_config_client);
 
         const mr_req = Mr.create(allocator, fmt(allocator, "blk_client_{s}_request", .{ client.name }), queue_mr_size, null, .large);
-        // const req_setvar: ?[]const u8 = if (i == 0) "blk_client_req_queue" else null;
         const map_req_virt = Map.create(mr_req, system.virt.getMapVaddr(&mr_req), .rw, true, null);
         const map_req_client = Map.create(mr_req, client.getMapVaddr(&mr_req), .rw, true, "blk_req_queue");
 
@@ -750,7 +748,6 @@ pub const BlockSystem = struct {
         client.addMap(map_req_client);
 
         const mr_resp = Mr.create(allocator, fmt(allocator, "blk_client_{s}_response", .{ client.name }), queue_mr_size, null, .large);
-        // const resp_setvar: ?[]const u8 = if (i == 0) "blk_client_resp_queue" else null;
         const map_resp_virt = Map.create(mr_resp, system.virt.getMapVaddr(&mr_resp), .rw, true, null);
         const map_resp_client = Map.create(mr_resp, client.getMapVaddr(&mr_resp), .rw, true, "blk_resp_queue");
 
@@ -759,15 +756,12 @@ pub const BlockSystem = struct {
         client.addMap(map_resp_client);
 
         const mr_data = Mr.createPhysical(allocator, sdf, fmt(allocator, "blk_client_{s}_data", .{ client.name }), queue_mr_size, .large);
-        // const data_setvar: ?[]const u8 = if (i == 0) "blk_client_data" else null;
         const map_data_virt = Map.create(mr_data, system.virt.getMapVaddr(&mr_data), .rw, true, null);
         const map_data_client = Map.create(mr_data, client.getMapVaddr(&mr_data), .rw, true, "blk_data");
 
         system.sdf.addMemoryRegion(mr_data);
         system.virt.addMap(map_data_virt);
         client.addMap(map_data_client);
-
-        // system.virt.addSetVar(SetVar.create(fmt(allocator, "blk_client{}_data_paddr", .{ i }), &mr_data));
 
         system.sdf.addChannel(.create(system.virt, client));
 
@@ -794,7 +788,6 @@ pub const BlockSystem = struct {
         const driver_config = system.connectDriver();
         var clients_config = try std.ArrayList(ConfigResources.Block.Virt.Client).initCapacity(allocator, system.clients.items.len);
         // 3. Connect each client to the virtualiser
-        // TODO: we need to fix our code for multiple clients
         for (system.clients.items, 0..) |client, i| {
             const client_config = system.connectClient(client, i);
             clients_config.appendAssumeCapacity(client_config);
@@ -809,7 +802,9 @@ pub const BlockSystem = struct {
     }
 
     pub fn serialiseConfig(system: *BlockSystem) !void {
-        try data.serialize(ConfigResources.Block.Virt.create(system.config.driver, system.config.clients.items), "block.data");
+        const config = ConfigResources.Block.Virt.create(system.config.driver, system.config.clients.items);
+        try data.serialize(config, "block.data");
+        try data.jsonify(config, "block.json");
     }
 
     // pub fn writeConfig(system: *BlockSystem, path: []const u8) !void {
