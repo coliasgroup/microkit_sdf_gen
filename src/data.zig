@@ -55,13 +55,13 @@ pub fn serialize(s: anytype, path: []const u8) !void {
     try serialize_file.writeAll(&bytes);
 }
 
-pub fn jsonify(s: anytype, path: []const u8) !void {
+pub fn jsonify(s: anytype, path: []const u8, options: std.json.StringifyOptions) !void {
     const json_file = try std.fs.cwd().createFile(path, .{});
     defer json_file.close();
 
     const writer = json_file.writer();
 
-    try std.json.stringify(s, .{}, writer);
+    try std.json.stringify(s, options, writer);
 }
 
 pub fn main() !void {

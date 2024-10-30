@@ -804,7 +804,7 @@ pub const BlockSystem = struct {
     pub fn serialiseConfig(system: *BlockSystem) !void {
         const config = ConfigResources.Block.Virt.create(system.config.driver, system.config.clients.items);
         try data.serialize(config, "block.data");
-        try data.jsonify(config, "block.json");
+        try data.jsonify(config, "block.json", .{ .whitespace = .indent_4 });
     }
 
     // pub fn writeConfig(system: *BlockSystem, path: []const u8) !void {
