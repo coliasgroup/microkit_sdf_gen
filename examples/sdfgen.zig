@@ -64,6 +64,7 @@ const Example = enum {
     // kitty,
     // echo_server,
     webserver,
+    blk,
 
     pub fn fromStr(str: []const u8) !Example {
         inline for (std.meta.fields(Example)) |field| {
@@ -83,6 +84,7 @@ const Example = enum {
             // // .gdb => try gdb(allocator, sdf, blob),
             // .kitty => try kitty(allocator, sdf, blob),
             .webserver => try webserver(allocator, sdf, blob),
+            .blk => try blk(allocator, sdf, blob),
             // .echo_server => try echo_server(allocator, sdf, blob),
         }
     }
@@ -579,6 +581,28 @@ fn virtio_blk(_: Allocator, _: *SystemDescription, _: *dtb.Node) !void {
 
     // const xml = try sdf.toXml();
     // std.debug.print("{s}", .{xml});
+}
+
+fn blk(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !void {
+    const blk_node = switch (board) {
+        .odroidc4 => @panic("no block for odroidc4"),
+        .qemu_virt_aarch64 => blob.child("virtio_mmio@a003e00").?,
+    };
+
+    var client = Pd.create(allocator, "client", "client.elf");
+    sdf.addProtectionDomain(&client);
+
+    var blk_driver = Pd.create(allocator, "blk_driver", "blk_driver.elf");
+    sdf.addProtectionDomain(&blk_driver);
+    var blk_virt = Pd.create(allocator, "blk_virt", "blk_virt.elf");
+    sdf.addProtectionDomain(&blk_virt);
+
+    var blk_system = sddf.BlockSystem.init(allocator, sdf, blk_node, &blk_driver, &blk_virt, .{});
+    blk_system.addClient(&client);
+
+    _ = try blk_system.connect();
+
+    try sdf.print();
 }
 
 /// Webserver has the following components/subsystems

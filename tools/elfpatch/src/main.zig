@@ -6,7 +6,9 @@ const Elf = struct {
         vaddr: u64,
     };
 
+    allocator: Allocator,
     segments: std.ArrayList(Segment),
+    bytes: []const u8,
 
     const MAGIC: []const u8 = "\x7fELF";
 
@@ -50,6 +52,10 @@ const Elf = struct {
 
             const phent = std.mem.bytesAsValue(std.elf.Elf64_Phdr, phent_bytes);
 
+            if (phent.p_type != 1) {
+                continue;
+            }
+
             segments.appendAssumeCapacity(.{
                 .vaddr = phent.p_vaddr,
             });
@@ -80,11 +86,14 @@ const Elf = struct {
 
         // TODO: do we need toOwnedSlice?
         return .{
+            .allocator = allocator,
             .segments = segments,
+            .bytes = bytes,
         };
     }
 
     pub fn deinit(elf: Elf) void {
+        elf.allocator.free(elf.bytes);
         elf.segments.deinit();
     }
 };

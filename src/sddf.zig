@@ -600,6 +600,14 @@ pub const BlockSystem = struct {
     device: *dtb.Node,
     virt: *Pd,
     clients: std.ArrayList(*Pd),
+    connected: bool = false,
+
+    driver_storage_info: u64,
+    driver_req_queue: u64,
+    driver_resp_queue: u64,
+    driver_data_vaddr: u64,
+    driver_data_paddr: u64,
+    driver_data_size: u64,
 
     pub const Options = struct {
     };
@@ -697,6 +705,12 @@ pub const BlockSystem = struct {
         system.virt.addSetVar(SetVar.create("blk_data_paddr_driver", &mr_data));
 
         system.sdf.addChannel(.create(system.virt, system.driver));
+
+        system.driver_storage_info = map_config_virt.vaddr;
+        system.driver_req_queue = map_req_virt.vaddr;
+        system.driver_resp_queue = map_resp_virt.vaddr;
+        system.driver_data_vaddr = map_data_virt.vaddr;
+        system.driver_data_paddr = map_data_virt.vaddr;
     }
 
     pub fn connectClient(system: *BlockSystem, client: *Pd, i: usize) void {
@@ -754,6 +768,17 @@ pub const BlockSystem = struct {
         // TODO: we need to fix our code for multiple clients
         for (system.clients.items, 0..) |client, i| {
             system.connectClient(client, i);
+        }
+
+        system.connected = true;
+    }
+
+    pub fn writeConfig(system: *BlockSystem, path: []const u8) !void {
+        std.debug.assert(system.connected);
+
+        const metadata = Resources.Block.Virt = .{
+            .num_clients = system.clients.len,
+            .driver_storage_info = 
         }
     }
 };
