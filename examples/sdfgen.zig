@@ -35,7 +35,7 @@ const MicrokitBoard = enum {
     pub fn paddrTop(b: MicrokitBoard) u64 {
         // TODO: just get this from the DTS
         return switch (b) {
-            .qemu_virt_aarch64 => 0xc0000000,
+            .qemu_virt_aarch64 => 0xa0000000,
             .odroidc4 => 0x80000000,
         };
     }

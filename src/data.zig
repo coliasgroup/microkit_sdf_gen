@@ -10,7 +10,10 @@ pub const Resources = struct {
             const MAX_NUM_CLIENTS = 62;
 
             pub fn create(driver: Driver, clients: []const Client) Virt {
-                const clients_array = std.mem.zeroes([MAX_NUM_CLIENTS]Client);
+                var clients_array = std.mem.zeroes([MAX_NUM_CLIENTS]Client);
+                for (clients, 0..) |client, i| {
+                    clients_array[i] = client;
+                }
                 return .{
                     .num_clients = clients.len,
                     .driver = driver,

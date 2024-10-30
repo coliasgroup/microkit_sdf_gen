@@ -683,7 +683,7 @@ pub const BlockSystem = struct {
         }
         const mr_config = Mr.create(allocator, "blk_driver_config", REGION_CONFIG_SIZE, null, .small);
         const map_config_driver = Map.create(mr_config, system.driver.getMapVaddr(&mr_config), .rw, true, "blk_storage_info");
-        const map_config_virt = Map.create(mr_config, system.virt.getMapVaddr(&mr_config), .r, true, "blk_driver_storage_info");
+        const map_config_virt = Map.create(mr_config, system.virt.getMapVaddr(&mr_config), .r, true, null);
 
         sdf.addMemoryRegion(mr_config);
         driver.addMap(map_config_driver);
@@ -692,7 +692,7 @@ pub const BlockSystem = struct {
         // TODO: deal with size
         const mr_req = Mr.create(allocator, "blk_driver_request", 0x200_000, null, .large);
         const map_req_driver = Map.create(mr_req, driver.getMapVaddr(&mr_req), .rw, true, "blk_req_queue");
-        const map_req_virt = Map.create(mr_req, virt.getMapVaddr(&mr_req), .rw, true, "blk_driver_req_queue");
+        const map_req_virt = Map.create(mr_req, virt.getMapVaddr(&mr_req), .rw, true, null);
 
         sdf.addMemoryRegion(mr_req);
         driver.addMap(map_req_driver);
@@ -700,14 +700,14 @@ pub const BlockSystem = struct {
 
         const mr_resp = Mr.create(allocator, "blk_driver_response", 0x200_000, null, .large);
         const map_resp_driver = Map.create(mr_resp, driver.getMapVaddr(&mr_resp), .rw, true, "blk_resp_queue");
-        const map_resp_virt = Map.create(mr_resp, virt.getMapVaddr(&mr_resp), .rw, true, "blk_driver_resp_queue");
+        const map_resp_virt = Map.create(mr_resp, virt.getMapVaddr(&mr_resp), .rw, true, null);
 
         sdf.addMemoryRegion(mr_resp);
         driver.addMap(map_resp_driver);
         virt.addMap(map_resp_virt);
 
         const mr_data = Mr.createPhysical(allocator, sdf, "blk_driver_data", 0x200_000, .large);
-        const map_data_virt = Map.create(mr_data, virt.getMapVaddr(&mr_data), .rw, true, "blk_driver_data");
+        const map_data_virt = Map.create(mr_data, virt.getMapVaddr(&mr_data), .rw, true, null);
 
         sdf.addMemoryRegion(mr_data);
         virt.addMap(map_data_virt);
@@ -732,8 +732,8 @@ pub const BlockSystem = struct {
         const queue_mr_size = system.queue_mr_size;
 
         const mr_config = Mr.create(allocator, fmt(allocator, "blk_client_{s}_config", .{ client.name }), REGION_CONFIG_SIZE, null, .small);
-        const config_setvar: ?[]const u8 = if (i == 0) "blk_client_storage_info" else null;
-        const map_config_virt = Map.create(mr_config, system.virt.getMapVaddr(&mr_config), .rw, true, config_setvar);
+        // const config_setvar: ?[]const u8 = if (i == 0) "blk_client_storage_info" else null;
+        const map_config_virt = Map.create(mr_config, system.virt.getMapVaddr(&mr_config), .rw, true, null);
         const map_config_client = Map.create(mr_config, client.getMapVaddr(&mr_config), .r, true, "blk_storage_info");
 
         system.sdf.addMemoryRegion(mr_config);
@@ -741,8 +741,8 @@ pub const BlockSystem = struct {
         client.addMap(map_config_client);
 
         const mr_req = Mr.create(allocator, fmt(allocator, "blk_client_{s}_request", .{ client.name }), queue_mr_size, null, .large);
-        const req_setvar: ?[]const u8 = if (i == 0) "blk_client_req_queue" else null;
-        const map_req_virt = Map.create(mr_req, system.virt.getMapVaddr(&mr_req), .rw, true, req_setvar);
+        // const req_setvar: ?[]const u8 = if (i == 0) "blk_client_req_queue" else null;
+        const map_req_virt = Map.create(mr_req, system.virt.getMapVaddr(&mr_req), .rw, true, null);
         const map_req_client = Map.create(mr_req, client.getMapVaddr(&mr_req), .rw, true, "blk_req_queue");
 
         system.sdf.addMemoryRegion(mr_req);
@@ -750,8 +750,8 @@ pub const BlockSystem = struct {
         client.addMap(map_req_client);
 
         const mr_resp = Mr.create(allocator, fmt(allocator, "blk_client_{s}_response", .{ client.name }), queue_mr_size, null, .large);
-        const resp_setvar: ?[]const u8 = if (i == 0) "blk_client_resp_queue" else null;
-        const map_resp_virt = Map.create(mr_resp, system.virt.getMapVaddr(&mr_resp), .rw, true, resp_setvar);
+        // const resp_setvar: ?[]const u8 = if (i == 0) "blk_client_resp_queue" else null;
+        const map_resp_virt = Map.create(mr_resp, system.virt.getMapVaddr(&mr_resp), .rw, true, null);
         const map_resp_client = Map.create(mr_resp, client.getMapVaddr(&mr_resp), .rw, true, "blk_resp_queue");
 
         system.sdf.addMemoryRegion(mr_resp);
@@ -759,8 +759,8 @@ pub const BlockSystem = struct {
         client.addMap(map_resp_client);
 
         const mr_data = Mr.createPhysical(allocator, sdf, fmt(allocator, "blk_client_{s}_data", .{ client.name }), queue_mr_size, .large);
-        const data_setvar: ?[]const u8 = if (i == 0) "blk_client_data" else null;
-        const map_data_virt = Map.create(mr_data, system.virt.getMapVaddr(&mr_data), .rw, true, data_setvar);
+        // const data_setvar: ?[]const u8 = if (i == 0) "blk_client_data" else null;
+        const map_data_virt = Map.create(mr_data, system.virt.getMapVaddr(&mr_data), .rw, true, null);
         const map_data_client = Map.create(mr_data, client.getMapVaddr(&mr_data), .rw, true, "blk_data");
 
         system.sdf.addMemoryRegion(mr_data);
