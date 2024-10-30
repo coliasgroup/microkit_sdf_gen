@@ -26,7 +26,7 @@ fn readAll(test_path: []const u8) ![]const u8 {
 // * sDDF example
 
 test "basic" {
-    var sdf = SystemDescription.create(allocator, .aarch64);
+    var sdf = SystemDescription.create(allocator, .aarch64, 0x100_000_000);
 
     var pd = ProtectionDomain.create(allocator, "hello", "hello.elf");
 
@@ -41,7 +41,7 @@ test "basic" {
 }
 
 test "PD + MR + mappings + channel" {
-    var sdf = SystemDescription.create(allocator, .aarch64);
+    var sdf = SystemDescription.create(allocator, .aarch64, 0x100_000_000);
     const mr = MemoryRegion.create(allocator, "test", 0x1000, null, .small);
     sdf.addMemoryRegion(mr);
 
