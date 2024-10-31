@@ -6,15 +6,6 @@
 This repository currently holds various programs to help with automating the
 process of creating seL4 Microkit systems.
 
-**Status**
-
-The code you see here is all highly experimental, with merely the *potential* that it
-will be offered to users as a solution to their problems. One important note however is
-that the experimentation will continue to happen in this repository until we are satisfied
-with the solution(s). It is at that point that we can start discussing whether to make these
-tools part of the official Microkit project or keep them as separate. It is not clear what will
-happen at this stage as it is too early to say anything.
-
 ## Problem
 
 In order to remain simple, the seL4 Microkit (intentionally) does not provide one-size-fits-all
