@@ -86,8 +86,11 @@ pub const SystemDescription = struct {
         /// Creates a memory region at a specific physical address. Allocates the physical address automatically.
         pub fn physical(allocator: Allocator, sdf: *SystemDescription, name: []const u8, size: usize, options: OptionsPhysical) MemoryRegion {
             const paddr = if (options.paddr) |fixed_paddr| fixed_paddr else sdf.paddr_top - size;
+            std.debug.print("paddr_top: 0x{x}, paddr: 0x{x}, size: 0x{x}\n", .{ sdf.paddr_top, paddr, size });
             // TODO: handle alignment if people specify a page size.
-            sdf.paddr_top = paddr;
+            if (options.paddr == null) {
+                sdf.paddr_top = paddr;
+            }
             return MemoryRegion{
                 .allocator = allocator,
                 .name = allocator.dupe(u8, name) catch "Could not allocate name for MemoryRegion",
@@ -102,20 +105,24 @@ pub const SystemDescription = struct {
         }
 
         pub fn toXml(mr: MemoryRegion, sdf: *SystemDescription, writer: ArrayList(u8).Writer, separator: []const u8) !void {
-            // TODO: handle specific pagesize
-            std.debug.assert(mr.page_size == null);
             const xml = try allocPrint(sdf.allocator, "{s}<memory_region name=\"{s}\" size=\"0x{x}\"", .{ separator, mr.name, mr.size });
             defer sdf.allocator.free(xml);
 
-            var final_xml: []const u8 = undefined;
-            if (mr.paddr) |paddr| {
-                final_xml = try allocPrint(sdf.allocator, "{s} phys_addr=\"0x{x}\" />\n", .{ xml, paddr });
-            } else {
-                final_xml = try allocPrint(sdf.allocator, "{s} />\n", .{xml});
-            }
-            defer sdf.allocator.free(final_xml);
+            _ = try writer.write(xml);
 
-            _ = try writer.write(final_xml);
+            if (mr.paddr) |paddr| {
+                const paddr_xml = try allocPrint(sdf.allocator, " phys_addr=\"0x{x}\"", .{ paddr });
+                defer sdf.allocator.free(paddr_xml);
+                _ = try writer.write(paddr_xml);
+            }
+
+            if (mr.page_size) |page_size| {
+                const page_size_xml = try allocPrint(sdf.allocator, " page_size=\"0x{x}\"", .{ page_size.toInt(sdf.arch) });
+                defer sdf.allocator.free(page_size_xml);
+                _ = try writer.write(page_size_xml);
+            }
+
+            _ = try writer.write(" />\n");
         }
 
         pub const PageSize = enum(usize) {
