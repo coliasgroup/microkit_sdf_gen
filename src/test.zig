@@ -42,15 +42,15 @@ test "basic" {
 
 test "PD + MR + mappings + channel" {
     var sdf = SystemDescription.create(allocator, .aarch64, 0x100_000_000);
-    const mr = MemoryRegion.create(allocator, "test", 0x1000, null, .small);
+    const mr = MemoryRegion.create(allocator, "test", 0x1000, .{ .page_size = .small });
     sdf.addMemoryRegion(mr);
 
     const image = "hello.elf";
     var pd1 = ProtectionDomain.create(allocator, "hello-1", image);
-    try pd1.addInterrupt(Interrupt.create(33, .level, null));
-    pd1.addMap(Map.create(mr, 0x400000000, .r, true, null));
-    pd1.addMap(Map.create(mr, 0x600000000, .x, true, null));
-    pd1.addMap(Map.create(mr, 0x800000000, .rwx, true, null));
+    try pd1.addInterrupt(.create(33, .level, null));
+    pd1.addMap(.create(mr, 0x400000000, .r, true, .{}));
+    pd1.addMap(.create(mr, 0x600000000, .x, true, .{}));
+    pd1.addMap(.create(mr, 0x800000000, .rwx, true, .{}));
 
     var pd2 = ProtectionDomain.create(allocator, "hello-2", image);
 
