@@ -86,7 +86,6 @@ pub const SystemDescription = struct {
         /// Creates a memory region at a specific physical address. Allocates the physical address automatically.
         pub fn physical(allocator: Allocator, sdf: *SystemDescription, name: []const u8, size: usize, options: OptionsPhysical) MemoryRegion {
             const paddr = if (options.paddr) |fixed_paddr| fixed_paddr else sdf.paddr_top - size;
-            std.debug.print("paddr_top: 0x{x}, paddr: 0x{x}, size: 0x{x}\n", .{ sdf.paddr_top, paddr, size });
             // TODO: handle alignment if people specify a page size.
             if (options.paddr == null) {
                 sdf.paddr_top = paddr;
