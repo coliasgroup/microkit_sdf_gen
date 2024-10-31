@@ -46,6 +46,60 @@ pub const Resources = struct {
             clients: [MAX_NUM_CLIENTS]Client,
         };
     };
+
+    const Serial = struct {
+        const MAX_NUM_CLIENTS = 61;
+
+        const Driver = extern struct {
+            uart_regs: u64,
+            rx_queue_addr: u64,
+            tx_queue_addr: u64,
+            rx_data_addr: u64,
+            tx_data_addr: u64,
+            rx_capacity: u64,
+            tx_capacity: u64,
+            default_baud: u64,
+            rx_enabled: u8,
+        };
+
+        const VirtRx = extern struct {
+            const Client = extern struct {
+                queue_addr: u64,
+                data_addr: u64,
+                capacity: u64,
+            };
+
+            queue_drv: u64,
+            data_drv: u64,
+            capacity_drv: u64,
+            switch_char: u8,
+            terminate_num_char: u8,
+            num_clients: u64,
+            clients: [MAX_NUM_CLIENTS]Client,
+        };
+
+        const VirtTx = extern struct {
+            const MAX_NAME_LEN = 128;
+            const MAX_BEGIN_STR_LEN = 128;
+
+            const Client = extern struct {
+                name: [MAX_NAME_LEN]u8,
+                queue_addr: u64,
+                data_addr: u64,
+                capacity: u64,
+            };
+
+            queue_addr_drv: u64,
+            data_addr_drv: u64,
+            capacity_drv: u64,
+            begin_str: [MAX_BEGIN_STR_LEN]u8,
+            begin_str_len: u64,
+            enable_colour: u8,
+            enable_rx: u8,
+            clients: [MAX_NUM_CLIENTS]Client,
+        };
+    };
+
 };
 
 pub fn serialize(s: anytype, path: []const u8) !void {
