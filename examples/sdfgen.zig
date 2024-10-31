@@ -73,6 +73,7 @@ const Example = enum {
     // echo_server,
     webserver,
     blk,
+    i2c,
 
     pub fn fromStr(str: []const u8) !Example {
         inline for (std.meta.fields(Example)) |field| {
@@ -93,6 +94,7 @@ const Example = enum {
             // .kitty => try kitty(allocator, sdf, blob),
             .webserver => try webserver(allocator, sdf, blob),
             .blk => try blk(allocator, sdf, blob),
+            .i2c => try i2c(allocator, sdf, blob),
             // .echo_server => try echo_server(allocator, sdf, blob),
         }
     }
@@ -591,6 +593,39 @@ fn virtio_blk(_: Allocator, _: *SystemDescription, _: *dtb.Node) !void {
     // std.debug.print("{s}", .{xml});
 }
 
+fn i2c(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !void {
+    const i2c_node = switch (board) {
+        .odroidc4 => blob.child("soc").?.child("bus@ffd00000").?.child("i2c@1d000").?,
+        .qemu_virt_aarch64 => @panic("no i2c for qemu"),
+    };
+
+    const clk_mr = Mr.physical(allocator, sdf, "clk", 0x1000, .{ .paddr = 0xFF63C000 });
+    const gpio_mr = Mr.physical(allocator, sdf, "gpio", 0x4000, .{ .paddr = 0xFF634000 });
+
+    sdf.addMemoryRegion(clk_mr);
+    sdf.addMemoryRegion(gpio_mr);
+
+    var client = Pd.create(allocator, "client", "client.elf");
+    sdf.addProtectionDomain(&client);
+
+    var i2c_driver = Pd.create(allocator, "i2c_driver", "i2c_driver.elf");
+    sdf.addProtectionDomain(&i2c_driver);
+    var i2c_virt = Pd.create(allocator, "i2c_virt", "i2c_virt.elf");
+    sdf.addProtectionDomain(&i2c_virt);
+
+    var i2c_system = sddf.I2cSystem.init(allocator, sdf, i2c_node, &i2c_driver, &i2c_virt, .{});
+    i2c_system.addClient(&client);
+
+    i2c_driver.addMap(.create(clk_mr, i2c_driver.getMapVaddr(&clk_mr), .rw, false, .{}));
+    i2c_driver.addMap(.create(gpio_mr, i2c_driver.getMapVaddr(&gpio_mr), .rw, false, .{}));
+
+    _ = try i2c_system.connect();
+
+    // try i2c_system.serialiseConfig();
+
+    try sdf.print();
+}
+
 fn blk(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !void {
     const blk_node = switch (board) {
         .odroidc4 => @panic("no block for odroidc4"),
@@ -728,10 +763,10 @@ fn webserver(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !vo
     try serial_system.connect();
     _ = try blk_system.connect();
 
-    const fatfs_metadata = Mr.create(allocator, "fatfs_metadata", 0x200_000, null, .large);
+    const fatfs_metadata = Mr.create(allocator, "fatfs_metadata", 0x200_000, .{});
     std.debug.print("metadata vaddr {x}\n", .{ fatfs.getMapVaddr(&fatfs_metadata) });
     // TODO: fix
-    fatfs.addMap(Map.create(fatfs_metadata, 0x40_000_000, .rw, true, "fs_metadata"));
+    fatfs.addMap(Map.create(fatfs_metadata, 0x40_000_000, .rw, true, .{ .setvar_vaddr = "fs_metadata" }));
     sdf.addMemoryRegion(fatfs_metadata);
 
     const fs = lionsos.FileSystem.init(allocator, sdf, &fatfs, &micropython, .{});

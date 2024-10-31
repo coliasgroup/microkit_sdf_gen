@@ -2613,7 +2613,7 @@
 
 			i2c@1d000 {
 				compatible = "amlogic,meson-axg-i2c";
-				status = "disabled";
+				status = "okay";
 				reg = <0x00 0x1d000 0x00 0x20>;
 				interrupts = <0x00 0xd7 0x01>;
 				#address-cells = <0x01>;

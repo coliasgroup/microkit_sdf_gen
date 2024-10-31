@@ -58,30 +58,42 @@ pub const SystemDescription = struct {
         allocator: Allocator,
         name: []const u8,
         size: usize,
-        phys_addr: ?u64,
-        page_size: PageSize,
+        paddr: ?u64,
+        page_size: ?PageSize,
 
-        pub fn create(allocator: Allocator, name: []const u8, size: usize, phys_addr: ?usize, page_size: PageSize) MemoryRegion {
+        const Options = struct {
+            page_size: ?PageSize = null,
+        };
+
+        const OptionsPhysical = struct {
+            paddr: ?u64 = null,
+            page_size: ?PageSize = null,
+        };
+
+        // TODO: change to two API:
+        // MemoryRegion.virtual()
+        // MemoryRegion.physical()
+        pub fn create(allocator: Allocator, name: []const u8, size: usize, options: Options) MemoryRegion {
             return MemoryRegion{
                 .allocator = allocator,
                 .name = allocator.dupe(u8, name) catch "Could not allocate name for MemoryRegion",
                 .size = size,
-                .phys_addr = phys_addr,
-                .page_size = page_size,
+                .page_size = options.page_size,
+                .paddr = null,
             };
         }
 
-        pub fn createPhysical(allocator: Allocator, sdf: *SystemDescription, name: []const u8, size: usize, page_size: PageSize) MemoryRegion {
-            const phys_addr = sdf.paddr_top - size;
-            // TODO: handle alignment.
-            std.debug.assert(phys_addr % page_size.toInt(sdf.arch) == 0);
-            sdf.paddr_top = phys_addr;
+        /// Creates a memory region at a specific physical address. Allocates the physical address automatically.
+        pub fn physical(allocator: Allocator, sdf: *SystemDescription, name: []const u8, size: usize, options: OptionsPhysical) MemoryRegion {
+            const paddr = if (options.paddr) |fixed_paddr| fixed_paddr else sdf.paddr_top - size;
+            // TODO: handle alignment if people specify a page size.
+            sdf.paddr_top = paddr;
             return MemoryRegion{
                 .allocator = allocator,
                 .name = allocator.dupe(u8, name) catch "Could not allocate name for MemoryRegion",
                 .size = size,
-                .phys_addr = phys_addr,
-                .page_size = page_size,
+                .paddr = paddr,
+                .page_size = options.page_size,
             };
         }
 
@@ -90,12 +102,14 @@ pub const SystemDescription = struct {
         }
 
         pub fn toXml(mr: MemoryRegion, sdf: *SystemDescription, writer: ArrayList(u8).Writer, separator: []const u8) !void {
-            const xml = try allocPrint(sdf.allocator, "{s}<memory_region name=\"{s}\" size=\"0x{x}\" page_size=\"0x{x}\"", .{ separator, mr.name, mr.size, mr.page_size.toInt(sdf.arch) });
+            // TODO: handle specific pagesize
+            std.debug.assert(mr.page_size == null);
+            const xml = try allocPrint(sdf.allocator, "{s}<memory_region name=\"{s}\" size=\"0x{x}\"", .{ separator, mr.name, mr.size });
             defer sdf.allocator.free(xml);
 
             var final_xml: []const u8 = undefined;
-            if (mr.phys_addr) |phys_addr| {
-                final_xml = try allocPrint(sdf.allocator, "{s} phys_addr=\"0x{x}\" />\n", .{ xml, phys_addr });
+            if (mr.paddr) |paddr| {
+                final_xml = try allocPrint(sdf.allocator, "{s} phys_addr=\"0x{x}\" />\n", .{ xml, paddr });
             } else {
                 final_xml = try allocPrint(sdf.allocator, "{s} />\n", .{xml});
             }
@@ -143,11 +157,11 @@ pub const SystemDescription = struct {
                 }
             }
 
-            pub fn optimal(sdf: *SystemDescription, region_size: usize) PageSize {
+           pub fn optimal(arch: Arch, region_size: usize) PageSize {
                 // @ivanv: would be better if we did some meta programming in case the
                 // number of elements in PageSize change
                 // if (region_size % PageSize.huge.toSize(sdf.arch) == 0) return .huge;
-                if (region_size % PageSize.large.toInt(sdf.arch) == 0) return .large;
+                if (region_size % PageSize.large.toInt(arch) == 0) return .large;
 
                 return .small;
             }
@@ -161,6 +175,10 @@ pub const SystemDescription = struct {
         cached: bool,
         // TODO: could make this a type?
         setvar_vaddr: ?[]const u8,
+
+        const Options = struct {
+            setvar_vaddr: ?[]const u8 = null,
+        };
 
         pub const Permissions = packed struct {
             // TODO: check that perms are not write-only
@@ -215,13 +233,15 @@ pub const SystemDescription = struct {
             }
         };
 
-        pub fn create(mr: MemoryRegion, vaddr: usize, perms: Permissions, cached: bool, setvar_vaddr: ?[]const u8) Map {
+        // TODO: make vaddr optional so its easier to allocate it automatically
+        pub fn create(mr: MemoryRegion, vaddr: usize, perms: Permissions, cached: bool, options: Options) Map {
+            // const vaddr = if (options.vaddr) |fixed_vaddr| fixed_vaddr else ;
             return Map{
                 .mr = mr,
                 .vaddr = vaddr,
                 .perms = perms,
                 .cached = cached,
-                .setvar_vaddr = setvar_vaddr,
+                .setvar_vaddr = options.setvar_vaddr,
             };
         }
 
@@ -441,7 +461,7 @@ pub const SystemDescription = struct {
                 if (map.vaddr >= next_vaddr) {
                     next_vaddr = map.vaddr + map.mr.size;
                     // TODO: fix this
-                    const page_size = mr.page_size.toInt(.aarch64);
+                    const page_size = MemoryRegion.PageSize.optimal(.aarch64, mr.size).toInt(.aarch64);
                     const diff = next_vaddr % page_size;
                     if (diff != 0) {
                         // In the case the next virtual address is not page aligned, we need
