@@ -74,7 +74,7 @@ pub const Resources = struct {
             switch_char: u8,
             terminate_num_char: u8,
             num_clients: u64,
-            clients: [MAX_NUM_CLIENTS]Client,
+            clients: [MAX_NUM_CLIENTS]VirtRxClient,
         };
 
         pub const VirtTx = extern struct {
@@ -96,7 +96,7 @@ pub const Resources = struct {
             enable_colour: u8,
             enable_rx: u8,
             num_clients: u64,
-            clients: [MAX_NUM_CLIENTS]Client,
+            clients: [MAX_NUM_CLIENTS]VirtTxClient,
         };
 
         pub const Client = extern struct {

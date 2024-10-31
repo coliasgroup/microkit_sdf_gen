@@ -828,6 +828,7 @@ pub const SerialSystem = struct {
     driver_config: ConfigResources.Serial.Driver,
     virt_rx_config: ConfigResources.Serial.VirtRx,
     virt_tx_config: ConfigResources.Serial.VirtTx,
+    client_configs: std.ArrayList(ConfigResources.Serial.Client),
 
     pub const Options = struct {
         driver_data_size: usize = 0x10000,
@@ -861,11 +862,13 @@ pub const SerialSystem = struct {
             .driver_config = std.mem.zeroes(ConfigResources.Serial.Driver),
             .virt_rx_config = std.mem.zeroes(ConfigResources.Serial.VirtRx),
             .virt_tx_config = std.mem.zeroes(ConfigResources.Serial.VirtTx),
+            .client_configs = std.ArrayList(ConfigResources.Serial.Client).init(allocator),
         };
     }
 
     pub fn addClient(system: *SerialSystem, client: *Pd) void {
         system.clients.append(client) catch @panic("Could not add client to SerialSystem");
+        system.client_configs.append(std.mem.zeroes(ConfigResources.Serial.Client)) catch @panic("Could not add client to SerialSystem");
     }
 
     fn rxConnectDriver(system: *SerialSystem) void {
@@ -953,7 +956,7 @@ pub const SerialSystem = struct {
         system.driver_config.default_baud = 115200;
     }
 
-    fn rxConnectClient(system: *SerialSystem, client: *Pd) void {
+    fn rxConnectClient(system: *SerialSystem, client: *Pd, client_config: *ConfigResources.Serial.Client) void {
         const allocator = system.allocator;
         const client_num = system.virt_rx_config.num_clients;
         system.virt_rx_config.num_clients += 1;
@@ -975,20 +978,24 @@ pub const SerialSystem = struct {
             system.virt_rx.?.addMap(virt_map);
 
             const client_vaddr = client.getMapVaddr(&mr);
-            const client_setvar_vaddr = std.fmt.allocPrint(system.allocator, "serial_rx_{s}", .{region.name}) catch @panic("OOM");
-            const client_map = Map.create(mr, client_vaddr, .rw, true, .{ .setvar_vaddr = client_setvar_vaddr });
+            const client_map = Map.create(mr, client_vaddr, .rw, true, .{});
             client.addMap(client_map);
 
             if (@as(Region, @enumFromInt(region.value)) == .data) {
                 system.virt_rx_config.clients[client_num].data_addr = virt_vaddr;
                 system.virt_rx_config.clients[client_num].capacity = mr_size;
+
+                client_config.rx_data_addr = client_vaddr;
+                client_config.rx_capacity = mr_size;
             } else {
                 system.virt_rx_config.clients[client_num].queue_addr = virt_vaddr;
+
+                client_config.rx_queue_addr = client_vaddr;
             }
         }
     }
 
-    fn txConnectClient(system: *SerialSystem, client: *Pd) void {
+    fn txConnectClient(system: *SerialSystem, client: *Pd, client_config: *ConfigResources.Serial.Client) void {
         const allocator = system.allocator;
         const client_num = system.virt_tx_config.num_clients;
         system.virt_tx_config.num_clients += 1;
@@ -1014,15 +1021,19 @@ pub const SerialSystem = struct {
             system.virt_tx.addMap(virt_map);
 
             const client_vaddr = client.getMapVaddr(&mr);
-            const client_setvar_vaddr = std.fmt.allocPrint(system.allocator, "serial_tx_{s}", .{region.name}) catch @panic("OOM");
-            const client_map = Map.create(mr, client_vaddr, .rw, true, .{ .setvar_vaddr = client_setvar_vaddr });
+            const client_map = Map.create(mr, client_vaddr, .rw, true, .{});
             client.addMap(client_map);
 
             if (@as(Region, @enumFromInt(region.value)) == .data) {
                 system.virt_tx_config.clients[client_num].data_addr = virt_vaddr;
                 system.virt_tx_config.clients[client_num].capacity = mr_size;
+
+                client_config.tx_data_addr = client_vaddr;
+                client_config.tx_capacity = mr_size;
             } else {
                 system.virt_tx_config.clients[client_num].queue_addr = virt_vaddr;
+
+                client_config.tx_queue_addr = client_vaddr;
             }
         }
     }
@@ -1053,11 +1064,11 @@ pub const SerialSystem = struct {
             system.rxConnectDriver();
         }
         system.txConnectDriver();
-        for (system.clients.items) |client| {
+        for (system.clients.items, 0..) |client, i| {
             if (system.rx) {
-                system.rxConnectClient(client);
+                system.rxConnectClient(client, &system.client_configs.items[i]);
             }
-            system.txConnectClient(client);
+            system.txConnectClient(client, &system.client_configs.items[i]);
         }
     }
 
@@ -1070,6 +1081,13 @@ pub const SerialSystem = struct {
 
         try data.serialize(system.virt_tx_config, "serial_virt_tx.data");
         try data.jsonify(system.virt_tx_config, "serial_virt_tx.json", .{ .whitespace = .indent_4 });
+
+        for (system.clients.items, 0..) |client, i| {
+            const data_name = std.fmt.allocPrint(system.allocator, "{s}.data", .{client.name}) catch @panic("OOM");
+            const json_name = std.fmt.allocPrint(system.allocator, "{s}.json", .{client.name}) catch @panic("OOM");
+            try data.serialize(system.client_configs.items[i], data_name);
+            try data.jsonify(system.client_configs.items[i], json_name, .{ .whitespace = .indent_4 });
+        }
     }
 };
 
