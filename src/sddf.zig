@@ -883,8 +883,7 @@ pub const SerialSystem = struct {
             system.sdf.addMemoryRegion(mr);
             // @ivanv: vaddr has invariant that needs to be checked
             const virt_vaddr = system.virt_rx.?.getMapVaddr(&mr);
-            const virt_setvar_vaddr = std.fmt.allocPrint(system.allocator, "rx_{s}_drv", .{region.name}) catch @panic("OOM");
-            const virt_map = Map.create(mr, virt_vaddr, .rw, true, .{ .setvar_vaddr = virt_setvar_vaddr });
+            const virt_map = Map.create(mr, virt_vaddr, .rw, true, .{});
             system.virt_rx.?.addMap(virt_map);
 
             const driver_vaddr = system.driver.getMapVaddr(&mr);
@@ -925,8 +924,7 @@ pub const SerialSystem = struct {
             system.sdf.addMemoryRegion(mr);
             // @ivanv: vaddr has invariant that needs to be checked
             const virt_vaddr = system.virt_tx.getMapVaddr(&mr);
-            const virt_setvar_vaddr = std.fmt.allocPrint(system.allocator, "tx_{s}_drv", .{region.name}) catch @panic("OOM");
-            const virt_map = Map.create(mr, virt_vaddr, .rw, true, .{ .setvar_vaddr = virt_setvar_vaddr });
+            const virt_map = Map.create(mr, virt_vaddr, .rw, true, .{});
             system.virt_tx.addMap(virt_map);
 
             const driver_vaddr = system.driver.getMapVaddr(&mr);
@@ -955,7 +953,7 @@ pub const SerialSystem = struct {
         system.driver_config.default_baud = 115200;
     }
 
-    fn rxConnectClient(system: *SerialSystem, client: *Pd, client_zero: bool) void {
+    fn rxConnectClient(system: *SerialSystem, client: *Pd) void {
         const allocator = system.allocator;
         const client_num = system.virt_rx_config.num_clients;
         system.virt_rx_config.num_clients += 1;
@@ -973,11 +971,7 @@ pub const SerialSystem = struct {
             system.sdf.addMemoryRegion(mr);
             // @ivanv: vaddr has invariant that needs to be checked
             const virt_vaddr = system.virt_rx.?.getMapVaddr(&mr);
-            var virt_setvar_vaddr: ?[]const u8 = null;
-            if (client_zero) {
-                virt_setvar_vaddr = std.fmt.allocPrint(system.allocator, "rx_{s}_cli0", .{region.name}) catch @panic("OOM");
-            }
-            const virt_map = Map.create(mr, virt_vaddr, .rw, true, .{ .setvar_vaddr = virt_setvar_vaddr });
+            const virt_map = Map.create(mr, virt_vaddr, .rw, true, .{});
             system.virt_rx.?.addMap(virt_map);
 
             const client_vaddr = client.getMapVaddr(&mr);
@@ -994,7 +988,7 @@ pub const SerialSystem = struct {
         }
     }
 
-    fn txConnectClient(system: *SerialSystem, client: *Pd, client_zero: bool) void {
+    fn txConnectClient(system: *SerialSystem, client: *Pd) void {
         const allocator = system.allocator;
         const client_num = system.virt_tx_config.num_clients;
         system.virt_tx_config.num_clients += 1;
@@ -1016,11 +1010,7 @@ pub const SerialSystem = struct {
             system.sdf.addMemoryRegion(mr);
             // @ivanv: vaddr has invariant that needs to be checked
             const virt_vaddr = system.virt_tx.getMapVaddr(&mr);
-            var virt_setvar_vaddr: ?[]const u8 = null;
-            if (client_zero) {
-                virt_setvar_vaddr = std.fmt.allocPrint(system.allocator, "tx_{s}_cli0", .{region.name}) catch @panic("OOM");
-            }
-            const virt_map = Map.create(mr, virt_vaddr, .rw, true, .{ .setvar_vaddr = virt_setvar_vaddr });
+            const virt_map = Map.create(mr, virt_vaddr, .rw, true, .{});
             system.virt_tx.addMap(virt_map);
 
             const client_vaddr = client.getMapVaddr(&mr);
@@ -1063,11 +1053,11 @@ pub const SerialSystem = struct {
             system.rxConnectDriver();
         }
         system.txConnectDriver();
-        for (system.clients.items, 0..) |client, i| {
+        for (system.clients.items) |client| {
             if (system.rx) {
-                system.rxConnectClient(client, i == 0);
+                system.rxConnectClient(client);
             }
-            system.txConnectClient(client, i == 0);
+            system.txConnectClient(client);
         }
     }
 

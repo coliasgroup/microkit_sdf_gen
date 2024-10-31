@@ -62,7 +62,7 @@ pub const Resources = struct {
         };
 
         pub const VirtRx = extern struct {
-            pub const Client = extern struct {
+            pub const VirtRxClient = extern struct {
                 queue_addr: u64,
                 data_addr: u64,
                 capacity: u64,
@@ -81,7 +81,7 @@ pub const Resources = struct {
             pub const MAX_NAME_LEN = 128;
             pub const MAX_BEGIN_STR_LEN = 128;
 
-            pub const Client = extern struct {
+            pub const VirtTxClient = extern struct {
                 name: [MAX_NAME_LEN]u8,
                 queue_addr: u64,
                 data_addr: u64,
@@ -97,6 +97,15 @@ pub const Resources = struct {
             enable_rx: u8,
             num_clients: u64,
             clients: [MAX_NUM_CLIENTS]Client,
+        };
+
+        pub const Client = extern struct {
+            rx_queue_addr: u64,
+            rx_data_addr: u64,
+            rx_capacity: u64,
+            tx_queue_addr: u64,
+            tx_data_addr: u64,
+            tx_capacity: u64,
         };
     };
 
