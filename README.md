@@ -1,7 +1,8 @@
 # Higher-level tooling for constructing seL4 Microkit systems
 
 **NOTE: this project is experimental, we are using it internally to get it into a
-  usable state for the public.**
+  usable state for the public. For development this work exists in a separate repository,
+  but that may change once it is ready for use.**
 
 This repository currently holds various programs to help with automating the
 process of creating seL4 Microkit systems.
