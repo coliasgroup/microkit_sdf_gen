@@ -647,7 +647,7 @@ fn blk(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !void {
 
     _ = try blk_system.connect();
 
-    try blk_system.serialiseConfig();
+    try blk_system.serialiseConfig("blk_virt.data");
 
     try sdf.print();
 }
