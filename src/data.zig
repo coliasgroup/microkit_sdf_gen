@@ -78,7 +78,7 @@ pub const Resources = struct {
         };
 
         pub const VirtTx = extern struct {
-            pub const MAX_NAME_LEN = 128;
+            pub const MAX_NAME_LEN = 64;
             pub const MAX_BEGIN_STR_LEN = 128;
 
             pub const VirtTxClient = extern struct {
