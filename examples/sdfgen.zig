@@ -949,6 +949,7 @@ fn serial(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !void 
     serial_virt_rx.priority = 98;
 
     try serial_system.connect();
+    try serial_system.serialiseConfig();
     try sdf.print();
 }
 

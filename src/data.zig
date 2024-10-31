@@ -3,7 +3,6 @@ const std = @import("std");
 /// For block sub-system:
 /// Three regions for each client:
 /// request, response, configuration
-
 pub const Resources = struct {
     pub const Block = struct {
         pub const Virt = extern struct {
@@ -47,10 +46,10 @@ pub const Resources = struct {
         };
     };
 
-    const Serial = struct {
-        const MAX_NUM_CLIENTS = 61;
+    pub const Serial = struct {
+        pub const MAX_NUM_CLIENTS = 61;
 
-        const Driver = extern struct {
+        pub const Driver = extern struct {
             uart_regs: u64,
             rx_queue_addr: u64,
             tx_queue_addr: u64,
@@ -62,8 +61,8 @@ pub const Resources = struct {
             rx_enabled: u8,
         };
 
-        const VirtRx = extern struct {
-            const Client = extern struct {
+        pub const VirtRx = extern struct {
+            pub const Client = extern struct {
                 queue_addr: u64,
                 data_addr: u64,
                 capacity: u64,
@@ -78,11 +77,11 @@ pub const Resources = struct {
             clients: [MAX_NUM_CLIENTS]Client,
         };
 
-        const VirtTx = extern struct {
-            const MAX_NAME_LEN = 128;
-            const MAX_BEGIN_STR_LEN = 128;
+        pub const VirtTx = extern struct {
+            pub const MAX_NAME_LEN = 128;
+            pub const MAX_BEGIN_STR_LEN = 128;
 
-            const Client = extern struct {
+            pub const Client = extern struct {
                 name: [MAX_NAME_LEN]u8,
                 queue_addr: u64,
                 data_addr: u64,
@@ -96,6 +95,7 @@ pub const Resources = struct {
             begin_str_len: u64,
             enable_colour: u8,
             enable_rx: u8,
+            num_clients: u64,
             clients: [MAX_NUM_CLIENTS]Client,
         };
     };
