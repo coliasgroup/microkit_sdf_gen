@@ -10,7 +10,7 @@ if __name__ == '__main__':
     with open(DTB_PATH, "rb") as f:
         dtb = DeviceTree(f.read())
 
-    reactor_client = ProtectionDomain("reactor_client", "reactor_client.elf", priority=2, pp=True)
+    reactor_client = ProtectionDomain("reactor_client", "reactor_client.elf", priority=2)
 
     i2c_reactor_driver = ProtectionDomain("i2c_reactor_driver", "reactor_driver.elf", priority=200)
     i2c_virt = ProtectionDomain("i2c_virt", "i2c_virt.elf", priority=199)

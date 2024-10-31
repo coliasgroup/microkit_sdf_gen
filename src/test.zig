@@ -57,7 +57,7 @@ test "PD + MR + mappings + channel" {
     sdf.addProtectionDomain(&pd1);
     sdf.addProtectionDomain(&pd2);
 
-    sdf.addChannel(Channel.create(&pd1, &pd2));
+    sdf.addChannel(Channel.create(&pd1, &pd2, .{}));
 
     const expected = try readAll("src/tests/pd_mr_map_channel.xml");
     const output = try sdf.toXml();

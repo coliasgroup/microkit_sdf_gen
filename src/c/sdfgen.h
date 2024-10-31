@@ -22,7 +22,6 @@ void *sdfgen_dtb_node(void *blob, char *node);
 void *sdfgen_pd_create(char *name, char *elf);
 void *sdfgen_pd_add(void *sdf, void *pd);
 void sdfgen_pd_set_priority(void *pd, uint8_t priority);
-void sdfgen_pd_set_pp(void *pd, bool pp);
 
 void *sdfgen_channel_create(void *pd_a, void *pd_b);
 void *sdfgen_channel_add(void *sdf, void *channel);

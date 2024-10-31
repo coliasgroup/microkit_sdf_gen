@@ -106,20 +106,16 @@ export fn sdfgen_pd_set_priority(c_pd: *align(8) anyopaque, priority: u8) void {
     pd.priority = priority;
 }
 
-export fn sdfgen_pd_set_pp(c_pd: *align(8) anyopaque, pp: bool) void {
-    const pd: *Pd = @ptrCast(c_pd);
-    pd.pp = pp;
-}
-
 export fn sdfgen_sddf_init(path: [*c]u8) bool {
     sddf.probe(allocator, std.mem.span(path)) catch return false;
 
     return true;
 }
 
+// TODO: handle specifying channel parameters
 export fn sdfgen_channel_create(pd_a: *align(8) anyopaque, pd_b: *align(8) anyopaque) *anyopaque {
     const ch = allocator.create(Channel) catch @panic("OOM");
-    ch.* = Channel.create(@ptrCast(pd_a), @ptrCast(pd_b));
+    ch.* = Channel.create(@ptrCast(pd_a), @ptrCast(pd_b), .{});
 
     return ch;
 }

@@ -330,8 +330,6 @@ pub const SystemDescription = struct {
         period: ?usize,
         passive: bool = false,
         stack_size: usize = 0x1000,
-        /// Whether there is an available 'protected' entry point
-        pp: bool = false,
         /// Child nodes
         maps: ArrayList(Map),
         /// The length of this array is bound by the maximum number of child PDs a PD can have.
@@ -464,7 +462,7 @@ pub const SystemDescription = struct {
             const budget = if (pd.budget) |budget| budget else 100;
             const period = if (pd.period) |period| period else budget;
             const attributes_str =
-                \\priority="{}" budget="{}" period="{}" passive="{}" pp="{}" stack_size="0x{x}"
+                \\priority="{}" budget="{}" period="{}" passive="{}" stack_size="0x{x}"
             ;
             const attributes_xml = try allocPrint(
                 sdf.allocator,
@@ -474,7 +472,6 @@ pub const SystemDescription = struct {
                     budget,
                     period,
                     pd.passive,
-                    pd.pp,
                     pd.stack_size
                 }
             );
@@ -524,29 +521,66 @@ pub const SystemDescription = struct {
     };
 
     pub const Channel = struct {
-        pd1: *ProtectionDomain,
-        pd2: *ProtectionDomain,
-        pd1_end_id: usize,
-        pd2_end_id: usize,
+        pd_a: *ProtectionDomain,
+        pd_b: *ProtectionDomain,
+        pd_a_id: usize,
+        pd_b_id: usize,
+        pd_a_notify: bool,
+        pd_b_notify: bool,
+        pp: ?End,
 
-        pub fn create(pd1: *ProtectionDomain, pd2: *ProtectionDomain) Channel {
-            const ch = Channel{
-                .pd1 = pd1,
-                .pd2 = pd2,
-                .pd1_end_id = pd1.allocateId(null) catch @panic("Could not allocate ID for channel"),
-                .pd2_end_id = pd2.allocateId(null) catch @panic("Could not allocate ID for channel"),
+        const End = enum {
+            a,
+            b
+        };
+
+        const Options = struct {
+            pd_a_notify: bool = true,
+            pd_b_notify: bool = true,
+            pp: ?End = null,
+        };
+
+        pub fn create(pd_a: *ProtectionDomain, pd_b: *ProtectionDomain, options: Options) Channel {
+            return .{
+                .pd_a = pd_a,
+                .pd_b = pd_b,
+                .pd_a_id = pd_a.allocateId(null) catch @panic("Could not allocate ID for channel"),
+                .pd_b_id = pd_b.allocateId(null) catch @panic("Could not allocate ID for channel"),
+                .pd_a_notify = options.pd_a_notify,
+                .pd_b_notify = options.pd_a_notify,
+                .pp = options.pp,
             };
-
-            return ch;
         }
 
         pub fn toXml(ch: Channel, sdf: *SystemDescription, writer: ArrayList(u8).Writer, separator: []const u8) !void {
             const child_separator = try allocPrint(sdf.allocator, "{s}    ", .{ separator });
             defer sdf.allocator.free(child_separator);
             const channel_str =
-                \\{s}<channel>{s}{s}<end pd="{s}" id="{}" />{s}{s}<end pd="{s}" id="{}" />{s}{s}</channel>
+                \\{s}<channel>{s}{s}<end pd="{s}" id="{}" notify="{}" pp="{}" />{s}{s}<end pd="{s}" id="{}" notify="{}" pp="{}" />{s}{s}</channel>
             ;
-            const channel_xml = try allocPrint(sdf.allocator, channel_str, .{ separator, "\n", child_separator, ch.pd1.name, ch.pd1_end_id, "\n", child_separator, ch.pd2.name, ch.pd2_end_id, "\n", separator });
+
+            const pp_end_a = if (ch.pp) |pp| pp == .a else false;
+            const pp_end_b = if (ch.pp) |pp| pp == .b else false;
+
+            const channel_xml = try allocPrint(sdf.allocator, channel_str,
+                .{
+                    separator,
+                    "\n",
+                    child_separator,
+                    ch.pd_a.name,
+                    ch.pd_a_id,
+                    ch.pd_a_notify,
+                    pp_end_a,
+                    "\n",
+                    child_separator,
+                    ch.pd_b.name,
+                    ch.pd_b_id,
+                    ch.pd_b_notify,
+                    pp_end_b,
+                    "\n",
+                    separator
+                }
+            );
             defer sdf.allocator.free(channel_xml);
 
             _ = try writer.write(channel_xml);

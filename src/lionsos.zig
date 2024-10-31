@@ -79,7 +79,7 @@ pub const FileSystem = struct {
         client.addMap(.create(fs_completion_queue, client.getMapVaddr(&fs_completion_queue), .rw, true, "fs_completion_queue"));
         client.addMap(.create(fs_share, client.getMapVaddr(&fs_share), .rw, true, "fs_share"));
 
-        system.sdf.addChannel(Channel.create(fs, client));
+        system.sdf.addChannel(Channel.create(fs, client, .{}));
 
         // Special things for FATFS
         const fatfs_metadata = Mr.create(allocator, fmt(allocator, "{s}_metadata", .{ fs.name }), 0x200_000, null, .large);

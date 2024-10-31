@@ -455,8 +455,6 @@ pub const TimerSystem = struct {
         // First we have to set some properties on the driver. It is currently our policy that every timer
         // driver should be passive.
         driver.passive = true;
-        // Clients also communicate to the driver via PPC
-        driver.pp = true;
 
         return .{
             .allocator = allocator,
@@ -478,13 +476,14 @@ pub const TimerSystem = struct {
     pub fn connect(system: *TimerSystem) !void {
         // The driver must be passive and it must be able to receive protected procedure calls
         assert(system.driver.passive);
-        assert(system.driver.pp);
 
         try createDriver(system.sdf, system.driver, system.device, .timer);
         for (system.clients.items) |client| {
             // In order to connect a client we simply have to create a channel between
             // each client and the driver.
-            system.sdf.addChannel(Channel.create(system.driver, client));
+            system.sdf.addChannel(Channel.create(system.driver, client, .{
+                .pp = .b,
+            }));
         }
     }
 };
@@ -569,7 +568,7 @@ pub const I2cSystem = struct {
         client.addMap(.create(mr_data, 0x10_002_000, .rw, true, "i2c_data_region"));
 
         // Create a channel between the virtualiser and client
-        sdf.addChannel(.create(virt, client));
+        sdf.addChannel(.create(virt, client, .{ .pp = .b }));
     }
 
     pub fn connect(system: *I2cSystem) !void {
@@ -586,13 +585,10 @@ pub const I2cSystem = struct {
         assert(system.clients.items.len == 1);
         system.connectClient(system.clients.items[0]);
 
-        // The virtualiser needs to be able to accept PPCs
-        system.virt.pp = true;
-
         // Create a channel between the driver and virtualiser for notifications
         // TODO: restriction of what the driver channel is in the virtualiser forces
         // us to allocate teh channel after all the client channels have been allocated
-        sdf.addChannel(.create(system.driver, system.virt));
+        sdf.addChannel(.create(system.driver, system.virt, .{}));
     }
 };
 
@@ -713,7 +709,7 @@ pub const BlockSystem = struct {
         virt.addMap(map_data_virt);
         // virt.addSetVar(SetVar.create("blk_data_paddr_driver", &mr_data));
 
-        system.sdf.addChannel(.create(system.virt, system.driver));
+        system.sdf.addChannel(.create(system.virt, system.driver, .{}));
 
         return .{
             .storage_info = map_config_virt.vaddr,
@@ -763,7 +759,7 @@ pub const BlockSystem = struct {
         system.virt.addMap(map_data_virt);
         client.addMap(map_data_client);
 
-        system.sdf.addChannel(.create(system.virt, client));
+        system.sdf.addChannel(.create(system.virt, client, .{}));
 
         return .{
             .req_queue = map_req_virt.vaddr,
@@ -983,21 +979,21 @@ pub const SerialSystem = struct {
         var sdf = system.sdf;
 
         // 1. Create all the channels
-        // 1.1 Create channels between driver and multiplexors
+        // 1.1 Create channels between driver and virtualisers
         try createDriver(sdf, system.driver, system.device, .serial);
-        const ch_driver_virt_tx = Channel.create(system.driver, system.virt_tx);
+        const ch_driver_virt_tx = Channel.create(system.driver, system.virt_tx, .{});
         sdf.addChannel(ch_driver_virt_tx);
         if (system.rx) {
-            const ch_driver_virt_rx = Channel.create(system.driver, system.virt_rx.?);
+            const ch_driver_virt_rx = Channel.create(system.driver, system.virt_rx.?, .{});
             sdf.addChannel(ch_driver_virt_rx);
         }
-        // 1.2 Create channels between multiplexors and clients
+        // 1.2 Create channels between virtualisers and clients
         for (system.clients.items) |client| {
-            const ch_virt_tx_client = Channel.create(system.virt_tx, client);
+            const ch_virt_tx_client = Channel.create(system.virt_tx, client, .{});
             sdf.addChannel(ch_virt_tx_client);
 
             if (system.rx) {
-                const ch_virt_rx_client = Channel.create(system.virt_rx.?, client);
+                const ch_virt_rx_client = Channel.create(system.virt_rx.?, client, .{});
                 sdf.addChannel(ch_virt_rx_client);
             }
         }
@@ -1245,17 +1241,17 @@ pub const NetworkSystem = struct {
 
         system.driver.addSetVar(SetVar.create("hw_ring_buffer_paddr", @constCast(&hw_ring_buffer_mr)));
 
-        sdf.addChannel(.create(system.driver, system.virt_tx));
-        sdf.addChannel(.create(system.driver, system.virt_rx));
+        sdf.addChannel(.create(system.driver, system.virt_tx, .{}));
+        sdf.addChannel(.create(system.driver, system.virt_rx, .{}));
 
         const virt_data_mr = system.rxConnectDriver();
         system.txConnectDriver();
 
         for (system.clients.items, 0..) |client, i| {
             // TODO: we have an assumption that all copiers are RX copiers
-            sdf.addChannel(.create(system.copiers.items[i], client));
-            sdf.addChannel(.create(system.virt_tx, client));
-            sdf.addChannel(.create(system.copiers.items[i], system.virt_rx));
+            sdf.addChannel(.create(system.copiers.items[i], client, .{}));
+            sdf.addChannel(.create(system.virt_tx, client, .{}));
+            sdf.addChannel(.create(system.copiers.items[i], system.virt_rx, .{}));
 
             system.copierRxConnect(system.copiers.items[i], i == 0, virt_data_mr);
             // TODO: we assume there exists a copier for each client, on the RX side

@@ -96,16 +96,14 @@ ProtectionDomain_init(ProtectionDomainObject *self, PyObject *args, PyObject *kw
     // TODO: handle defaults, better, ideally we wouldn't set the priority unless
     // it was supplied;
     unsigned short int priority = 100;
-    int pp = false;
-    static char *kwlist[] = { "name", "elf", "priority", "pp", NULL };
+    static char *kwlist[] = { "name", "elf", "priority", NULL };
     char *name;
     char *elf;
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "ss|$Hp", kwlist, &name, &elf, &priority, &pp)) {
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "ss|$H", kwlist, &name, &elf, &priority)) {
         return -1;
     }
     self->pd = sdfgen_pd_create(name, elf);
     sdfgen_pd_set_priority(self->pd, priority);
-    sdfgen_pd_set_pp(self->pd, pp);
 
     return 0;
 }
