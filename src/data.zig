@@ -100,6 +100,33 @@ pub const Resources = struct {
         };
     };
 
+    pub const I2c = struct {
+        pub const Virt = extern struct {
+            const MAX_NUM_CLIENTS = 61;
+
+            pub const Client = extern struct {
+                request_queue: u64,
+                response_queue: u64,
+                driver_data_offset: u64,
+                data_size: u64,
+            };
+
+            driver_request_queue: u64,
+            driver_response_queue: u64,
+            num_clients: u64,
+            clients: [MAX_NUM_CLIENTS]Client,
+        };
+
+        pub const Driver = extern struct {
+            bus_num: u64,
+            request_region: u64,
+            response_region: u64,
+            data_region: u64,
+            i2c_regs: u64,
+            gpio_regs: u64,
+            clk_regs: u64,
+        };
+    };
 };
 
 pub fn serialize(s: anytype, path: []const u8) !void {
