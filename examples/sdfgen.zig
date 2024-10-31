@@ -74,6 +74,7 @@ const Example = enum {
     webserver,
     blk,
     i2c,
+    serial,
 
     pub fn fromStr(str: []const u8) !Example {
         inline for (std.meta.fields(Example)) |field| {
@@ -96,6 +97,7 @@ const Example = enum {
             .blk => try blk(allocator, sdf, blob),
             .i2c => try i2c(allocator, sdf, blob),
             // .echo_server => try echo_server(allocator, sdf, blob),
+            .serial => try serial(allocator, sdf, blob),
         }
     }
 
@@ -917,6 +919,37 @@ fn echo_server(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !
     const file = try std.fs.cwd().createFile("echo_server.system", .{});
     defer file.close();
     _ = try file.writeAll(xml);
+}
+
+fn serial(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !void {
+    const uart_node = switch (board) {
+        .odroidc4 => blob.child("soc").?.child("bus@ff800000").?.child("serial@3000").?,
+        .qemu_virt_aarch64 => blob.child(board.uartNode()).?,
+    };
+
+    var uart_driver = Pd.create(allocator, "uart_driver", "uart_driver.elf");
+    sdf.addProtectionDomain(&uart_driver);
+
+    var serial_virt_rx = Pd.create(allocator, "serial_virt_rx", "serial_virt_rx.elf");
+    sdf.addProtectionDomain(&serial_virt_rx);
+    var serial_virt_tx = Pd.create(allocator, "serial_virt_tx", "serial_virt_tx.elf");
+    sdf.addProtectionDomain(&serial_virt_tx);
+
+    var client0 = Pd.create(allocator, "client0", "serial_server.elf");
+    sdf.addProtectionDomain(&client0);
+    var client1 = Pd.create(allocator, "client1", "serial_server.elf");
+    sdf.addProtectionDomain(&client1);
+
+    var serial_system = try sddf.SerialSystem.init(allocator, sdf, uart_node, &uart_driver, &serial_virt_tx, &serial_virt_rx, .{ .rx = true });
+    serial_system.addClient(&client0);
+    serial_system.addClient(&client1);
+
+    uart_driver.priority = 100;
+    serial_virt_tx.priority = 99;
+    serial_virt_rx.priority = 98;
+
+    try serial_system.connect();
+    try sdf.print();
 }
 
 pub fn main() !void {
