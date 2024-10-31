@@ -800,15 +800,6 @@ pub const BlockSystem = struct {
         try data.serialize(config, path);
         // try data.jsonify(config, "block.json", .{ .whitespace = .indent_4 });
     }
-
-    // pub fn writeConfig(system: *BlockSystem, path: []const u8) !void {
-    //     std.debug.assert(system.connected);
-
-    //     const metadata = Resources.Block.Virt = .{
-    //         .num_clients = system.clients.len,
-    //         .driver_storage_info =
-    //     }
-    // }
 };
 
 /// TODO: these functions do very little error checking
