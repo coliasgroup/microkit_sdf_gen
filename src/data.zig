@@ -50,7 +50,6 @@ pub const Resources = struct {
         pub const MAX_NUM_CLIENTS = 61;
 
         pub const Driver = extern struct {
-            uart_regs: u64,
             rx_queue_addr: u64,
             tx_queue_addr: u64,
             rx_data_addr: u64,
