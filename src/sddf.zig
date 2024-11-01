@@ -599,43 +599,17 @@ pub const BlockSystem = struct {
     connected: bool = false,
     // TODO: make this configurable per component
     queue_mr_size: usize,
-    config: SerialiseConfig = undefined,
+    config: SerialiseConfig,
 
     const SerialiseConfig = struct {
-        driver: ConfigResources.Block.Virt.Driver,
-        clients: std.ArrayList(ConfigResources.Block.Virt.Client),
+        virt_driver: ConfigResources.Block.Virt.Driver = undefined,
+        virt_clients: std.ArrayList(ConfigResources.Block.Virt.Client),
+        clients: std.ArrayList(ConfigResources.Block.Client),
     };
 
     pub const Options = struct {};
 
     const REGION_CONFIG_SIZE: usize = 0x1000;
-
-    const Region = enum {
-        config,
-        request,
-        response,
-        data,
-    };
-
-    // The driver has
-    // * device region(s)
-    // * config region with virt
-    // * request region with virt
-    // * response region with virt
-
-    // The virtualiser has
-    // * config region with driver
-    // * request region with driver
-    // * response region with driver
-    // for each client:
-    // * config region with client
-    // * request region with client
-    // * response region with client
-
-    // The client has:
-    // * config region with virt
-    // * request region with virt
-    // * response region with virt
 
     pub fn init(allocator: Allocator, sdf: *SystemDescription, device: *dtb.Node, driver: *Pd, virt: *Pd, _: Options) BlockSystem {
         return .{
@@ -647,6 +621,10 @@ pub const BlockSystem = struct {
             .virt = virt,
             // TODO: make configurable
             .queue_mr_size = 0x200_000,
+            .config = .{
+                .virt_clients = std.ArrayList(ConfigResources.Block.Virt.Client).init(allocator),
+                .clients = std.ArrayList(ConfigResources.Block.Client).init(allocator),
+            }
         };
     }
 
@@ -654,7 +632,7 @@ pub const BlockSystem = struct {
         system.clients.append(client) catch @panic("Could not add client to BlockSystem");
     }
 
-    pub fn connectDriver(system: *BlockSystem) ConfigResources.Block.Virt.Driver {
+    pub fn connectDriver(system: *BlockSystem) void {
         const sdf = system.sdf;
         const allocator = system.allocator;
         const driver = system.driver;
@@ -708,7 +686,7 @@ pub const BlockSystem = struct {
 
         system.sdf.addChannel(.create(system.virt, system.driver, .{}));
 
-        return .{
+        system.config.virt_driver = .{
             .storage_info = map_config_virt.vaddr,
             .req_queue = map_req_virt.vaddr,
             .resp_queue = map_resp_virt.vaddr,
@@ -719,14 +697,14 @@ pub const BlockSystem = struct {
         };
     }
 
-    pub fn connectClient(system: *BlockSystem, client: *Pd, i: usize) ConfigResources.Block.Virt.Client {
+    pub fn connectClient(system: *BlockSystem, client: *Pd, i: usize) void {
         const sdf = system.sdf;
         const allocator = system.allocator;
         const queue_mr_size = system.queue_mr_size;
 
         const mr_config = Mr.create(allocator, fmt(allocator, "blk_client_{s}_config", .{client.name}), REGION_CONFIG_SIZE, .{});
         const map_config_virt = Map.create(mr_config, system.virt.getMapVaddr(&mr_config), .rw, true, .{});
-        const map_config_client = Map.create(mr_config, client.getMapVaddr(&mr_config), .r, true, .{ .setvar_vaddr = "blk_storage_info" });
+        const map_config_client = Map.create(mr_config, client.getMapVaddr(&mr_config), .r, true, .{});
 
         system.sdf.addMemoryRegion(mr_config);
         system.virt.addMap(map_config_virt);
@@ -734,7 +712,7 @@ pub const BlockSystem = struct {
 
         const mr_req = Mr.create(allocator, fmt(allocator, "blk_client_{s}_request", .{client.name}), queue_mr_size, .{});
         const map_req_virt = Map.create(mr_req, system.virt.getMapVaddr(&mr_req), .rw, true, .{});
-        const map_req_client = Map.create(mr_req, client.getMapVaddr(&mr_req), .rw, true, .{ .setvar_vaddr = "blk_req_queue" });
+        const map_req_client = Map.create(mr_req, client.getMapVaddr(&mr_req), .rw, true, .{});
 
         system.sdf.addMemoryRegion(mr_req);
         system.virt.addMap(map_req_virt);
@@ -742,7 +720,7 @@ pub const BlockSystem = struct {
 
         const mr_resp = Mr.create(allocator, fmt(allocator, "blk_client_{s}_response", .{client.name}), queue_mr_size, .{});
         const map_resp_virt = Map.create(mr_resp, system.virt.getMapVaddr(&mr_resp), .rw, true, .{});
-        const map_resp_client = Map.create(mr_resp, client.getMapVaddr(&mr_resp), .rw, true, .{ .setvar_vaddr = "blk_resp_queue" });
+        const map_resp_client = Map.create(mr_resp, client.getMapVaddr(&mr_resp), .rw, true, .{});
 
         system.sdf.addMemoryRegion(mr_resp);
         system.virt.addMap(map_resp_virt);
@@ -751,7 +729,7 @@ pub const BlockSystem = struct {
         // TODO: do not specify page size. Work-around for Microkit bug
         const mr_data = Mr.physical(allocator, sdf, fmt(allocator, "blk_client_{s}_data", .{client.name}), queue_mr_size, .{ .page_size = .small });
         const map_data_virt = Map.create(mr_data, system.virt.getMapVaddr(&mr_data), .rw, true, .{});
-        const map_data_client = Map.create(mr_data, client.getMapVaddr(&mr_data), .rw, true, .{ .setvar_vaddr = "blk_data" });
+        const map_data_client = Map.create(mr_data, client.getMapVaddr(&mr_data), .rw, true, .{});
 
         system.sdf.addMemoryRegion(mr_data);
         system.virt.addMap(map_data_virt);
@@ -759,7 +737,7 @@ pub const BlockSystem = struct {
 
         system.sdf.addChannel(.create(system.virt, client, .{}));
 
-        return .{
+        system.config.virt_clients.append(.{
             .req_queue = map_req_virt.vaddr,
             .resp_queue = map_resp_virt.vaddr,
             .storage_info = map_config_virt.vaddr,
@@ -769,36 +747,43 @@ pub const BlockSystem = struct {
             .queue_mr_size = queue_mr_size,
             // TODO: fix,
             .partition = @intCast(i),
-        };
+        }) catch @panic("could not add virt client config");
+
+        system.config.clients.append(.{
+            .storage_info = map_config_client.vaddr,
+            .req_queue = map_req_client.vaddr,
+            .resp_queue = map_resp_client.vaddr,
+            .data_vaddr = map_data_client.vaddr,
+            // TODO: fix
+            .queue_capacity = 128,
+        }) catch @panic("could not add client config");
     }
 
     pub fn connect(system: *BlockSystem) !void {
         const sdf = system.sdf;
-        const allocator = system.allocator;
 
         // 1. Create the device resources for the driver
         try createDriver(sdf, system.driver, system.device, .blk);
         // 2. Connect the driver to the virtualiser
-        const driver_config = system.connectDriver();
-        var clients_config = try std.ArrayList(ConfigResources.Block.Virt.Client).initCapacity(allocator, system.clients.items.len);
+        system.connectDriver();
         // 3. Connect each client to the virtualiser
         for (system.clients.items, 0..) |client, i| {
-            const client_config = system.connectClient(client, i);
-            clients_config.appendAssumeCapacity(client_config);
+            system.connectClient(client, i);
         }
 
         system.connected = true;
-
-        system.config = .{
-            .driver = driver_config,
-            .clients = clients_config,
-        };
     }
 
     pub fn serialiseConfig(system: *BlockSystem, path: []const u8) !void {
-        const config = ConfigResources.Block.Virt.create(system.config.driver, system.config.clients.items);
-        try data.serialize(config, path);
-        // try data.jsonify(config, "block.json", .{ .whitespace = .indent_4 });
+        if (!system.connected) return error.SystemNotConnected;
+
+        const virt_config = ConfigResources.Block.Virt.create(system.config.virt_driver, system.config.virt_clients.items);
+        try data.serialize(virt_config, path);
+
+        for (system.config.clients.items, 0..) |config, i| {
+            try data.serialize(config, fmt(system.allocator, "{s}.data", .{ system.clients.items[i].name }));
+            try data.jsonify(config, fmt(system.allocator, "{s}.json", .{ system.clients.items[i].name }), .{ .whitespace = .indent_4 });
+        }
     }
 };
 

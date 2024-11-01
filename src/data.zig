@@ -5,11 +5,19 @@ const std = @import("std");
 /// request, response, configuration
 pub const Resources = struct {
     pub const Block = struct {
+        pub const Client = extern struct {
+            storage_info: u64,
+            req_queue: u64,
+            resp_queue: u64,
+            data_vaddr: u64,
+            queue_capacity: u64,
+        };
+
         pub const Virt = extern struct {
             const MAX_NUM_CLIENTS = 62;
 
-            pub fn create(driver: Driver, clients: []const Client) Virt {
-                var clients_array = std.mem.zeroes([MAX_NUM_CLIENTS]Client);
+            pub fn create(driver: Driver, clients: []const Virt.Client) Virt {
+                var clients_array = std.mem.zeroes([MAX_NUM_CLIENTS]Virt.Client);
                 for (clients, 0..) |client, i| {
                     clients_array[i] = client;
                 }
@@ -42,7 +50,7 @@ pub const Resources = struct {
 
             num_clients: u64,
             driver: Driver,
-            clients: [MAX_NUM_CLIENTS]Client,
+            clients: [MAX_NUM_CLIENTS]Virt.Client,
         };
     };
 
