@@ -676,13 +676,11 @@ pub const BlockSystem = struct {
         driver.addMap(map_resp_driver);
         virt.addMap(map_resp_virt);
 
-        // TODO: do not specify page size. Work-around for Microkit bug
-        const mr_data = Mr.physical(allocator, sdf, "blk_driver_data", 0x200_000, .{ .page_size = .small });
+        const mr_data = Mr.physical(allocator, sdf, "blk_driver_data", 0x200_000, .{});
         const map_data_virt = Map.create(mr_data, virt.getMapVaddr(&mr_data), .rw, true, .{});
 
         sdf.addMemoryRegion(mr_data);
         virt.addMap(map_data_virt);
-        // virt.addSetVar(SetVar.create("blk_data_paddr_driver", &mr_data));
 
         system.sdf.addChannel(.create(system.virt, system.driver, .{}));
 
@@ -726,8 +724,7 @@ pub const BlockSystem = struct {
         system.virt.addMap(map_resp_virt);
         client.addMap(map_resp_client);
 
-        // TODO: do not specify page size. Work-around for Microkit bug
-        const mr_data = Mr.physical(allocator, sdf, fmt(allocator, "blk_client_{s}_data", .{client.name}), queue_mr_size, .{ .page_size = .small });
+        const mr_data = Mr.physical(allocator, sdf, fmt(allocator, "blk_client_{s}_data", .{client.name}), queue_mr_size, .{});
         const map_data_virt = Map.create(mr_data, system.virt.getMapVaddr(&mr_data), .rw, true, .{});
         const map_data_client = Map.create(mr_data, client.getMapVaddr(&mr_data), .rw, true, .{});
 
