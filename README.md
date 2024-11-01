@@ -37,7 +37,13 @@ Both of these solutions are very much in a work-in-progress state.
 
 ## Developing
 
-You will need an up-to-date, master version of Zig. Please see https://ziglang.org/download/.
+All the tooling is currently written in [Zig](https://ziglang.org/download/) with bindings
+for other languages available.
+
+To work on the tooling you will need the Zig compiler.
+
+Right now we rely on unreleased features of Zig which means you will need a master version of
+Zig, e.g version `0.14.0-dev.2079+ba2d00663` or higher. See https://ziglang.org/download/.
 
 ### Zig bindings
 
