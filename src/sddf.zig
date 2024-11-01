@@ -779,6 +779,7 @@ pub const BlockSystem = struct {
 
         const virt_config = ConfigResources.Block.Virt.create(system.config.virt_driver, system.config.virt_clients.items);
         try data.serialize(virt_config, path);
+        try data.jsonify(virt_config, "virt.json", .{ .whitespace = .indent_4 });
 
         for (system.config.clients.items, 0..) |config, i| {
             try data.serialize(config, fmt(system.allocator, "{s}.data", .{ system.clients.items[i].name }));
