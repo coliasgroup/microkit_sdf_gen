@@ -1120,8 +1120,8 @@ pub const NetworkSystem = struct {
             const mr = Mr.create(allocator, mr_name, system.region_size, .{});
             system.sdf.addMemoryRegion(mr);
             const perms = switch (@as(Region, @enumFromInt(region.value))) {
-                .data => .{ .read = true },
-                else => .{ .read = true, .write = true },
+                .data => Map.Permissions{ .read = true },
+                else => Map.Permissions{ .read = true, .write = true },
             };
             // Data regions are not to be mapped in the driver's address space
             // @ivanv: gross syntax
