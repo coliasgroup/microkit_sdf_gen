@@ -192,11 +192,11 @@ pub const SystemDescription = struct {
             write: bool = false,
             execute: bool = false,
 
-            pub const r = .{ .read = true };
-            pub const x = .{ .execute = true };
-            pub const rw = .{ .read = true, .write = true };
-            pub const rx = .{ .read = true, .execute = true };
-            pub const rwx = .{ .read = true, .write = true, .execute = true };
+            pub const r = Permissions{ .read = true };
+            pub const x = Permissions{ .execute = true };
+            pub const rw = Permissions{ .read = true, .write = true };
+            pub const rx = Permissions{ .read = true, .execute = true };
+            pub const rwx = Permissions{ .read = true, .write = true, .execute = true };
 
             pub fn toString(perms: Permissions, buf: *[4]u8) usize {
                 var i: u8 = 0;
