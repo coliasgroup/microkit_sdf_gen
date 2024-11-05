@@ -60,7 +60,7 @@ export fn sdfgen_dtb_parse(path: [*c]u8) ?*anyopaque {
 
 export fn sdfgen_dtb_parse_from_bytes(bytes: [*c]u8, size: u32) ?*anyopaque {
     const blob = modsdf.dtb.parse(allocator, bytes[0..size]) catch |e| {
-        std.log.err("could not parse DTB from bytes with error: {any}", .{ e });
+        std.log.err("could not parse DTB from bytes with error: {any}", .{e});
         return null;
     };
 

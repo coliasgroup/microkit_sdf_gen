@@ -40,7 +40,7 @@ pub const SystemDescription = struct {
         name: []const u8,
 
         pub fn create(symbol: []const u8, mr: *const MemoryRegion) SetVar {
-            return SetVar {
+            return SetVar{
                 .symbol = symbol,
                 .name = mr.name,
             };
@@ -110,13 +110,13 @@ pub const SystemDescription = struct {
             _ = try writer.write(xml);
 
             if (mr.paddr) |paddr| {
-                const paddr_xml = try allocPrint(sdf.allocator, " phys_addr=\"0x{x}\"", .{ paddr });
+                const paddr_xml = try allocPrint(sdf.allocator, " phys_addr=\"0x{x}\"", .{paddr});
                 defer sdf.allocator.free(paddr_xml);
                 _ = try writer.write(paddr_xml);
             }
 
             if (mr.page_size) |page_size| {
-                const page_size_xml = try allocPrint(sdf.allocator, " page_size=\"0x{x}\"", .{ page_size.toInt(sdf.arch) });
+                const page_size_xml = try allocPrint(sdf.allocator, " page_size=\"0x{x}\"", .{page_size.toInt(sdf.arch)});
                 defer sdf.allocator.free(page_size_xml);
                 _ = try writer.write(page_size_xml);
             }
@@ -163,7 +163,7 @@ pub const SystemDescription = struct {
                 }
             }
 
-           pub fn optimal(arch: Arch, region_size: usize) PageSize {
+            pub fn optimal(arch: Arch, region_size: usize) PageSize {
                 // @ivanv: would be better if we did some meta programming in case the
                 // number of elements in PageSize change
                 // if (region_size % PageSize.huge.toSize(sdf.arch) == 0) return .huge;
@@ -321,7 +321,7 @@ pub const SystemDescription = struct {
             _ = try writer.write("\n");
 
             // Add memory region mappings as child nodes
-            const child_separator = try allocPrint(sdf.allocator, "{s}    ", .{ separator });
+            const child_separator = try allocPrint(sdf.allocator, "{s}    ", .{separator});
             defer sdf.allocator.free(child_separator);
 
             for (vm.vcpus) |vcpu| {
@@ -338,7 +338,7 @@ pub const SystemDescription = struct {
             const closing_tag =
                 \\{s}</virtual_machine>
             ;
-            const closing_xml = try allocPrint(sdf.allocator, closing_tag, .{ separator });
+            const closing_xml = try allocPrint(sdf.allocator, closing_tag, .{separator});
             defer sdf.allocator.free(closing_xml);
             _ = try writer.write(closing_xml);
             _ = try writer.write("\n");
@@ -490,17 +490,7 @@ pub const SystemDescription = struct {
             const attributes_str =
                 \\priority="{}" budget="{}" period="{}" passive="{}" stack_size="0x{x}"
             ;
-            const attributes_xml = try allocPrint(
-                sdf.allocator,
-                attributes_str,
-                .{
-                    pd.priority,
-                    budget,
-                    period,
-                    pd.passive,
-                    pd.stack_size
-                }
-            );
+            const attributes_xml = try allocPrint(sdf.allocator, attributes_str, .{ pd.priority, budget, period, pd.passive, pd.stack_size });
             defer sdf.allocator.free(attributes_xml);
             var top: []const u8 = undefined;
             if (id) |id_val| {
@@ -511,7 +501,7 @@ pub const SystemDescription = struct {
             defer sdf.allocator.free(top);
             _ = try writer.write(top);
 
-            const child_separator = try allocPrint(sdf.allocator, "{s}    ", .{ separator });
+            const child_separator = try allocPrint(sdf.allocator, "{s}    ", .{separator});
             defer sdf.allocator.free(child_separator);
             // Add program image (if we have one)
             if (pd.program_image) |program_image| {
@@ -540,7 +530,7 @@ pub const SystemDescription = struct {
                 try setvar.toXml(sdf, writer, child_separator);
             }
 
-            const bottom = try allocPrint(sdf.allocator, "{s}</protection_domain>\n", .{ separator });
+            const bottom = try allocPrint(sdf.allocator, "{s}</protection_domain>\n", .{separator});
             defer sdf.allocator.free(bottom);
             _ = try writer.write(bottom);
         }
@@ -555,10 +545,7 @@ pub const SystemDescription = struct {
         pd_b_notify: bool,
         pp: ?End,
 
-        const End = enum {
-            a,
-            b
-        };
+        const End = enum { a, b };
 
         const Options = struct {
             pd_a_notify: bool = true,
@@ -579,7 +566,7 @@ pub const SystemDescription = struct {
         }
 
         pub fn toXml(ch: Channel, sdf: *SystemDescription, writer: ArrayList(u8).Writer, separator: []const u8) !void {
-            const child_separator = try allocPrint(sdf.allocator, "{s}    ", .{ separator });
+            const child_separator = try allocPrint(sdf.allocator, "{s}    ", .{separator});
             defer sdf.allocator.free(child_separator);
             const channel_str =
                 \\{s}<channel>{s}{s}<end pd="{s}" id="{}" notify="{}" pp="{}" />{s}{s}<end pd="{s}" id="{}" notify="{}" pp="{}" />{s}{s}</channel>
@@ -588,25 +575,7 @@ pub const SystemDescription = struct {
             const pp_end_a = if (ch.pp) |pp| pp == .a else false;
             const pp_end_b = if (ch.pp) |pp| pp == .b else false;
 
-            const channel_xml = try allocPrint(sdf.allocator, channel_str,
-                .{
-                    separator,
-                    "\n",
-                    child_separator,
-                    ch.pd_a.name,
-                    ch.pd_a_id,
-                    ch.pd_a_notify,
-                    pp_end_a,
-                    "\n",
-                    child_separator,
-                    ch.pd_b.name,
-                    ch.pd_b_id,
-                    ch.pd_b_notify,
-                    pp_end_b,
-                    "\n",
-                    separator
-                }
-            );
+            const channel_xml = try allocPrint(sdf.allocator, channel_str, .{ separator, "\n", child_separator, ch.pd_a.name, ch.pd_a_id, ch.pd_a_notify, pp_end_a, "\n", child_separator, ch.pd_b.name, ch.pd_b_id, ch.pd_b_notify, pp_end_b, "\n", separator });
             defer sdf.allocator.free(channel_xml);
 
             _ = try writer.write(channel_xml);
@@ -708,7 +677,7 @@ pub const SystemDescription = struct {
         // array of bytes for consumption by langauges like C.
         _ = try writer.write("</system>\n" ++ "\x00");
 
-        return sdf.xml_data.items[0..sdf.xml_data.items.len-1:0];
+        return sdf.xml_data.items[0 .. sdf.xml_data.items.len - 1 :0];
     }
 
     pub fn print(sdf: *SystemDescription) !void {

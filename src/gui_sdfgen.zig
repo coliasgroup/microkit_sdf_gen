@@ -248,7 +248,7 @@ fn parseIrqFromJson(irq_config: anytype) !Irq {
     const irq_num: usize = @intCast(irq_config.get("irq").?.integer);
     const id: usize = @intCast(irq_config.get("id_").?.integer);
     const trigger_str = irq_config.get("trigger").?.string;
-    var trigger : Irq.Trigger = .edge;
+    var trigger: Irq.Trigger = .edge;
     if (std.mem.eql(u8, trigger_str, "level")) {
         trigger = .level;
     } else if (std.mem.eql(u8, trigger_str, "edge")) {
@@ -474,7 +474,7 @@ fn getPageSizeOptionsJson(board_str: []const u8, writer: anytype) !void {
             _ = try writer.write(", ");
         }
         const page_size: PageSize = @enumFromInt(field.value);
-        try writer.print("{{\"label\":\"{s}\",\"value\":{}}}", .{field.name, page_size.toSize(arch)});
+        try writer.print("{{\"label\":\"{s}\",\"value\":{}}}", .{ field.name, page_size.toSize(arch) });
     }
 }
 
@@ -488,7 +488,7 @@ fn getDtJson(allocator: Allocator, blob: *dtb.Node, writer: anytype) !void {
     if (blob.prop(.Compatible)) |compatibles| {
         for (compatibles, 0..) |compatible, i| {
             if (i != 0) {
-               _ =  try writer.write(", ");
+                _ = try writer.write(", ");
             }
             const compatible_string = try std.fmt.allocPrint(allocator, "\"{s}\"", .{compatible});
             defer allocator.free(compatible_string);
@@ -561,7 +561,6 @@ export fn fetchInitInfo(input_ptr: [*]const u8, input_len: usize, result_ptr: [*
     };
     defer blob.deinit(allocator);
 
-
     var board_info = std.ArrayList(u8).init(allocator);
     defer board_info.deinit();
 
@@ -585,7 +584,6 @@ export fn fetchInitInfo(input_ptr: [*]const u8, input_len: usize, result_ptr: [*
     board_info.writer().print("}}", .{}) catch {
         return printMsg(result_ptr, "Failed to parse DTB children ");
     };
-
 
     return printMsg(result_ptr, board_info.items[0..board_info.items.len]);
 }

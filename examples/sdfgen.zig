@@ -290,7 +290,7 @@ fn webserver(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !vo
 
     const timer_node = switch (board) {
         .odroidc4 => blob.child("soc").?.child("bus@ffd00000").?.child("watchdog@f0d0").?,
-        .qemu_virt_aarch64 => blob.child("timer").?
+        .qemu_virt_aarch64 => blob.child("timer").?,
     };
 
     var timer_driver = Pd.create(allocator, "timer_driver", "timer_driver.elf");
@@ -406,7 +406,7 @@ fn kitty(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !void {
 
     const timer_node = switch (board) {
         .odroidc4 => blob.child("soc").?.child("bus@ffd00000").?.child("watchdog@f0d0").?,
-        else => @panic("Don't know timer node for platform")
+        else => @panic("Don't know timer node for platform"),
     };
 
     var timer_client = Pd.create(sdf, "timer_client", "timer_client.elf");
@@ -498,9 +498,7 @@ fn echo_server(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !
     var client1 = Pd.create(sdf, "client1", "lwip.elf");
     sdf.addProtectionDomain(&client1);
 
-    var ethernet_system = sddf.NetworkSystem.init(allocator, sdf, ethernet, &eth_driver, &net_virt_rx, &net_virt_tx, .{
-        .region_size = 0x200_000
-    });
+    var ethernet_system = sddf.NetworkSystem.init(allocator, sdf, ethernet, &eth_driver, &net_virt_rx, &net_virt_tx, .{ .region_size = 0x200_000 });
     ethernet_system.addClientWithCopier(&client0, &net_copier0_rx);
     ethernet_system.addClientWithCopier(&client1, &net_copier1_rx);
 

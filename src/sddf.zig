@@ -624,7 +624,7 @@ pub const BlockSystem = struct {
             .config = .{
                 .virt_clients = std.ArrayList(ConfigResources.Block.Virt.Client).init(allocator),
                 .clients = std.ArrayList(ConfigResources.Block.Client).init(allocator),
-            }
+            },
         };
     }
 
@@ -775,8 +775,8 @@ pub const BlockSystem = struct {
         if (!system.connected) return error.SystemNotConnected;
 
         const virt_config = ConfigResources.Block.Virt.create(system.config.virt_driver, system.config.virt_clients.items);
-        try data.serialize(virt_config, fmt(system.allocator, "{s}/blk_virt.data", .{ output }));
-        try data.jsonify(virt_config, fmt(system.allocator, "{s}/blk_virt.json", .{ output }), .{ .whitespace = .indent_4 });
+        try data.serialize(virt_config, fmt(system.allocator, "{s}/blk_virt.data", .{output}));
+        try data.jsonify(virt_config, fmt(system.allocator, "{s}/blk_virt.json", .{output}), .{ .whitespace = .indent_4 });
 
         for (system.config.clients.items, 0..) |config, i| {
             try data.serialize(config, fmt(system.allocator, "{s}/{s}.data", .{ output, system.clients.items[i].name }));

@@ -91,7 +91,7 @@ pub const VirtualMachineSystem = struct {
     pub fn connect(system: *VirtualMachineSystem) !void {
         var sdf = system.sdf;
         if (sdf.arch != .aarch64) {
-            std.debug.print("Unsupported architecture: '{}'", .{ system.sdf.arch });
+            std.debug.print("Unsupported architecture: '{}'", .{system.sdf.arch});
             return error.UnsupportedArch;
         }
         const vmm = system.vmm;
@@ -114,7 +114,7 @@ pub const VirtualMachineSystem = struct {
         std.debug.assert(memory_reg.len == 1);
         const memory_paddr: usize = @intCast(memory_reg[0][0]);
         // TODO: should free the name at some point....
-        const guest_mr_name = std.fmt.allocPrint(system.allocator, "guest_ram_{s}", .{ vm.name }) catch @panic("OOM");
+        const guest_mr_name = std.fmt.allocPrint(system.allocator, "guest_ram_{s}", .{vm.name}) catch @panic("OOM");
         // TODO: get RAM size from the memory node from DTB
         const guest_ram_size: usize = @intCast(memory_reg[0][1]);
         const guest_ram_phys_addr: ?usize = if (system.one_to_one_ram) memory_paddr else null;

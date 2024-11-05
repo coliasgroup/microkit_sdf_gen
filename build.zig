@@ -54,9 +54,7 @@ pub fn build(b: *std.Build) !void {
     const test_step = b.step("test", "Run tests");
     test_step.dependOn(&run_main_tests.step);
 
-    const modsdf = b.addModule("sdf", .{
-        .root_source_file = b.path("src/mod.zig")
-    });
+    const modsdf = b.addModule("sdf", .{ .root_source_file = b.path("src/mod.zig") });
     modsdf.addImport("dtb", dtbzig_dep.module("dtb"));
 
     const csdfgen = b.addStaticLibrary(.{
@@ -78,13 +76,7 @@ pub fn build(b: *std.Build) !void {
     });
     pysdfgen.linkLibrary(csdfgen);
     pysdfgen.linker_allow_shlib_undefined = true;
-    pysdfgen.addCSourceFile(.{
-        .file = b.path("python/module.c"),
-        .flags = &.{
-            "-Wall",
-            "-Werror"
-        }
-    });
+    pysdfgen.addCSourceFile(.{ .file = b.path("python/module.c"), .flags = &.{ "-Wall", "-Werror" } });
     for (python_include) |include| {
         pysdfgen.addIncludePath(.{ .cwd_relative = include });
     }
