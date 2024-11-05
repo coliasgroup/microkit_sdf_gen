@@ -52,14 +52,14 @@ The source code for the sdfgen tooling is written in Zig, and so we simply expos
 
 To build and run an example of the Zig bindings being used run:
 ```sh
-zig build sdfgen -- --example webserver --board qemu_virt_aarch64
+zig build zig_example -- --example webserver --board qemu_virt_aarch64
 ```
 
-The source code is in `examples/sdfgen.zig`.
+The source code is in `examples/examples.zig`.
 
 To see all the options run:
 ```sh
-zig build sdfgen -- --help
+zig build zig_example -- --help
 ```
 
 ### C bindings
@@ -70,10 +70,14 @@ zig build c
 
 The library will be at `zig-out/lib/csdfgen`.
 
+The source code for the bindings is in `src/c/`.
+
 To run an example C program that uses the bindings, run:
 ```sh
 zig build c_example
 ```
+
+The source code for the example is in `examples/examples.c`.
 
 ### Python bindings
 

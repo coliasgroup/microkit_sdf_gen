@@ -23,10 +23,10 @@ pub fn build(b: *std.Build) !void {
     });
     sdf_module.addImport("dtb", dtb_module);
 
-    const sdfgen_step = b.step("sdfgen", "Utility for testing and developing examples of SDF auto-generation");
+    const sdfgen_step = b.step("zig_example", "Exmaples of using Zig bindings");
     const sdfgen = b.addExecutable(.{
-        .name = "sdfgen",
-        .root_source_file = b.path("examples/sdfgen.zig"),
+        .name = "zig_example",
+        .root_source_file = b.path("examples/examples.zig"),
         .target = target,
         .optimize = optimize,
     });

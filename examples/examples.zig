@@ -96,9 +96,9 @@ var board: MicrokitBoard = undefined;
 var example: Example = undefined;
 
 const usage_text =
-    \\Usage sdfgen --board [BOARD] --example [EXAMPLE SYSTEM] [options]
+    \\Usage zig_example --board [BOARD] --example [EXAMPLE SYSTEM] [options]
     \\
-    \\Generates a Microkit system description file programatically
+    \\Examples for generating Microkit systems programmatically in Zig
     \\
     \\ Options:
     \\ --board <board>
