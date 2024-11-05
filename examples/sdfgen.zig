@@ -378,7 +378,6 @@ fn webserver(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !vo
     _ = try blk_system.connect();
 
     const fatfs_metadata = Mr.create(allocator, "fatfs_metadata", 0x200_000, .{});
-    std.debug.print("metadata vaddr {x}\n", .{ fatfs.getMapVaddr(&fatfs_metadata) });
     // TODO: fix
     fatfs.addMap(Map.create(fatfs_metadata, 0x40_000_000, .rw, true, .{ .setvar_vaddr = "fs_metadata" }));
     sdf.addMemoryRegion(fatfs_metadata);
@@ -621,9 +620,9 @@ pub fn main() !void {
     const compatible_drivers = try sddf.compatibleDrivers(allocator);
     defer allocator.free(compatible_drivers);
 
-    std.debug.print("sDDF drivers found:\n", .{});
+    std.log.debug("sDDF drivers found:\n", .{});
     for (compatible_drivers) |driver| {
-        std.debug.print("   - {s}\n", .{driver});
+        std.log.debug("   - {s}\n", .{driver});
     }
 
     var sdf = SystemDescription.create(allocator, board.arch(), board.paddrTop());
