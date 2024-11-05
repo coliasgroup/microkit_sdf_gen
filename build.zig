@@ -66,6 +66,7 @@ pub fn build(b: *std.Build) !void {
         .optimize = optimize,
     });
     csdfgen.linkLibC();
+    csdfgen.installHeader(b.path("src/c/sdfgen.h"), "sdfgen.h");
     csdfgen.root_module.addImport("sdf", modsdf);
     b.installArtifact(csdfgen);
 
@@ -91,7 +92,6 @@ pub fn build(b: *std.Build) !void {
         try pysdfgen.step.addError("python bindings need a list of python include directories, see -Dpython-include option", .{});
     }
     pysdfgen.linkLibC();
-    pysdfgen.addIncludePath(b.path("src/c"));
     b.installArtifact(pysdfgen);
 
     const pysdfgen_step = b.step("python", "Library for the Python sdfgen module");
@@ -107,9 +107,8 @@ pub fn build(b: *std.Build) !void {
         .target = target,
         .optimize = optimize,
     });
-    c_example.addCSourceFile(.{ .file = b.path("c/example.c") });
+    c_example.addCSourceFile(.{ .file = b.path("examples//example.c") });
     c_example.linkLibrary(csdfgen);
-    c_example.addIncludePath(b.path("src/c"));
     c_example.linkLibC();
     const c_example_cmd = b.addRunArtifact(c_example);
 
