@@ -99,7 +99,7 @@ pub fn build(b: *std.Build) !void {
         .target = target,
         .optimize = optimize,
     });
-    c_example.addCSourceFile(.{ .file = b.path("examples//example.c") });
+    c_example.addCSourceFile(.{ .file = b.path("examples/examples.c") });
     c_example.linkLibrary(csdfgen);
     c_example.linkLibC();
     const c_example_cmd = b.addRunArtifact(c_example);
