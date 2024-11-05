@@ -517,7 +517,9 @@ static PyTypeObject LionsType = {
 static int
 SystemDescription_init(SystemDescriptionObject *self, PyObject *args, PyObject *kwds)
 {
-    self->sdf = sdfgen_create();
+    Py_ssize_t paddr_top;
+    PyArg_ParseTuple(args, "n", &paddr_top);
+    self->sdf = sdfgen_create(paddr_top);
     return 0;
 }
 

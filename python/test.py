@@ -3,8 +3,11 @@ from sdfgen import SystemDescription, ProtectionDomain, Sddf, DeviceTree, LionsO
 SDDF_PATH = "/Users/ivanv/ts/lionsos_tutorial/lionsos/dep/sddf"
 DTB_PATH = "/Users/ivanv/ts/lionsos_tutorial/qemu_virt_aarch64.dtb"
 
+# TODO: temporary
+PADDR_TOP = 0xa_000_000
+
 if __name__ == '__main__':
-    sdf = SystemDescription()
+    sdf = SystemDescription(PADDR_TOP)
     sddf = Sddf(SDDF_PATH)
 
     with open(DTB_PATH, "rb") as f:
