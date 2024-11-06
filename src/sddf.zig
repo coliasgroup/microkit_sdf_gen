@@ -3,6 +3,7 @@ const builtin = @import("builtin");
 const mod_sdf = @import("sdf.zig");
 const dtb = @import("dtb");
 const data = @import("data.zig");
+const log = @import("log.zig");
 
 const assert = std.debug.assert;
 const Allocator = std.mem.Allocator;
@@ -97,8 +98,8 @@ pub fn probe(allocator: Allocator, path: []const u8) !void {
     // TODO: we could init capacity with number of DeviceClassType fields
     classes = std.ArrayList(Config.DeviceClass).init(allocator);
 
-    std.log.debug("starting sDDF probe", .{});
-    std.log.debug("opening sDDF root dir '{s}'", .{path});
+    log.debug("starting sDDF probe", .{});
+    log.debug("opening sDDF root dir '{s}'", .{path});
     var sddf = try std.fs.cwd().openDir(path, .{});
     defer sddf.close();
 
@@ -1391,28 +1392,23 @@ pub fn createDriver(sdf: *SystemDescription, pd: *Pd, device: *dtb.Node, class: 
 
     // TODO: It is expected for a lot of devices to have multiple compatible strings,
     // we need to deal with that here.
-    if (!builtin.target.cpu.arch.isWasm()) {
-        std.log.debug("Creating driver for device: '{s}'", .{device.name});
-        std.log.debug("Compatible with:", .{});
-        for (compatible) |c| {
-            std.log.debug("     '{s}'", .{c});
-        }
+    log.debug("Creating driver for device: '{s}'", .{device.name});
+    log.debug("Compatible with:", .{});
+    for (compatible) |c| {
+        log.debug("     '{s}'", .{c});
     }
     // Get the driver based on the compatible string are given, assuming we can
     // find it.
     const driver = if (findDriver(compatible, class)) |d| d else {
-        std.log.err("Cannot find driver matching '{s}' for class '{s}'", .{ device.name, @tagName(class) });
+        log.err("Cannot find driver matching '{s}' for class '{s}'", .{ device.name, @tagName(class) });
         return error.UnknownDevice;
     };
-    // TODO: is there a better way to do this
-    if (!builtin.target.cpu.arch.isWasm()) {
-        std.log.debug("Found compatible driver '{s}'", .{driver.name});
-    }
+    log.debug("Found compatible driver '{s}'", .{driver.name});
 
     // If a status property does exist, we should check that it is 'okay'
     if (device.prop(.Status)) |status| {
         if (status != .Okay) {
-            std.log.err("Device '{s}' has invalid status: '{s}'", .{ device.name, status });
+            log.err("Device '{s}' has invalid status: '{s}'", .{ device.name, status });
             return error.DeviceStatusInvalid;
         }
     }
@@ -1423,7 +1419,7 @@ pub fn createDriver(sdf: *SystemDescription, pd: *Pd, device: *dtb.Node, class: 
     // the config file is invalid.
     const num_dt_regs = if (device.prop(.Reg)) |r| r.len else 0;
     if (num_dt_regs < driver.resources.device_regions.len) {
-        std.log.err("device '{s}' has {} DTB node reg entries, but {} config device regions", .{ device.name, num_dt_regs, driver.resources.device_regions.len });
+        log.err("device '{s}' has {} DTB node reg entries, but {} config device regions", .{ device.name, num_dt_regs, driver.resources.device_regions.len });
         return error.InvalidConfig;
     }
 
@@ -1455,17 +1451,17 @@ pub fn createDriver(sdf: *SystemDescription, pd: *Pd, device: *dtb.Node, class: 
             const reg_size = if (reg_entry[1] < 0x1000) 0x1000 else reg_entry[1];
 
             if (reg_size < region.size) {
-                std.log.err("device '{s}' has config region size for dt_index '{}' that is too small (0x{x} bytes)", .{ device.name, region.dt_index, reg_size });
+                log.err("device '{s}' has config region size for dt_index '{}' that is too small (0x{x} bytes)", .{ device.name, region.dt_index, reg_size });
                 return error.InvalidConfig;
             }
 
             if (region.size & ((1 << 12) - 1) != 0) {
-                std.log.err("device '{s}' has config region size not aligned to page size for dt_index '{}'", .{ device.name, region.dt_index });
+                log.err("device '{s}' has config region size not aligned to page size for dt_index '{}'", .{ device.name, region.dt_index });
                 return error.InvalidConfig;
             }
 
             if (reg_size & ((1 << 12) - 1) != 0) {
-                std.log.err("device '{s}' has DTB region size not aligned to page size for dt_index '{}'", .{ device.name, region.dt_index });
+                log.err("device '{s}' has DTB region size not aligned to page size for dt_index '{}'", .{ device.name, region.dt_index });
                 return error.InvalidConfig;
             }
 
