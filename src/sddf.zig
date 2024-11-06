@@ -590,12 +590,14 @@ pub const I2cSystem = struct {
         client.addMap(client_map_data);
 
         system.virt_config.clients[client_num] = .{
-            .driver_data_offset = 0,
+            .driver_data_offset = client_num * system.region_data_size,
             .request_queue = virt_map_req.vaddr,
             .response_queue = virt_map_resp.vaddr,
             .data_size = system.region_data_size,
         };
-        system.driver_config.data_region = driver_map_data.vaddr;
+        if (client_num == 0) {
+            system.driver_config.data_region = driver_map_data.vaddr;
+        }
         system.client_configs.items[client_num] = .{
             .request_region = client_map_req.vaddr,
             .response_region = client_map_resp.vaddr,
@@ -615,15 +617,12 @@ pub const I2cSystem = struct {
         }
         // 2. Connect the driver to the virtualiser
         system.connectDriver();
-        // 3. Connect each client to the virtualiser
+        // 3. Create a channel between the driver and virtualiser for notifications
+        sdf.addChannel(.create(system.driver, system.virt, .{}));
+        // 4. Connect each client to the virtualiser
         for (system.clients.items) |client| {
             system.connectClient(client);
         }
-
-        // Create a channel between the driver and virtualiser for notifications
-        // TODO: restriction of what the driver channel is in the virtualiser forces
-        // us to allocate teh channel after all the client channels have been allocated
-        sdf.addChannel(.create(system.driver, system.virt, .{}));
     }
 
     pub fn serialiseConfig(system: *I2cSystem) !void {
