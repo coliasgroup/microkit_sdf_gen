@@ -88,6 +88,7 @@ pub fn wasmProbe(allocator: Allocator, driverConfigs: anytype, classConfigs: any
     //     const json = try std.json.parseFromSliceLeaky(Config.DeviceClass.Json, allocator, config.get("content").?.content, .{});
     //     try classes.append(Config.DeviceClass.fromJson(json, config.get("class").?.name));
     // }
+    probed = true;
 }
 
 /// As part of the initilisation, we want to find all the JSON configuration
@@ -985,7 +986,7 @@ pub const SerialSystem = struct {
 
     fn rxConnectClient(system: *SerialSystem, client: *Pd, client_config: *ConfigResources.Serial.Client) void {
         const allocator = system.allocator;
-        const client_num = system.virt_rx_config.num_clients;
+        const client_num: usize = @intCast(system.virt_rx_config.num_clients);
         system.virt_rx_config.num_clients += 1;
 
         inline for (std.meta.fields(Region)) |region| {
@@ -1024,7 +1025,7 @@ pub const SerialSystem = struct {
 
     fn txConnectClient(system: *SerialSystem, client: *Pd, client_config: *ConfigResources.Serial.Client) void {
         const allocator = system.allocator;
-        const client_num = system.virt_tx_config.num_clients;
+        const client_num: usize = @intCast(system.virt_tx_config.num_clients);
         system.virt_tx_config.num_clients += 1;
         // assuming name is null-terminated
         @memcpy(system.virt_tx_config.clients[client_num].name[0..client.name.len], client.name);

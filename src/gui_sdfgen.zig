@@ -38,14 +38,6 @@ const MicrokitBoard = enum {
         };
     }
 
-    // pub fn printFields() void {
-    //     comptime var i: usize = 0;
-    //     const fields = @typeInfo(@This()).Enum.fields;
-    //     inline while (i < fields.len) : (i += 1) {
-    //         std.debug.print("{s}\n", .{fields[i].name});
-    //     }
-    // }
-
     /// Get the Device Tree node for the UART we want to use for
     /// each board
     pub fn uartNode(b: MicrokitBoard) []const u8 {
@@ -56,69 +48,9 @@ const MicrokitBoard = enum {
     }
 };
 
-fn abstractions(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) ![]const u8 {
-    const image = ProgramImage.create("uart_driver.elf");
-    var driver = Pd.create(sdf, "uart_driver", image);
-    sdf.addProtectionDomain(&driver);
-
-    var uart_node: ?*dtb.Node = undefined;
-    // TODO: We would probably want some helper functionality that just takes
-    // the full node name such as "/soc/bus@ff8000000/serial@3000" and would
-    // find the DTB node info that we need. For now, this fine.
-    switch (board) {
-        .odroidc4 => {
-            const soc_node = blob.child("soc").?;
-            const bus_node = soc_node.child("bus@ff800000").?;
-            uart_node = bus_node.child("serial@3000");
-        },
-        .qemu_arm_virt => {
-            uart_node = blob.child(board.uartNode());
-        },
-    }
-
-    if (uart_node == null) {
-        // std.log.err("Could not find UART node '{s}'", .{board.uartNode()});
-        // std.process.exit(1);
-        // return 9999;
-        return "Could not find UART node";
-    }
-
-    var serial_system = sddf.SerialSystem.init(allocator, sdf, 0x200000);
-    serial_system.setDriver(&driver, uart_node.?);
-
-    // const clients = [_][]const u8{ "client1", "client2", "client3" };
-
-    const mux_rx_image = ProgramImage.create("mux_rx.elf");
-    var mux_rx = Pd.create(sdf, "mux_rx", mux_rx_image);
-    sdf.addProtectionDomain(&mux_rx);
-
-    const mux_tx_image = ProgramImage.create("mux_tx.elf");
-    var mux_tx = Pd.create(sdf, "mux_tx", mux_tx_image);
-    sdf.addProtectionDomain(&mux_tx);
-
-    serial_system.setMultiplexors(&mux_rx, &mux_tx);
-
-    const client1_image = ProgramImage.create("client1.elf");
-    var client1_pd = Pd.create(sdf, "client1", client1_image);
-    serial_system.addClient(&client1_pd);
-
-    sdf.addProtectionDomain(&client1_pd);
-
-    const client2_image = ProgramImage.create("client2.elf");
-    var client2_pd = Pd.create(sdf, "client2", client2_image);
-    serial_system.addClient(&client2_pd);
-    sdf.addProtectionDomain(&client2_pd);
-
-    serial_system.connect() catch {
-        return "connect error";
-    };
-
-    const xml = sdf.toXml();
-    return xml;
-}
-
 fn parseVMFromJson(sdf: *SystemDescription, node_config: anytype) !*Vm {
-    var vm_new = Vm.create(sdf, node_config.get("name").?.string);
+
+    var vm_new = Vm.create(sdf.allocator, node_config.get("name").?.string, &.{ .{ .id = 0, .cpu = 0 } });
     vm_new.budget = @intCast(node_config.get("budget").?.integer);
     vm_new.priority = @intCast(node_config.get("priority").?.integer);
     vm_new.period = @intCast(node_config.get("period").?.integer);
@@ -138,12 +70,12 @@ fn getMRByName(sdf: *SystemDescription, name: []const u8) !Mr {
 }
 
 fn parsePDFromJson(sdf: *SystemDescription, node_config: anytype) !*Pd {
-    const pd_image = ProgramImage.create(node_config.get("prog_img").?.string);
-    var pd_new = Pd.create(sdf, node_config.get("name").?.string, pd_image);
+    var pd_new = Pd.create(sdf.allocator, node_config.get("name").?.string, node_config.get("prog_img").?.string);
     pd_new.budget = @intCast(node_config.get("budget").?.integer);
     pd_new.priority = @intCast(node_config.get("priority").?.integer);
     pd_new.period = @intCast(node_config.get("period").?.integer);
-    pd_new.pp = node_config.get("pp").?.bool;
+    // pp has been moved to channel
+    // pd_new.pp = node_config.get("pp").?.bool;
 
     const children = node_config.get("children").?.array;
     var i: usize = 0;
@@ -162,7 +94,7 @@ fn parsePDFromJson(sdf: *SystemDescription, node_config: anytype) !*Pd {
             const child_vm = parseVMFromJson(sdf, child_config) catch {
                 return error.FailToParseVM;
             };
-            pd_new.addVirtualMachine(child_vm) catch |err| {
+            pd_new.setVirtualMachine(child_vm) catch |err| {
                 return err;
             };
         }
@@ -191,7 +123,6 @@ fn parsePDFromJson(sdf: *SystemDescription, node_config: anytype) !*Pd {
     }
 
     const pd_copy = try sdf.allocator.create(Pd);
-    // defer pd_copy.destroy();
 
     pd_copy.* = pd_new;
     return pd_copy;
@@ -216,9 +147,9 @@ fn parseChannelFromJson(sdf: *SystemDescription, channel_config: anytype) !Chann
         return error.PdCannotBeFound;
     };
 
-    var channel_new = Channel.create(pd1, pd2);
-    channel_new.pd1_end_id = @intCast(channel_config.get("pd1_end_id").?.integer);
-    channel_new.pd2_end_id = @intCast(channel_config.get("pd2_end_id").?.integer);
+    var channel_new = Channel.create(pd1, pd2, .{});
+    channel_new.pd_a_id = @intCast(channel_config.get("pd1_end_id").?.integer);
+    channel_new.pd_b_id = @intCast(channel_config.get("pd2_end_id").?.integer);
 
     return channel_new;
 }
@@ -239,7 +170,7 @@ fn parseMRFromJson(sdf: *SystemDescription, mr_config: anytype) !Mr {
         }
     }
     // const page_size: Mr.PageSize = @intCast(mr_config.get("page_size").?.integer);
-    const mr_new = Mr.create(sdf, name, size, phys_addr, .small);
+    const mr_new = Mr.create(sdf.allocator, name, size, .{});
 
     return mr_new;
 }
@@ -281,7 +212,7 @@ fn parseMapFromJson(sdf: *SystemDescription, map_config: anytype) !Map {
         }
     }
 
-    const map = Map.create(mr, vaddr, .{ .read = perm_r, .write = perm_w, .execute = perm_x }, cached, setvar_vaddr);
+    const map = Map.create(mr, vaddr, .{ .read = perm_r, .write = perm_w, .execute = perm_x }, cached, .{ .setvar_vaddr = setvar_vaddr });
     return map;
 }
 
@@ -313,8 +244,6 @@ fn parseSddfSubsystemFromJson(sdf: *SystemDescription, subsystem_config: anytype
         const driver = getPDByName(sdf, driver_name) catch {
             return error.PdCannotBeFound;
         };
-        var serial_system = sddf.SerialSystem.init(sdf.allocator, sdf, 0x200000);
-        serial_system.setDriver(driver, uart_node.?);
 
         const mux_tx = getPDByName(sdf, mux_tx_name) catch {
             return error.PdCannotBeFound;
@@ -322,7 +251,9 @@ fn parseSddfSubsystemFromJson(sdf: *SystemDescription, subsystem_config: anytype
         const mux_rx = getPDByName(sdf, mux_rx_name) catch {
             return error.PdCannotBeFound;
         };
-        serial_system.setMultiplexors(mux_rx, mux_tx);
+        var serial_system = sddf.SerialSystem.init(sdf.allocator, sdf, uart_node.?, driver, mux_tx, mux_rx, .{}) catch {
+            return error.FailedToCreateSerialSystem;
+        };
 
         const client1_pd = getPDByName(sdf, client1_name) catch {
             return error.PdCannotBeFound;
@@ -439,28 +370,22 @@ export fn jsonToXml(input_ptr: [*]const u8, input_len: usize, result_ptr: [*]u8)
     // TODO: the allocator should already be known by the DTB...
     defer blob.deinit(allocator);
 
-    var sdf = SystemDescription.create(allocator, board.arch()) catch {
-        return printMsg(result_ptr, "Faild to create a system description");
-    };
-    // defer sdf.destroy();
+    var sdf = SystemDescription.create(allocator, board.arch(), 0x100_000_000);
+    defer sdf.destroy();
 
     const drivers = object.get("drivers").?.array;
     const classes = object.get("deviceClasses").?.array;
     sddf.wasmProbe(allocator, drivers, classes) catch {
-        return printMsg(result_ptr, "Faild to probe sDDF");
+        return printMsg(result_ptr, "Failed to probe sDDF");
     };
     const compatible_drivers = sddf.compatibleDrivers(allocator) catch {
-        return printMsg(result_ptr, "Faild to find compatible drivers");
+        return printMsg(result_ptr, "Failed to find compatible drivers");
     };
     defer allocator.free(compatible_drivers);
 
     const xml = parseAndBuild(&sdf, object, blob) catch {
         return printMsg(result_ptr, "Failed to parse the attributes!");
     };
-
-    // const xml = abstractions(allocator, &sdf, blob) catch {
-    //     return printMsg(result_ptr, "Failed to create sample system: abstractions");
-    // };
 
     return printMsg(result_ptr, xml);
 }
@@ -474,7 +399,7 @@ fn getPageSizeOptionsJson(board_str: []const u8, writer: anytype) !void {
             _ = try writer.write(", ");
         }
         const page_size: PageSize = @enumFromInt(field.value);
-        try writer.print("{{\"label\":\"{s}\",\"value\":{}}}", .{ field.name, page_size.toSize(arch) });
+        try writer.print("{{\"label\":\"{s}\",\"value\":{}}}", .{ field.name, page_size.toInt(arch) });
     }
 }
 
@@ -504,8 +429,6 @@ fn getDtJson(allocator: Allocator, blob: *dtb.Node, writer: anytype) !void {
                 const irq_type = try DeviceTree.armGicIrqType(interrupts[0][0]);
                 const irq_number = DeviceTree.armGicIrqNumber(interrupts[0][1], irq_type);
 
-                // const irq_trigger = try DeviceTree.armGicIrqTrigger(interrupts[0][2]);
-                // const irq_string = try std.fmt.allocPrint(allocator, "\"irq_number\": {any}, \"irq_trigger\": {any}", .{ irq_number, irq_trigger });
                 const irq_string = try std.fmt.allocPrint(allocator, "\"irq_number\": {any}, \"irq_trigger\": {any}", .{ irq_number, interrupts[0][2] });
                 defer allocator.free(irq_string);
                 _ = try writer.write(irq_string);

@@ -2,6 +2,7 @@ const std = @import("std");
 const ArrayList = std.ArrayList;
 const Allocator = std.mem.Allocator;
 const allocPrint = std.fmt.allocPrint;
+const log = @import("log.zig");
 
 // TODO: for addresses should we use the word size of the *target* machine, rather than 'usize' for everything?
 // TODO: indent stuff could be done better
@@ -406,7 +407,7 @@ pub const SystemDescription = struct {
         pub fn allocateId(pd: *ProtectionDomain, id: ?usize) !usize {
             if (id) |chosen_id| {
                 if (pd.ids.isSet(chosen_id)) {
-                    std.log.err("attempting to allocate id '{}' in PD '{s}'", .{ chosen_id, pd.name });
+                    log.err("attempting to allocate id '{}' in PD '{s}'", .{ chosen_id, pd.name });
                     return error.AlreadyAllocatedId;
                 } else {
                     pd.ids.setValue(chosen_id, true);
