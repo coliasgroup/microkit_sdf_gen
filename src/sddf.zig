@@ -495,6 +495,9 @@ pub const I2cSystem = struct {
     region_req_size: usize,
     region_resp_size: usize,
     region_data_size: usize,
+    driver_config: ConfigResources.I2c.Driver,
+    virt_config: ConfigResources.I2c.Virt,
+    client_configs: std.ArrayList(ConfigResources.I2c.Client),
 
     pub const Options = struct {
         region_req_size: usize = 0x1000,
@@ -513,11 +516,15 @@ pub const I2cSystem = struct {
             .region_req_size = options.region_req_size,
             .region_resp_size = options.region_resp_size,
             .region_data_size = options.region_data_size,
+            .driver_config = std.mem.zeroes(ConfigResources.I2c.Driver),
+            .virt_config = std.mem.zeroes(ConfigResources.I2c.Virt),
+            .client_configs = std.ArrayList(ConfigResources.I2c.Client).init(allocator),
         };
     }
 
     pub fn addClient(system: *I2cSystem, client: *Pd) void {
         system.clients.append(client) catch @panic("Could not add client to I2cSystem");
+        system.client_configs.append(std.mem.zeroes(ConfigResources.I2c.Client)) catch @panic("Could not add client to I2cSystem");
     }
 
     pub fn connectDriver(system: *I2cSystem) void {
@@ -533,11 +540,20 @@ pub const I2cSystem = struct {
         sdf.addMemoryRegion(mr_req);
         sdf.addMemoryRegion(mr_resp);
 
-        driver.addMap(.create(mr_req, 0x4_000_000, .rw, true, .{ .setvar_vaddr = "i2c_req_queue" }));
-        driver.addMap(.create(mr_resp, 0x4_001_000, .rw, true, .{ .setvar_vaddr = "i2c_resp_queue" }));
+        const driver_req_vaddr = 0x4_000_000;
+        const driver_resp_vaddr = 0x4_001_000;
+        driver.addMap(.create(mr_req, driver_req_vaddr, .rw, true, .{}));
+        driver.addMap(.create(mr_resp, driver_resp_vaddr, .rw, true, .{}));
 
-        virt.addMap(.create(mr_req, 0x10_000_000, .rw, true, .{ .setvar_vaddr = "driver_request_region" }));
-        virt.addMap(.create(mr_resp, 0x10_001_000, .rw, true, .{ .setvar_vaddr = "driver_response_region" }));
+        const virt_req_vaddr = 0x10_000_000;
+        const virt_resp_vaddr = 0x10_001_000;
+        virt.addMap(.create(mr_req, virt_req_vaddr, .rw, true, .{}));
+        virt.addMap(.create(mr_resp, virt_resp_vaddr, .rw, true, .{}));
+
+        system.driver_config.request_region = driver_req_vaddr;
+        system.driver_config.response_region = driver_resp_vaddr;
+        system.virt_config.driver_request_queue = virt_req_vaddr;
+        system.virt_config.driver_response_queue = virt_resp_vaddr;
     }
 
     pub fn connectClient(system: *I2cSystem, client: *Pd) void {
@@ -545,6 +561,9 @@ pub const I2cSystem = struct {
         var sdf = system.sdf;
         const virt = system.virt;
         var driver = system.driver;
+
+        const client_num = system.virt_config.num_clients;
+        system.virt_config.num_clients += 1;
 
         // TODO: use optimal size
         const mr_req = Mr.create(allocator, fmt(allocator, "i2c_client_request_{s}", .{client.name}), system.region_req_size, .{});
@@ -555,14 +574,34 @@ pub const I2cSystem = struct {
         sdf.addMemoryRegion(mr_resp);
         sdf.addMemoryRegion(mr_data);
 
-        driver.addMap(.create(mr_data, 0x10_000_000, .rw, true, .{}));
+        const driver_data_vaddr = 0x10_000_000;
+        const virt_req_vaddr = 0x4_000_000;
+        const virt_resp_vaddr = 0x5_000_000;
 
-        virt.addMap(.create(mr_req, 0x4_000_000, .rw, true, .{}));
-        virt.addMap(.create(mr_resp, 0x5_000_000, .rw, true, .{}));
+        driver.addMap(.create(mr_data, driver_data_vaddr, .rw, true, .{}));
 
-        client.addMap(.create(mr_req, 0x10_000_000, .rw, true, .{ .setvar_vaddr = "i2c_req_queue" }));
-        client.addMap(.create(mr_resp, 0x10_001_000, .rw, true, .{ .setvar_vaddr = "i2c_resp_queue" }));
-        client.addMap(.create(mr_data, 0x10_002_000, .rw, true, .{ .setvar_vaddr = "i2c_data_region" }));
+        virt.addMap(.create(mr_req, virt_req_vaddr, .rw, true, .{}));
+        virt.addMap(.create(mr_resp, virt_resp_vaddr, .rw, true, .{}));
+
+        const client_req_vaddr = 0x10_000_000;
+        const client_resp_vaddr = 0x10_001_000;
+        const client_data_vaddr = 0x10_002_000;
+        client.addMap(.create(mr_req, client_req_vaddr, .rw, true, .{}));
+        client.addMap(.create(mr_resp, client_resp_vaddr, .rw, true, .{}));
+        client.addMap(.create(mr_data, client_data_vaddr, .rw, true, .{}));
+
+        system.virt_config.clients[client_num] = .{
+            .driver_data_offset = 0,
+            .request_queue = virt_req_vaddr,
+            .response_queue = virt_resp_vaddr,
+            .data_size = system.region_data_size,
+        };
+        system.driver_config.data_region = driver_data_vaddr;
+        system.client_configs.items[client_num] = .{
+            .request_region = client_req_vaddr,
+            .response_region = client_resp_vaddr,
+            .data_region = client_data_vaddr,
+        };
 
         // Create a channel between the virtualiser and client
         sdf.addChannel(.create(virt, client, .{ .pp = .b }));
@@ -586,6 +625,21 @@ pub const I2cSystem = struct {
         // TODO: restriction of what the driver channel is in the virtualiser forces
         // us to allocate teh channel after all the client channels have been allocated
         sdf.addChannel(.create(system.driver, system.virt, .{}));
+    }
+
+    pub fn serialiseConfig(system: *I2cSystem) !void {
+        try data.serialize(system.driver_config, "i2c_driver.data");
+        try data.jsonify(system.driver_config, "i2c_driver.json", .{ .whitespace = .indent_4 });
+
+        try data.serialize(system.virt_config, "i2c_virt.data");
+        try data.jsonify(system.virt_config, "i2c_virt.json", .{ .whitespace = .indent_4 });
+
+        for (system.clients.items, 0..) |client, i| {
+            const data_name = std.fmt.allocPrint(system.allocator, "i2c_{s}.data", .{client.name}) catch @panic("OOM");
+            const json_name = std.fmt.allocPrint(system.allocator, "i2c_{s}.json", .{client.name}) catch @panic("OOM");
+            try data.serialize(system.client_configs.items[i], data_name);
+            try data.jsonify(system.client_configs.items[i], json_name, .{ .whitespace = .indent_4 });
+        }
     }
 };
 

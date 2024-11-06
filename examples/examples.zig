@@ -219,8 +219,8 @@ fn i2c(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !void {
     sdf.addMemoryRegion(clk_mr);
     sdf.addMemoryRegion(gpio_mr);
 
-    var client = Pd.create(allocator, "client", "client.elf");
-    sdf.addProtectionDomain(&client);
+    var client_ds3231 = Pd.create(allocator, "client_ds3231", "client_ds3231.elf");
+    sdf.addProtectionDomain(&client_ds3231);
 
     var i2c_driver = Pd.create(allocator, "i2c_driver", "i2c_driver.elf");
     sdf.addProtectionDomain(&i2c_driver);
@@ -228,14 +228,31 @@ fn i2c(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !void {
     sdf.addProtectionDomain(&i2c_virt);
 
     var i2c_system = sddf.I2cSystem.init(allocator, sdf, i2c_node, &i2c_driver, &i2c_virt, .{});
-    i2c_system.addClient(&client);
+    i2c_system.addClient(&client_ds3231);
 
-    i2c_driver.addMap(.create(clk_mr, i2c_driver.getMapVaddr(&clk_mr), .rw, false, .{}));
-    i2c_driver.addMap(.create(gpio_mr, i2c_driver.getMapVaddr(&gpio_mr), .rw, false, .{}));
+    i2c_driver.addMap(.create(clk_mr, i2c_driver.getMapVaddr(&clk_mr), .rw, false, .{ .setvar_vaddr = "clk_regs" }));
+    i2c_driver.addMap(.create(gpio_mr, i2c_driver.getMapVaddr(&gpio_mr), .rw, false, .{ .setvar_vaddr = "gpio_regs" }));
+
+    i2c_virt.priority = 99;
+    client_ds3231.priority = 1;
+
+    const timer_node = switch (board) {
+        .odroidc4 => blob.child("soc").?.child("bus@ffd00000").?.child("watchdog@f0d0").?,
+        .qemu_virt_aarch64 => @panic("no i2c for qemu"),
+    };
+
+    var timer_driver = Pd.create(allocator, "timer_driver", "timer_driver.elf");
+    sdf.addProtectionDomain(&timer_driver);
+
+    timer_driver.priority = 101;
+
+    var timer_system = sddf.TimerSystem.init(allocator, sdf, timer_node, &timer_driver);
+    timer_system.addClient(&client_ds3231);
 
     _ = try i2c_system.connect();
+    try timer_system.connect();
 
-    // try i2c_system.serialiseConfig();
+    try i2c_system.serialiseConfig();
 
     try sdf.print();
 }

@@ -120,7 +120,7 @@ pub const Resources = struct {
         pub const Virt = extern struct {
             const MAX_NUM_CLIENTS = 61;
 
-            pub const Client = extern struct {
+            pub const VirtClient = extern struct {
                 request_queue: u64,
                 response_queue: u64,
                 driver_data_offset: u64,
@@ -130,7 +130,7 @@ pub const Resources = struct {
             driver_request_queue: u64,
             driver_response_queue: u64,
             num_clients: u64,
-            clients: [MAX_NUM_CLIENTS]Client,
+            clients: [MAX_NUM_CLIENTS]VirtClient,
         };
 
         pub const Driver = extern struct {
@@ -138,9 +138,12 @@ pub const Resources = struct {
             request_region: u64,
             response_region: u64,
             data_region: u64,
-            i2c_regs: u64,
-            gpio_regs: u64,
-            clk_regs: u64,
+        };
+
+        pub const Client = extern struct {
+            request_region: u64,
+            response_region: u64,
+            data_region: u64,
         };
     };
 };
