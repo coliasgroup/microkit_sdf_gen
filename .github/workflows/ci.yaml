@@ -18,8 +18,6 @@ jobs:
         uses: cachix/install-nix-action@v25
         with:
           nix_path: nixpkgs=channel:nixos-unstable
-      - name: Build C example
-        run: nix shell 'github:mitchellh/zig-overlay#master' --command zig build c_example
       - name: Test
         run: nix shell 'github:mitchellh/zig-overlay#master' --command zig build test
   build_macos_64:
@@ -36,7 +34,5 @@ jobs:
           nix_path: nixpkgs=channel:nixos-unstable
       - name: Build Zig example
         run: nix develop --command zig build c_example
-      - name: Build C example
-        run: nix shell 'github:mitchellh/zig-overlay#master' --command zig build c_example
       - name: Test
         run: nix shell 'github:mitchellh/zig-overlay#master' --command zig build test

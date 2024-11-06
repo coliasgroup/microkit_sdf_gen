@@ -8,22 +8,18 @@ const Interrupt = SystemDescription.Interrupt;
 const Channel = SystemDescription.Channel;
 
 const allocator = std.testing.allocator;
-const test_dir = "tests/";
 
-fn readAll(test_path: []const u8) ![]const u8 {
-    const test_file = try std.fs.cwd().openFile(test_path, .{});
+const config = @import("config");
+
+fn readTestFile(test_path: []const u8) ![]const u8 {
+    const test_dir = try std.fs.openDirAbsolute(config.test_dir, .{});
+    const test_file = try test_dir.openFile(test_path, .{});
     const test_file_size = (try test_file.stat()).size;
     return try test_file.reader().readAllAlloc(
         allocator,
         test_file_size,
     );
 }
-
-// testing TODOs
-// * channels
-// * MRs/mappings
-// * virtual machine (framebuffer example?)
-// * sDDF example
 
 test "basic" {
     var sdf = SystemDescription.create(allocator, .aarch64, 0x100_000_000);
@@ -32,7 +28,7 @@ test "basic" {
 
     sdf.addProtectionDomain(&pd);
 
-    const expected = try readAll("src/tests/basic.xml");
+    const expected = try readTestFile("basic.system");
     const output = try sdf.toXml();
     defer allocator.free(expected);
     defer sdf.destroy();
@@ -59,10 +55,35 @@ test "PD + MR + mappings + channel" {
 
     sdf.addChannel(Channel.create(&pd1, &pd2, .{}));
 
-    const expected = try readAll("src/tests/pd_mr_map_channel.xml");
+    const expected = try readTestFile("pd_mr_map_channel.system");
     const output = try sdf.toXml();
     defer allocator.free(expected);
     defer sdf.destroy();
 
     try std.testing.expectEqualStrings(expected, output);
+}
+
+test "C example" {
+    var example_process = std.process.Child.init(&.{ config.c_example }, allocator);
+
+    example_process.stdin_behavior = .Ignore;
+    example_process.stdout_behavior = .Pipe;
+    example_process.stderr_behavior = .Pipe;
+
+    var stdout = std.ArrayList(u8).init(allocator);
+    defer stdout.deinit();
+    var stderr = std.ArrayList(u8).init(allocator);
+    defer stderr.deinit();
+
+    try example_process.spawn();
+
+    try example_process.collectOutput(&stdout, &stderr, 1024 * 1024);
+
+    const term = try example_process.wait();
+
+    const expected = try readTestFile("c_example.system");
+    defer allocator.free(expected);
+
+    try std.testing.expectEqual(term, std.process.Child.Term{ .Exited = 0 });
+    try std.testing.expectEqualStrings(expected, stdout.items);
 }

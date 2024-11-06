@@ -24,4 +24,6 @@ int main() {
 
     char *xml = sdfgen_to_xml(sdf);
     printf("%s", xml);
+
+    return 0;
 }

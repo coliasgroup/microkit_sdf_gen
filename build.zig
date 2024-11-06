@@ -44,16 +44,6 @@ pub fn build(b: *std.Build) !void {
 
     b.installArtifact(lib);
 
-    const main_tests = b.addTest(.{
-        .root_source_file = b.path("src/test.zig"),
-        .target = target,
-        .optimize = optimize,
-    });
-
-    const run_main_tests = b.addRunArtifact(main_tests);
-    const test_step = b.step("test", "Run tests");
-    test_step.dependOn(&run_main_tests.step);
-
     const modsdf = b.addModule("sdf", .{ .root_source_file = b.path("src/mod.zig") });
     modsdf.addImport("dtb", dtbzig_dep.module("dtb"));
 
@@ -102,10 +92,12 @@ pub fn build(b: *std.Build) !void {
     c_example.addCSourceFile(.{ .file = b.path("examples/examples.c") });
     c_example.linkLibrary(csdfgen);
     c_example.linkLibC();
-    const c_example_cmd = b.addRunArtifact(c_example);
 
     const c_example_step = b.step("c_example", "Run example program using C bindings");
+    const c_example_cmd = b.addRunArtifact(c_example);
     c_example_step.dependOn(&c_example_cmd.step);
+
+    const c_example_install = b.addInstallFileWithDir(c_example.getEmittedBin(), .bin, "c_example");
 
     // wasm executable
     const wasm_target = b.resolveTargetQuery(.{
@@ -128,4 +120,21 @@ pub fn build(b: *std.Build) !void {
 
     const wasm_install = b.addInstallArtifact(wasm, .{});
     wasm_step.dependOn(&wasm_install.step);
+
+    const tests = b.addTest(.{
+        .root_source_file = b.path("src/test.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+
+    const test_options = b.addOptions();
+    test_options.addOptionPath("c_example", .{ .cwd_relative = b.getInstallPath(.bin, c_example.name) });
+    test_options.addOptionPath("test_dir", b.path("tests"));
+
+    tests.root_module.addOptions("config", test_options);
+
+    const run_tests = b.addRunArtifact(tests);
+    const test_step = b.step("test", "Run tests");
+    test_step.dependOn(&run_tests.step);
+    test_step.dependOn(&c_example_install.step);
 }
