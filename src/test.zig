@@ -64,7 +64,7 @@ test "PD + MR + mappings + channel" {
 }
 
 test "C example" {
-    var example_process = std.process.Child.init(&.{ config.c_example }, allocator);
+    var example_process = std.process.Child.init(&.{ config.c_example, config.sddf }, allocator);
 
     example_process.stdin_behavior = .Ignore;
     example_process.stdout_behavior = .Pipe;
