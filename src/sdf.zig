@@ -536,6 +536,7 @@ pub const SystemDescription = struct {
         }
     };
 
+    // TODO: add options for fixed channel ID
     pub const Channel = struct {
         pd_a: *ProtectionDomain,
         pd_b: *ProtectionDomain,
