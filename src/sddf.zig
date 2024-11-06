@@ -540,20 +540,20 @@ pub const I2cSystem = struct {
         sdf.addMemoryRegion(mr_req);
         sdf.addMemoryRegion(mr_resp);
 
-        const driver_req_vaddr = 0x4_000_000;
-        const driver_resp_vaddr = 0x4_001_000;
-        driver.addMap(.create(mr_req, driver_req_vaddr, .rw, true, .{}));
-        driver.addMap(.create(mr_resp, driver_resp_vaddr, .rw, true, .{}));
+        const driver_map_req = Map.create(mr_req, driver.getMapVaddr(&mr_req), .rw, true, .{});
+        driver.addMap(driver_map_req);
+        const driver_map_resp = Map.create(mr_resp, driver.getMapVaddr(&mr_resp), .rw, true, .{});
+        driver.addMap(driver_map_req);
 
-        const virt_req_vaddr = 0x10_000_000;
-        const virt_resp_vaddr = 0x10_001_000;
-        virt.addMap(.create(mr_req, virt_req_vaddr, .rw, true, .{}));
-        virt.addMap(.create(mr_resp, virt_resp_vaddr, .rw, true, .{}));
+        const virt_map_req = Map.create(mr_req, virt.getMapVaddr(&mr_req), .rw, true, .{});
+        virt.addMap(virt_map_req);
+        const virt_map_resp = Map.create(mr_resp, virt.getMapVaddr(&mr_resp), .rw, true, .{});
+        virt.addMap(virt_map_resp);
 
-        system.driver_config.request_region = driver_req_vaddr;
-        system.driver_config.response_region = driver_resp_vaddr;
-        system.virt_config.driver_request_queue = virt_req_vaddr;
-        system.virt_config.driver_response_queue = virt_resp_vaddr;
+        system.driver_config.request_region = driver_map_req.vaddr;
+        system.driver_config.response_region = driver_map_resp.vaddr;
+        system.virt_config.driver_request_queue = virt_map_req.vaddr;
+        system.virt_config.driver_response_queue = virt_map_resp.vaddr;
     }
 
     pub fn connectClient(system: *I2cSystem, client: *Pd) void {
@@ -574,33 +574,32 @@ pub const I2cSystem = struct {
         sdf.addMemoryRegion(mr_resp);
         sdf.addMemoryRegion(mr_data);
 
-        const driver_data_vaddr = 0x10_000_000;
-        const virt_req_vaddr = 0x4_000_000;
-        const virt_resp_vaddr = 0x5_000_000;
+        const driver_map_data = Map.create(mr_data, system.driver.getMapVaddr(&mr_data), .rw, true, .{});
+        driver.addMap(driver_map_data);
 
-        driver.addMap(.create(mr_data, driver_data_vaddr, .rw, true, .{}));
+        const virt_map_req = Map.create(mr_req, system.virt.getMapVaddr(&mr_req), .rw, true, .{});
+        virt.addMap(virt_map_req);
+        const virt_map_resp = Map.create(mr_resp, system.virt.getMapVaddr(&mr_resp), .rw, true, .{});
+        virt.addMap(virt_map_resp);
 
-        virt.addMap(.create(mr_req, virt_req_vaddr, .rw, true, .{}));
-        virt.addMap(.create(mr_resp, virt_resp_vaddr, .rw, true, .{}));
-
-        const client_req_vaddr = 0x10_000_000;
-        const client_resp_vaddr = 0x10_001_000;
-        const client_data_vaddr = 0x10_002_000;
-        client.addMap(.create(mr_req, client_req_vaddr, .rw, true, .{}));
-        client.addMap(.create(mr_resp, client_resp_vaddr, .rw, true, .{}));
-        client.addMap(.create(mr_data, client_data_vaddr, .rw, true, .{}));
+        const client_map_req = Map.create(mr_req, client.getMapVaddr(&mr_req), .rw, true, .{});
+        client.addMap(client_map_req);
+        const client_map_resp = Map.create(mr_resp, client.getMapVaddr(&mr_resp), .rw, true, .{});
+        client.addMap(client_map_resp);
+        const client_map_data = Map.create(mr_data, client.getMapVaddr(&mr_data), .rw, true, .{});
+        client.addMap(client_map_data);
 
         system.virt_config.clients[client_num] = .{
             .driver_data_offset = 0,
-            .request_queue = virt_req_vaddr,
-            .response_queue = virt_resp_vaddr,
+            .request_queue = virt_map_req.vaddr,
+            .response_queue = virt_map_resp.vaddr,
             .data_size = system.region_data_size,
         };
-        system.driver_config.data_region = driver_data_vaddr;
+        system.driver_config.data_region = driver_map_data.vaddr;
         system.client_configs.items[client_num] = .{
-            .request_region = client_req_vaddr,
-            .response_region = client_resp_vaddr,
-            .data_region = client_data_vaddr,
+            .request_region = client_map_req.vaddr,
+            .response_region = client_map_resp.vaddr,
+            .data_region = client_map_data.vaddr,
         };
 
         // Create a channel between the virtualiser and client
@@ -617,9 +616,9 @@ pub const I2cSystem = struct {
         // 2. Connect the driver to the virtualiser
         system.connectDriver();
         // 3. Connect each client to the virtualiser
-        // TODO: we need to fix our code for multiple clients
-        assert(system.clients.items.len == 1);
-        system.connectClient(system.clients.items[0]);
+        for (system.clients.items) |client| {
+            system.connectClient(client);
+        }
 
         // Create a channel between the driver and virtualiser for notifications
         // TODO: restriction of what the driver channel is in the virtualiser forces
