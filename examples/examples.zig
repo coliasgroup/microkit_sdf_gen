@@ -222,6 +222,9 @@ fn i2c(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !void {
     var client_ds3231 = Pd.create(allocator, "client_ds3231", "client_ds3231.elf");
     sdf.addProtectionDomain(&client_ds3231);
 
+    var client_pn532 = Pd.create(allocator, "client_pn532", "client_pn532.elf");
+    sdf.addProtectionDomain(&client_pn532);
+
     var i2c_driver = Pd.create(allocator, "i2c_driver", "i2c_driver.elf");
     sdf.addProtectionDomain(&i2c_driver);
     var i2c_virt = Pd.create(allocator, "i2c_virt", "i2c_virt.elf");
@@ -229,12 +232,14 @@ fn i2c(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !void {
 
     var i2c_system = sddf.I2cSystem.init(allocator, sdf, i2c_node, &i2c_driver, &i2c_virt, .{});
     i2c_system.addClient(&client_ds3231);
+    i2c_system.addClient(&client_pn532);
 
     i2c_driver.addMap(.create(clk_mr, i2c_driver.getMapVaddr(&clk_mr), .rw, false, .{ .setvar_vaddr = "clk_regs" }));
     i2c_driver.addMap(.create(gpio_mr, i2c_driver.getMapVaddr(&gpio_mr), .rw, false, .{ .setvar_vaddr = "gpio_regs" }));
 
     i2c_virt.priority = 99;
     client_ds3231.priority = 1;
+    client_pn532.priority = 1;
 
     const timer_node = switch (board) {
         .odroidc4 => blob.child("soc").?.child("bus@ffd00000").?.child("watchdog@f0d0").?,
@@ -248,6 +253,7 @@ fn i2c(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !void {
 
     var timer_system = sddf.TimerSystem.init(allocator, sdf, timer_node, &timer_driver);
     timer_system.addClient(&client_ds3231);
+    timer_system.addClient(&client_pn532);
 
     _ = try i2c_system.connect();
     try timer_system.connect();
