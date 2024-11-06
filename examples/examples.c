@@ -1,8 +1,19 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <sdfgen.h>
 
-int main() {
-    sdfgen_sddf_init("/Users/ivanv/ts/lionsos_tutorial/lionsos/dep/sddf");
+void usage() {
+    printf("./c_examples [path to sddf]\n");
+    exit(0);
+}
+
+int main(int argc, char *argv[]) {
+    if (argc != 2) {
+        usage();
+    }
+
+    char *sddf = argv[1];
+    sdfgen_sddf_init(sddf);
 
     void *sdf = sdfgen_create(0xa0000000);
     void *i2c_reactor_client = sdfgen_pd_create("i2c_reactor_client", "reactor_client.elf");

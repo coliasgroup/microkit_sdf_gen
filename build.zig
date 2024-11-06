@@ -37,6 +37,8 @@ pub fn build(b: *std.Build) !void {
     if (b.args) |args| {
         sdfgen_cmd.addArgs(args);
     }
+    // In case any sDDF configuration files are changed
+    _ = try sdfgen_cmd.step.addDirectoryWatchInput(b.path("sddf"));
 
     sdfgen_step.dependOn(&sdfgen_cmd.step);
     const sdfgen_install = b.addInstallArtifact(sdfgen, .{});
@@ -95,6 +97,9 @@ pub fn build(b: *std.Build) !void {
 
     const c_example_step = b.step("c_example", "Run example program using C bindings");
     const c_example_cmd = b.addRunArtifact(c_example);
+    // In case any sDDF configuration files are changed
+    c_example_cmd.addDirectoryArg(b.path("sddf"));
+    _ = try c_example_cmd.step.addDirectoryWatchInput(b.path("sddf"));
     c_example_step.dependOn(&c_example_cmd.step);
 
     const c_example_install = b.addInstallFileWithDir(c_example.getEmittedBin(), .bin, "c_example");
@@ -130,6 +135,7 @@ pub fn build(b: *std.Build) !void {
     const test_options = b.addOptions();
     test_options.addOptionPath("c_example", .{ .cwd_relative = b.getInstallPath(.bin, c_example.name) });
     test_options.addOptionPath("test_dir", b.path("tests"));
+    test_options.addOptionPath("sddf", b.path("sddf"));
 
     tests.root_module.addOptions("config", test_options);
 
@@ -137,4 +143,6 @@ pub fn build(b: *std.Build) !void {
     const test_step = b.step("test", "Run tests");
     test_step.dependOn(&run_tests.step);
     test_step.dependOn(&c_example_install.step);
+    // In case any sDDF configuration files are changed
+    _ = try test_step.addDirectoryWatchInput(b.path("sddf"));
 }
