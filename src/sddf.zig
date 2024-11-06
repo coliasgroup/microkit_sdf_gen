@@ -543,7 +543,7 @@ pub const I2cSystem = struct {
         const driver_map_req = Map.create(mr_req, driver.getMapVaddr(&mr_req), .rw, true, .{});
         driver.addMap(driver_map_req);
         const driver_map_resp = Map.create(mr_resp, driver.getMapVaddr(&mr_resp), .rw, true, .{});
-        driver.addMap(driver_map_req);
+        driver.addMap(driver_map_resp);
 
         const virt_map_req = Map.create(mr_req, virt.getMapVaddr(&mr_req), .rw, true, .{});
         virt.addMap(virt_map_req);
