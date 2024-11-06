@@ -558,14 +558,11 @@ pub const I2cSystem = struct {
         system.virt_config.driver_response_queue = virt_map_resp.vaddr;
     }
 
-    pub fn connectClient(system: *I2cSystem, client: *Pd) void {
+    pub fn connectClient(system: *I2cSystem, client: *Pd, i: usize) void {
         const allocator = system.allocator;
         var sdf = system.sdf;
         const virt = system.virt;
         var driver = system.driver;
-
-        const client_num = system.virt_config.num_clients;
-        system.virt_config.num_clients += 1;
 
         // TODO: use optimal size
         const mr_req = Mr.create(allocator, fmt(allocator, "i2c_client_request_{s}", .{client.name}), system.region_req_size, .{});
@@ -591,16 +588,16 @@ pub const I2cSystem = struct {
         const client_map_data = Map.create(mr_data, client.getMapVaddr(&mr_data), .rw, true, .{});
         client.addMap(client_map_data);
 
-        system.virt_config.clients[client_num] = .{
-            .driver_data_offset = client_num * system.region_data_size,
+        system.virt_config.clients[i] = .{
+            .driver_data_offset = i * system.region_data_size,
             .request_queue = virt_map_req.vaddr,
             .response_queue = virt_map_resp.vaddr,
             .data_size = system.region_data_size,
         };
-        if (client_num == 0) {
+        if (i == 0) {
             system.driver_config.data_region = driver_map_data.vaddr;
         }
-        system.client_configs.items[client_num] = .{
+        system.client_configs.items[i] = .{
             .request_region = client_map_req.vaddr,
             .response_region = client_map_resp.vaddr,
             .data_region = client_map_data.vaddr,
@@ -622,8 +619,8 @@ pub const I2cSystem = struct {
         // 3. Create a channel between the driver and virtualiser for notifications
         sdf.addChannel(.create(system.driver, system.virt, .{}));
         // 4. Connect each client to the virtualiser
-        for (system.clients.items) |client| {
-            system.connectClient(client);
+        for (system.clients.items, 0..) |client, i| {
+            system.connectClient(client, i);
         }
     }
 
@@ -984,10 +981,8 @@ pub const SerialSystem = struct {
         system.driver_config.default_baud = 115200;
     }
 
-    fn rxConnectClient(system: *SerialSystem, client: *Pd, client_config: *ConfigResources.Serial.Client) void {
+    fn rxConnectClient(system: *SerialSystem, client: *Pd, client_config: *ConfigResources.Serial.Client, i: usize) void {
         const allocator = system.allocator;
-        const client_num: usize = @intCast(system.virt_rx_config.num_clients);
-        system.virt_rx_config.num_clients += 1;
 
         inline for (std.meta.fields(Region)) |region| {
             const mr_name = std.fmt.allocPrint(system.allocator, "serial_virt_rx_{s}_{s}", .{ client.name, region.name }) catch @panic("OOM");
@@ -1010,27 +1005,25 @@ pub const SerialSystem = struct {
             client.addMap(client_map);
 
             if (@as(Region, @enumFromInt(region.value)) == .data) {
-                system.virt_rx_config.clients[client_num].data_addr = virt_vaddr;
-                system.virt_rx_config.clients[client_num].capacity = mr_size;
+                system.virt_rx_config.clients[i].data_addr = virt_vaddr;
+                system.virt_rx_config.clients[i].capacity = mr_size;
 
                 client_config.rx_data_addr = client_vaddr;
                 client_config.rx_capacity = mr_size;
             } else {
-                system.virt_rx_config.clients[client_num].queue_addr = virt_vaddr;
+                system.virt_rx_config.clients[i].queue_addr = virt_vaddr;
 
                 client_config.rx_queue_addr = client_vaddr;
             }
         }
     }
 
-    fn txConnectClient(system: *SerialSystem, client: *Pd, client_config: *ConfigResources.Serial.Client) void {
+    fn txConnectClient(system: *SerialSystem, client: *Pd, client_config: *ConfigResources.Serial.Client, i: usize) void {
         const allocator = system.allocator;
-        const client_num: usize = @intCast(system.virt_tx_config.num_clients);
-        system.virt_tx_config.num_clients += 1;
         // assuming name is null-terminated
-        @memcpy(system.virt_tx_config.clients[client_num].name[0..client.name.len], client.name);
+        @memcpy(system.virt_tx_config.clients[i].name[0..client.name.len], client.name);
         assert(client.name.len < ConfigResources.Serial.VirtTx.MAX_NAME_LEN);
-        assert(system.virt_tx_config.clients[client_num].name[client.name.len] == 0);
+        assert(system.virt_tx_config.clients[i].name[client.name.len] == 0);
 
         inline for (std.meta.fields(Region)) |region| {
             const mr_name = std.fmt.allocPrint(system.allocator, "serial_virt_tx_{s}_{s}", .{ client.name, region.name }) catch @panic("OOM");
@@ -1053,13 +1046,13 @@ pub const SerialSystem = struct {
             client.addMap(client_map);
 
             if (@as(Region, @enumFromInt(region.value)) == .data) {
-                system.virt_tx_config.clients[client_num].data_addr = virt_vaddr;
-                system.virt_tx_config.clients[client_num].capacity = mr_size;
+                system.virt_tx_config.clients[i].data_addr = virt_vaddr;
+                system.virt_tx_config.clients[i].capacity = mr_size;
 
                 client_config.tx_data_addr = client_vaddr;
                 client_config.tx_capacity = mr_size;
             } else {
-                system.virt_tx_config.clients[client_num].queue_addr = virt_vaddr;
+                system.virt_tx_config.clients[i].queue_addr = virt_vaddr;
 
                 client_config.tx_queue_addr = client_vaddr;
             }
@@ -1094,9 +1087,9 @@ pub const SerialSystem = struct {
         system.txConnectDriver();
         for (system.clients.items, 0..) |client, i| {
             if (system.rx) {
-                system.rxConnectClient(client, &system.client_configs.items[i]);
+                system.rxConnectClient(client, &system.client_configs.items[i], i);
             }
-            system.txConnectClient(client, &system.client_configs.items[i]);
+            system.txConnectClient(client, &system.client_configs.items[i], i);
         }
     }
 
