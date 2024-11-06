@@ -1,0 +1,14 @@
+{
+  "name": "microkit-tool",
+  "version": "0.1.0",
+  "files": [
+    "microkit_tool_bg.wasm",
+    "microkit_tool.js",
+    "microkit_tool.d.ts"
+  ],
+  "module": "microkit_tool.js",
+  "types": "microkit_tool.d.ts",
+  "sideEffects": [
+    "./snippets/*"
+  ]
+}
