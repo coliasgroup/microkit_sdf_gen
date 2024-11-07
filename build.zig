@@ -142,7 +142,7 @@ pub fn build(b: *std.Build) !void {
     const run_tests = b.addRunArtifact(tests);
     const test_step = b.step("test", "Run tests");
     test_step.dependOn(&run_tests.step);
-    test_step.dependOn(&c_example_install.step);
+    run_tests.step.dependOn(&c_example_install.step);
     // In case any sDDF configuration files are changed
     _ = try test_step.addDirectoryWatchInput(b.path("sddf"));
 }
