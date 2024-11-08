@@ -1,7 +1,7 @@
 import { PDComponentInit } from "./os-components/pd"
 import { VMComponentInit } from "./os-components/vm"
 import { SerialComponentInit } from "./os-components/serial"
-import { Graph, Cell, Edge } from '@antv/x6'
+import { Graph } from '@antv/x6'
 
 const group_registration = {
   'Basic': {
@@ -14,7 +14,7 @@ const group_registration = {
 }
 
 export const stencilRender = (graph, stencil) => {
-  Object.entries(group_registration).map(group => {
+  Object.entries(group_registration).forEach(group => {
     const [group_name, group_items] = group
     const node_list = Object.values(group_items).map(component_init => {
       const node = graph.createNode(component_init.preview_attrs)
@@ -30,8 +30,8 @@ export const stencil_group = Object.keys(group_registration).map(key => {
 })
 
 export const restoreCell = (graph: Graph, cell: any) => {
-  const component_type = cell.data.type == 'sddf_subsystem' ? cell.data.attrs.class : cell.data.type
-  if (component_type == 'channel') {
+  const component_type = cell.data.type === 'sddf_subsystem' ? cell.data.attrs.class : cell.data.type
+  if (component_type === 'channel') {
     const edge = graph.addEdge({
       shape: 'edge',
       source: cell.data.source_node_id,
@@ -61,13 +61,13 @@ export const restoreCell = (graph: Graph, cell: any) => {
 }
 
 export const saveCell = (cell: any) => {
-  if (cell.shape == 'rect') {
+  if (cell.shape === 'rect') {
     const { data, attrs, ports, ...rest } = cell
     return {
       ...rest,
       data: cell.data.component.getData()
     }
-  } else if (cell.shape == 'edge') {
+  } else if (cell.shape === 'edge') {
     return {
       data: {
         type: 'channel',

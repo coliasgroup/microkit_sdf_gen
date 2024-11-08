@@ -1,11 +1,9 @@
-import { useEffect } from 'react'
 import { Drawer, Tabs } from 'antd'
 import { useState } from 'react'
 import MappingTable from './mapping-table'
 import IrqTable from './irq-table'
 import { AttrsForm } from './attrs-form'
 import { getComponentByID } from '../utils/helper'
-import { Graph } from '@antv/x6'
 
 export default function NodeEditor({ graph, node_id, nodeEditorOpen, setNodeEditorOpen, devices, MRs, updateMappings }) {
   const [ width, setWidth ] = useState(350)

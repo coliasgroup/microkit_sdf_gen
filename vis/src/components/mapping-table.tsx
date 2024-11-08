@@ -1,4 +1,4 @@
-import React, { useContext, useEffect, useRef, useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { Typography, Checkbox, TableProps, Form, Select, InputNumber, Table, Button, Input } from 'antd'
 import { SysMap } from '../utils/element'
 
@@ -99,7 +99,7 @@ export default function MappingTable({ graph, MRs, component, updateMappings }) 
       const row = (await form.validateFields()) as SysMapItem
 
       row.vaddr = parseInt(row.vaddr_str, 16)
-      if (row.setvar_vaddr == "") {
+      if (row.setvar_vaddr === "") {
         row.setvar_vaddr = null
       }
       const newData = [...data]

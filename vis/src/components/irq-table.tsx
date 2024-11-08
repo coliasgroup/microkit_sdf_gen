@@ -1,5 +1,5 @@
-import React, { useContext, useEffect, useRef, useState } from 'react'
-import { Typography, Checkbox, TableProps, Form, Select, InputNumber, Table, Button, Input } from 'antd'
+import React, { useEffect, useState } from 'react'
+import { Typography, TableProps, Form, Select, InputNumber, Table, Button } from 'antd'
 
 export interface SysIrq {
   irq: number
@@ -107,7 +107,7 @@ export default function IrqTable({ graph, component, devices }) {
       dataType: 'trigger',
       render: (_: any, record: SysIrqItem) => {
         const trigger = devices[record.irq_index].irq.irq_trigger
-        const trigger_str = trigger == 0x01 ? "level" : trigger == 0x04 ? "edge" : "Invalid"
+        const trigger_str = trigger === 0x01 ? "level" : trigger === 0x04 ? "edge" : "Invalid"
         return <>{trigger_str}</>
       }
     },
@@ -199,7 +199,7 @@ export default function IrqTable({ graph, component, devices }) {
       const row = (await form.validateFields()) as SysIrqItem
 
       const trigger = devices[row.irq_index].irq.irq_trigger
-      const trigger_str = trigger == 0x01 ? "level" : "edge"
+      const trigger_str = trigger === 0x01 ? "level" : "edge"
       row.trigger = trigger_str
       row.irq = devices[row.irq_index].irq.irq_number
       const newData = [...data]
@@ -233,7 +233,7 @@ export default function IrqTable({ graph, component, devices }) {
 
   useEffect(() => {
     const originData = component?.getData().irqs.map((irq, index) => {
-      const irq_index = devices.indexOf(devices?.find(device => device.irq.irq_number == irq.irq))
+      const irq_index = devices.indexOf(devices?.find(device => device.irq.irq_number === irq.irq))
       return {...irq, key: index.toString(), irq_index: irq_index}
     })
     setData(originData)

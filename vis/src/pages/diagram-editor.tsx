@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { Modal } from 'antd'
 import { Graph, Cell, Edge } from '@antv/x6'
-import { ERLayout } from '@antv/layout'
 import { Stencil } from '@antv/x6-plugin-stencil'
 import { Snapline } from '@antv/x6-plugin-snapline'
 import { Toolbar } from '@antv/x6-react-components'
@@ -11,8 +10,7 @@ import { stencilRender, stencil_group } from '../components/nodes'
 import MemoryManager from '../components/memory-manager'
 import ChannelEditor from '../components/channel-editor'
 import TemplateList from '../components/template-list'
-import { MemoryRegion } from '../utils/element'
-import { channelLabelConfig, getValidEndID, randColor, closestBorder, reassignEdgesForComponent } from '../utils/helper'
+import { channelLabelConfig, reassignEdgesForComponent } from '../utils/helper'
 import SDFGenerator from '../components/sdf-generator'
 import '@antv/x6-react-components/es/menu/style/index.css'
 import '@antv/x6-react-components/es/toolbar/style/index.css'
@@ -22,7 +20,7 @@ import {
   ZoomOutOutlined,
   RedoOutlined,
   UndoOutlined,
-  DeleteOutlined,
+  // DeleteOutlined,
   FileImageOutlined,
   SaveOutlined,
   FolderOpenOutlined,
@@ -30,7 +28,6 @@ import {
   DownloadOutlined,
   UploadOutlined,
 } from '@ant-design/icons'
-import { SystemComponent } from '../components/os-components/component-interface'
 import { XMLParser } from 'fast-xml-parser'
 import { loadDiagramFromXml } from '../utils/translator'
 import { restoreCell, saveCell } from '../components/nodes'
@@ -126,34 +123,6 @@ export const DiagramEditor = ({ board, fileName, dtb, devices, MRs, setMRs, wasm
     },
   }
 
-  const openExampleDiagram = async() => {
-    // fetch('test.system.vis').then(response =>
-    fetch('examples/wordle.system').then(response =>
-      response.arrayBuffer()
-    ).then(bytes => {
-      const typedArray = new Uint8Array(bytes)
-      var enc = new TextDecoder("utf-8")
-      const jsonString = enc.decode(typedArray)
-      const json = JSON.parse(jsonString)
-
-      const load_order = {
-        "PD": 0,
-        "VM": 1,
-        "sddf_subsystem": 2,
-        "channel": 3,
-      }
-      const cells = json.cells.sort((a, b) => {
-        return load_order[a.data.type] - load_order[b.data.type]
-      })
-      cells.map(cell => {
-        restoreCell(globalGraph, cell)
-      })
-      reassignEdgesForComponent(globalGraph)
-      console.log(json.mrs)
-      setMRs(json.mrs)
-    })
-  }
-
   const saveDiagram = async () => {
     const graphObject = globalGraph.toJSON()
     const cells = graphObject.cells.map(cell => {
@@ -205,7 +174,7 @@ export const DiagramEditor = ({ board, fileName, dtb, devices, MRs, setMRs, wasm
       const cells = json.cells.sort((a, b) => {
         return load_order[a.data.type] - load_order[b.data.type]
       })
-      cells.map(cell => {
+      cells.forEach(cell => {
         restoreCell(globalGraph, cell)
       })
       reassignEdgesForComponent(globalGraph)
@@ -235,8 +204,6 @@ export const DiagramEditor = ({ board, fileName, dtb, devices, MRs, setMRs, wasm
   }
 
   const openTemplateList = () => {
-    const PDs = globalGraph.getCells().filter(cell => cell.data.type === 'PD')
-    const PDNodes = PDs?.map(PD => {return {"name": PD.data.attrs.name, "node_id": PD.id}})
     setTemplateListOpen(true)
   }
 
@@ -269,21 +236,6 @@ export const DiagramEditor = ({ board, fileName, dtb, devices, MRs, setMRs, wasm
     return node?.data
   }
 
-  const updateNodeData = (node_id : string, new_data : any) => {
-    const node = globalGraph?.getNodes().find(node => node.id === node_id)
-
-    if (node) {
-      // Update data
-      node.data = new_data
-      // Update the label displayed on the corresponding node
-      node.setAttrs({ label: { text: node.data.attrs.name } })
-      // Update data and colour of memory regions
-      updateMappings()
-    } else {
-      console.log("Invalid node_id")
-    }
-  }
-
   const getEdgeData = (edge_id : string) => {
     const edge = globalGraph?.getEdges().find(edge => edge.id === edge_id)
     return edge?.data
@@ -313,7 +265,7 @@ export const DiagramEditor = ({ board, fileName, dtb, devices, MRs, setMRs, wasm
   }
 
   const updateIRQsPosition = (node_id : string, graph : Graph) => {
-    graph.getEdges().map(edge => {
+    graph.getEdges().forEach(edge => {
       if (edge.data.type !== 'irq') return
 
       if (edge.getSourceNode()?.id === node_id) {
@@ -522,7 +474,7 @@ export const DiagramEditor = ({ board, fileName, dtb, devices, MRs, setMRs, wasm
           })
         }
     
-        if (hasChange && parent.isCollapsed() == false) {
+        if (hasChange && parent.isCollapsed() === false) {
           parent.prop(
             {
               position: { x, y },
@@ -575,12 +527,12 @@ export const DiagramEditor = ({ board, fileName, dtb, devices, MRs, setMRs, wasm
             target_node: new_target_node,
             target_end_id: '1',
           }
-        } else if (new_source_node != old_source_node) {
+        } else if (new_source_node !== old_source_node) {
           old_source_node?.removePort(old_source_node.id + edge.id)
           edge.setSource(new_source_node)
           edge.data.source_node = new_source_node
           // TODO: assign a new channel id
-        } else if (new_target_node != old_target_node) {
+        } else if (new_target_node !== old_target_node) {
           old_target_node?.removePort(old_target_node.id + edge.id)
           edge.setTarget(new_target_node)
           edge.data.target_node = new_target_node
@@ -588,11 +540,11 @@ export const DiagramEditor = ({ board, fileName, dtb, devices, MRs, setMRs, wasm
         }
         const sourceComponent = new_source_node.data.component
         const targetComponent = new_target_node.data.component
-        if (sourceComponent.getType() == 'sddf_subsystem' && targetComponent.getType() == 'PD') {
+        if (sourceComponent.getType() === 'sddf_subsystem' && targetComponent.getType() === 'PD') {
           // TODO: pass node_id to client array, and get the pd_name when generating SDF
           sourceComponent.addClient(targetComponent.getAttrValues().name)
         }
-        if (sourceComponent.getType() == 'PD' && targetComponent.getType() == 'sddf_subsystem') {
+        if (sourceComponent.getType() === 'PD' && targetComponent.getType() === 'sddf_subsystem') {
           // TODO: pass node_id to client array, and get the pd_name when generating SDF
           targetComponent.addClient(sourceComponent.getAttrValues().name)
         }

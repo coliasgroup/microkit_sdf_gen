@@ -12,7 +12,7 @@ import { Graph } from "@antv/x6";
 import { randColor } from '../../utils/helper'
 import { SysMapItem } from '../mapping-table'
 import { SysIrq } from '../irq-table'
-import { getNodeByID, ContiguousIntList } from '../../utils/helper'
+import { getNodeByID } from '../../utils/helper'
 
 interface PDDataModel extends DataModel {
   type: 'PD',

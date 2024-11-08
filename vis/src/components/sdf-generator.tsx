@@ -1,31 +1,13 @@
 import { useState, useEffect } from 'react';
-import init, { greet } from "validator-wasm"
 import { PDComponent } from "./os-components/pd"
 
 const SDFGenerator = ({ globalGraph, toGenerateSDF, setToGenerateSDF, setSDFText, MRs, board, dtb, wasmInstance }) => {
   const [drivers, setDrivers] = useState([])
-  const [deviceClass, setDeviceClass] = useState([])
-  const [SDF, setSDF] = useState("")
-
-  const sDDFURL = `https://raw.githubusercontent.com/au-ts/sddf/862feed2485d5a6f5f31f80664dd6ad5374b757c/`
-  const driver_paths = [
-    {class: "network", path: "drivers/network/imx/config.json"},
-    {class: "network", path: "drivers/network/meson/config.json"},
-    {class: "network", path: "drivers/network/virtio/config.json"},
-    {class: "serial", path: "drivers/serial/meson/config.json"},
-    {class: "serial", path: "drivers/serial/imx/config.json"},
-    {class: "serial", path: "drivers/serial/arm/config.json"},
-  ]
+  // const [deviceClass, setDeviceClass] = useState([])
 
   const driver_configs = [
     {class: "serial", path: "sddf_configs/serial_arm.json"},
     {class: "serial", path: "sddf_configs/serial_arm.json"},
-  ]
-
-
-  const device_class_paths = [
-    {class: "network", path: "network/config.json"},
-    {class: "network", path: "serial/config.json"},
   ]
 
   const getMRJson = (MRs) => {
@@ -46,10 +28,10 @@ const SDFGenerator = ({ globalGraph, toGenerateSDF, setToGenerateSDF, setSDFText
       const pd1 = edge.data.source_node?.data.component
       const pd2 = edge.data.target_node?.data.component
 
-      if (pd1.getType() == 'sddf_subsystem' && pd2.getType() == 'PD') {
+      if (pd1.getType() === 'sddf_subsystem' && pd2.getType() === 'PD') {
         return ''
       }
-      if (pd2.getType() == 'sddf_subsystem' && pd1.getType() == 'PD') {
+      if (pd2.getType() === 'sddf_subsystem' && pd1.getType() === 'PD') {
         return ''
       }
 
@@ -59,7 +41,7 @@ const SDFGenerator = ({ globalGraph, toGenerateSDF, setToGenerateSDF, setSDFText
         pd1_end_id: parseInt(edge.data.source_end_id),
         pd2_end_id: parseInt(edge.data.target_end_id),
       }
-    }).filter(channel => channel != '')
+    }).filter(channel => channel !== '')
     return channels
   }
 
@@ -68,7 +50,7 @@ const SDFGenerator = ({ globalGraph, toGenerateSDF, setToGenerateSDF, setSDFText
       board: board,
       dtb: Array.from(dtb),
       drivers: drivers,
-      deviceClasses: deviceClass,
+      deviceClasses: [],
       mrs: [],
       pds: [],
       channels: [],
@@ -76,17 +58,17 @@ const SDFGenerator = ({ globalGraph, toGenerateSDF, setToGenerateSDF, setSDFText
     }
 
     const PDs = globalGraph?.getNodes().filter(node => {
-      return node.data.component.getType() == "PD"
+      return node.data.component.getType() === "PD"
     }).filter(node => {
       const component : PDComponent = node.data.component
-      return node.parent == null || component.isPartOfSubsystem()
+      return node.parent === null || component.isPartOfSubsystem()
     })
     attrJson.pds = PDs?.map(pd => pd.data.component.getJson(pd)) ?? []
 
-    const sddf_subsystems = globalGraph?.getNodes().filter(node => node.data.component.getType() == 'sddf_subsystem')
+    const sddf_subsystems = globalGraph?.getNodes().filter(node => node.data.component.getType() === 'sddf_subsystem')
     attrJson.sddf_subsystems = sddf_subsystems?.map(subsystem => subsystem.data.component.getJson(subsystem)) ?? []
 
-    const channels = globalGraph?.getEdges().filter(edge => edge.data.type == "channel")
+    const channels = globalGraph?.getEdges().filter(edge => edge.data.type === "channel")
     attrJson.channels = getChannelJson(channels)
 
     attrJson.mrs = getMRJson(MRs)
@@ -108,7 +90,6 @@ const SDFGenerator = ({ globalGraph, toGenerateSDF, setToGenerateSDF, setSDFText
     console.log("Result:\n", resultString)
 
     setSDFText(resultString)
-    setSDF(resultString)
     setToGenerateSDF(false)
   }
 

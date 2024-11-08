@@ -1,6 +1,6 @@
-import React, { useContext, useEffect, useRef, useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { Typography, Checkbox, TableProps, Form, Select, InputNumber, Table, Button, Input } from 'antd'
-import { MemoryRegion, SysMap } from '../utils/element'
+import { MemoryRegion } from '../utils/element'
 
 
 interface MemoryRegionItem extends MemoryRegion {
@@ -30,9 +30,6 @@ export const MemoryEditor = ({ MRs, setMRs, pageSizeOptions }) => {
     children,
     ...restProps
   }) =>{
-    const perm_options = ['r', 'w', 'x']
-
-
     const inputNodes = {
       'number': <InputNumber />,
       'select': <Select
@@ -157,7 +154,7 @@ export const MemoryEditor = ({ MRs, setMRs, pageSizeOptions }) => {
       dataType: 'select',
       required: false,
       render: (_: any, record: MemoryRegionItem) => {
-        const page_size = page_size_options.find(page_size => record.page_size == page_size.value)
+        const page_size = page_size_options.find(page_size => record.page_size === page_size.value)
         if (page_size == null) {
           return <></>
         }

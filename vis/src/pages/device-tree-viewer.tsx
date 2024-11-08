@@ -1,5 +1,4 @@
-import React, { useState, useEffect } from 'react';
-import init, {greet} from "validator-wasm"
+import React from 'react';
 import { JsonViewer } from '@textea/json-viewer'
 
 // Json-viewer: https://github.com/TexteaInc/json-viewer

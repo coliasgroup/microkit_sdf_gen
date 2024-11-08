@@ -9,7 +9,7 @@ import {
 import { Group } from '../group'
 import { Graph } from "@antv/x6";
 import { PDComponentInit } from "./pd"
-import { getComponentByID, getNodeByID } from '../../utils/helper'
+import { getComponentByID } from '../../utils/helper'
 
 interface SerialDataModel extends DataModel {
   type: 'sddf_subsystem',

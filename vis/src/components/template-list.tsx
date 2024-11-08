@@ -17,14 +17,14 @@ export default function TemplateList({ templateListOpen, setTemplateListOpen, gr
     return PDs?.map(PD => {
       const edges = graph.getEdges()
       const channels = edges?.map(edge => {
-        if (edge.getSourceNode().id == PD.id) {
+        if (edge.getSourceNode().id === PD.id) {
           const targetName = edge.getTargetNode()?.data.attrs.name
           return {"name": targetName, "end_id": edge.data.source_end_id}
-        } else if (edge.getTargetNode().id == PD.id) {
+        } else if (edge.getTargetNode().id === PD.id) {
           const sourceName = edge.getSourceNode()?.data.attrs.name
           return {"name": sourceName, "end_id": edge.data.target_end_id}
         }
-        return
+        return null
       })?.filter(entry => entry != null)
 
       const channels_definition = channels.map(channel => "#define " + channel.name + " " + channel.end_id)
@@ -52,27 +52,6 @@ export default function TemplateList({ templateListOpen, setTemplateListOpen, gr
       title: 'Operation',
       dataIndex: 'content',
       render: (text: string, record: DataType) => <a onClick={() => downloadFile(record.name, text)}>Download</a>,
-    },
-  ]
-
-  const data = [
-    {
-      key: '1',
-      name: 'pd1.h',
-      type: 'C Header File',
-      content: 'content',
-    },
-    {
-      key: '2',
-      name: 'pd2.h',
-      type: 'C Header File',
-      content: 'content',
-    },
-    {
-      key: '3',
-      name: 'pd3.h',
-      type: 'C Header File',
-      content: 'content',
     },
   ]
 

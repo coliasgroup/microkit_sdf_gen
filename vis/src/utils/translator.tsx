@@ -1,5 +1,4 @@
-import { Graph, Cell, Edge } from '@antv/x6'
-import { Group } from '../components/group'
+import { Graph } from '@antv/x6'
 import { XMLParser } from 'fast-xml-parser'
 import { MemoryRegion, SysMap, SysIrq } from './element'
 import { PDComponentInit } from '../components/os-components/pd'
@@ -24,7 +23,7 @@ const parseMappings = (json_mappings: any) => {
   if (json_mappings == null) {
     json_mappings = []
   }
-  if (Array.isArray(json_mappings) == false) {
+  if (Array.isArray(json_mappings) === false) {
     json_mappings = [json_mappings]
   }
 
@@ -34,7 +33,7 @@ const parseMappings = (json_mappings: any) => {
       vaddr: parseInt(mapping.vaddr.replace("_", ""), 16),
       setvar_vaddr: mapping.setvar_vaddr,
       perms: mapping.perms,
-      cached: (mapping.cached && mapping.cached == "true") ? true : false,
+      cached: (mapping.cached && mapping.cached === "true") ? true : false,
     }
     return newMapping
   })
@@ -46,7 +45,7 @@ const parseIrqs = (json_irqs: any) => {
     if (json_irqs == null) {
       json_irqs = []
     }
-    if (Array.isArray(json_irqs) == false) {
+    if (Array.isArray(json_irqs) === false) {
       json_irqs = [json_irqs]
     }
 
@@ -89,7 +88,7 @@ const parsePds = (graph: Graph, json_pds: any[]) => {
       priority: parseInt(json_pd.priority),
       budget: json_pd.budget ? parseInt(json_pd.budget) : 0,
       period: json_pd.period ? parseInt(json_pd.period) : 0,
-      pp: (json_pd.pp && json_pd.pp == "true") ? true : false,
+      pp: (json_pd.pp && json_pd.pp === "true") ? true : false,
       prog_img: json_pd.program_image.path
     }
 
@@ -129,10 +128,10 @@ export const loadDiagramFromXml = (graph: Graph, xml: string, updateMappings: an
     return new_node
   })
 
-  const edges = system_description.channel?.map(channel => {
-    const source = nodes.find(node => node.data.component.getAttrValues().name == channel.end[0].pd)
+  system_description.channel?.map(channel => {
+    const source = nodes.find(node => node.data.component.getAttrValues().name === channel.end[0].pd)
     const source_end_id = parseInt(channel.end[0].id)
-    const target = nodes.find(node => node.data.component.getAttrValues().name == channel.end[1].pd)
+    const target = nodes.find(node => node.data.component.getAttrValues().name === channel.end[1].pd)
     const target_end_id = parseInt(channel.end[1].id)
     const edge = graph.addEdge({
       source,

@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react'
+import React, { useEffect, useState } from 'react'
 import { Popover, Modal, Form, Input, InputNumber, Button, Select } from 'antd'
 import { getComponentByID } from '../utils/helper'
 import '../App.css'
@@ -14,30 +14,9 @@ export interface MemoryRegion {
 
 const { Option } = Select
 
-interface DragStatus {
-  op : null | "left" | "middle" | "right"
-  startX : number
-  startLeft : number
-  startPhyAddr : number
-  startWidth : number
-  indexOfMR : number | null
-  rangeLimit : { min : number, max : number}
-}
-
-interface FreeMRStatus {
-  phys_addr : number
-  size : number
-  visibility : "visible" | "hidden"
-}
-
 const maxPhyAddr = 0xffffffff
 
 export default function MemoryManager({MRSDF, MRs, setMRs, getNodeData, graph }) {
-  const [ freeMRStatus, setFreeMRStatus ] = useState<FreeMRStatus>({
-    phys_addr: 0,
-    size: 0,
-    visibility: "hidden"
-  })
   const refMRContainer = React.createRef<HTMLDivElement>()
   const [ form ] = Form.useForm(null)
   const [ indexOfMR, setIndexOfMR ] = useState<number | null>(null)
@@ -77,7 +56,7 @@ export default function MemoryManager({MRSDF, MRs, setMRs, getNodeData, graph })
       if (MR.phys_addr == null) {
         return
       }
-      if (last_phys_addr != MR.phys_addr) {
+      if (last_phys_addr !== MR.phys_addr) {
         tempMRWithAttrs.push({...free_mr, phys_addr: last_phys_addr, size: MR.phys_addr - last_phys_addr})
       }
       if (MR.nodes.length === 1) type = 'allocated-mr'
@@ -88,7 +67,7 @@ export default function MemoryManager({MRSDF, MRs, setMRs, getNodeData, graph })
       index += 1
     })
 
-    if (maxPhyAddr != last_phys_addr) {
+    if (maxPhyAddr !== last_phys_addr) {
       tempMRWithAttrs.push({...free_mr, phys_addr: last_phys_addr, size: maxPhyAddr - last_phys_addr})
     }
     setMRWithAttrs(tempMRWithAttrs)
@@ -120,7 +99,7 @@ export default function MemoryManager({MRSDF, MRs, setMRs, getNodeData, graph })
     const i = MR.index
     if (i < 0) {
       setMRs([...MRs, {name: 'untitled', phys_addr: MR.phys_addr, size: MR.size, page_size: MR.page_size, page_count: null, nodes: []}])
-      const prev_mr = MRWithAttrs.find(item => item.phys_addr + item.size == MR.phys_addr)
+      const prev_mr = MRWithAttrs.find(item => item.phys_addr + item.size === MR.phys_addr)
       setIndexOfMR(prev_mr ? prev_mr.index + 1 : 0)
     } else {
       setIndexOfMR(i)
@@ -144,13 +123,6 @@ export default function MemoryManager({MRSDF, MRs, setMRs, getNodeData, graph })
       })
       return newMRs
     })
-  }
-
-  const getMRClassNames = (num_mappings) => {
-    if (num_mappings == null) return 'unallocated-mr'
-    if (num_mappings === 1) return 'allocated-mr'
-    if (num_mappings === 0) return 'unallocated-mr'
-    if (num_mappings > 1) return 'shared-mr'
   }
 
   const updatePhysAddr = (value) => {
@@ -190,7 +162,7 @@ export default function MemoryManager({MRSDF, MRs, setMRs, getNodeData, graph })
           return <></>
         }
 
-        const background_color = MR.nodes.length == 1 ? getComponentByID(graph, MR.nodes[0]).getData().color : null
+        const background_color = MR.nodes.length === 1 ? getComponentByID(graph, MR.nodes[0]).getData().color : null
 
         return (
           <Popover placement="bottom" title={MR.name} content={popoverContent(MR)} key={i}>

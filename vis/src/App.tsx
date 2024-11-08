@@ -10,7 +10,6 @@ const onChange = (key: any) => {}
   
 const App = () => {
   const [ deviceTreeJson, setDeviceTreeJson ] = useState(null)
-  const [ getDeviceTree, setGetDeviceTree ] = useState(null)
   const [ wasmInstance, setWasmInstance ] = useState(null)
   const [ fileName, setFileName ] = useState('Untitled')
   const [ board, setBoard ] = useState<string>('qemu_arm_virt')

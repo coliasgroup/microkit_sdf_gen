@@ -109,10 +109,10 @@ export const closestBorder = (box : {x : number, y : number, width: number, heig
   const distanceToTop = Math.abs(point.y - boxTop)
   const distanceToBottom = Math.abs(point.y - boxBottom)
 
-  if (Math.abs(distanceToLeft - distanceToRight) != box.width) {
+  if (Math.abs(distanceToLeft - distanceToRight) !== box.width) {
     return (distanceToTop < distanceToBottom) ? 'top' : 'bottom'
   }
-  if (Math.abs(distanceToTop - distanceToBottom) != box.width) {
+  if (Math.abs(distanceToTop - distanceToBottom) !== box.width) {
     return (distanceToLeft < distanceToRight) ? 'left' : 'right'
   }
   
@@ -131,7 +131,7 @@ export const closestBorder = (box : {x : number, y : number, width: number, heig
 
 export const reassignEdgesForComponent = (graph : Graph) => {
   const edges = graph.getEdges()
-  edges.map(edge => {
+  edges.forEach(edge => {
     const sourceNode = edge.getSourceNode()
     const targetNode = edge.getTargetNode()
     if (sourceNode) {
@@ -151,6 +151,7 @@ export const reassignEdgesForComponent = (graph : Graph) => {
       } else {
         sourceNode.portProp(source_port!, 'group', border)
       }
+      return
     }
     if (targetNode) {
       const sourcePoint = edge.getSourcePoint()
