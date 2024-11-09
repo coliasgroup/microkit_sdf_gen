@@ -564,6 +564,8 @@ pub const I2cSystem = struct {
         const virt = system.virt;
         var driver = system.driver;
 
+        system.virt_config.num_clients += 1;
+
         // TODO: use optimal size
         const mr_req = Mr.create(allocator, fmt(allocator, "i2c_client_request_{s}", .{client.name}), system.region_req_size, .{});
         const mr_resp = Mr.create(allocator, fmt(allocator, "i2c_client_response_{s}", .{client.name}), system.region_resp_size, .{});
