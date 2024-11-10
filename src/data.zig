@@ -146,6 +146,101 @@ pub const Resources = struct {
             data_region: u64,
         };
     };
+
+    pub const Net = struct {
+        pub const MAX_NUM_CLIENTS = 61;
+
+        pub const Driver = extern struct {
+            hw_ring_buffer_vaddr: u64,
+            hw_ring_buffer_paddr: u64,
+
+            rx_free: u64,
+            rx_active: u64,
+            rx_capacity: u64,
+
+            tx_free: u64,
+            tx_active: u64,
+            tx_capacity: u64,
+
+            rx_id: u8,
+            tx_id: u8,
+        };
+
+        pub const VirtRx = extern struct {
+            pub const VirtRxClient = extern struct {
+                free: u64,
+                active: u64,
+                capacity: u64,
+                buffer_data_region_vaddr: u64,
+                buffer_data_region_paddr: u64,
+                id: u8,
+            };
+
+            free_drv: u64,
+            active_drv: u64,
+            capacity_drv: u64,
+
+            buffer_data_paddr: u64,
+            buffer_data_vaddr: u64,
+
+            buffer_metadata: u64,
+
+            driver_id: u8,
+
+            num_clients: u8,
+            clients: [MAX_NUM_CLIENTS]VirtRxClient,
+        };
+
+        pub const VirtTx = extern struct {
+            pub const VirtTxClient = extern struct {
+                free: u64,
+                active: u64,
+                capacity: u64,
+                buffer_data_region_vaddr: u64,
+                buffer_data_region_paddr: u64,
+                id: u8,
+            };
+
+            free_drv: u64,
+            active_drv: u64,
+            capacity_drv: u64,
+            drv_id: u8,
+            num_clients: u8,
+            clients: [MAX_NUM_CLIENTS]VirtTxClient,
+        };
+
+        pub const Copy = extern struct {
+            virt_free: u64,
+            virt_active: u64,
+            virt_capacity: u64,
+
+            cli_free: u64,
+            cli_active: u64,
+            cli_capacity: u64,
+
+            virt_data: u64,
+            cli_data: u64,
+
+            virt_id: u8,
+            cli_id: u8,
+        };
+
+        pub const Client = extern struct {
+            rx_free: u64,
+            rx_active: u64,
+            rx_capacity: u64,
+
+            tx_free: u64,
+            tx_active: u64,
+            tx_capacity: u64,
+
+            rx_buffer_data_region: u64,
+            tx_buffer_data_region: u64,
+
+            rx_ch: u8,
+            tx_ch: u8,
+        };
+    };
 };
 
 pub fn serialize(s: anytype, path: []const u8) !void {
