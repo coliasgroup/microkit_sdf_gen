@@ -1,5 +1,7 @@
 const std = @import("std");
 const builtin = @import("builtin");
+const config = @import("config");
+
 const mod_sdf = @import("sdf");
 const mod_vmm = mod_sdf.vmm;
 const sddf = mod_sdf.sddf;
@@ -95,8 +97,8 @@ const Example = enum {
 };
 
 var xml_out_path: []const u8 = "example.system";
-var sddf_path: []const u8 = "sddf";
-var dtbs_path: []const u8 = "dtbs";
+var sddf_path: []const u8 = config.sddf;
+var dtbs_path: []const u8 = config.dtbs;
 var board: MicrokitBoard = undefined;
 var example: Example = undefined;
 

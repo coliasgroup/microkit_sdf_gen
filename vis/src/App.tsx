@@ -7,19 +7,20 @@ import { DiagramEditor } from './pages/diagram-editor'
 import { MemoryRegion } from './utils/element'
 
 const onChange = (key: any) => {}
-  
+
 const App = () => {
   const [ deviceTreeJson, setDeviceTreeJson ] = useState(null)
   const [ wasmInstance, setWasmInstance ] = useState(null)
   const [ fileName, setFileName ] = useState('Untitled')
-  const [ board, setBoard ] = useState<string>('qemu_arm_virt')
+  const [ board, setBoard ] = useState<string>('qemu_virt_aarch64')
   const [ dtb, setDtb ] = useState<Uint8Array>(null)
   const [ MRs, setMRs] = useState<Array<MemoryRegion>>([])
   const [ devices, setDevices ] = useState([])
   const [ pageSizeOptions, setPageSizeOptions ] = useState([])
 
   const board_list = [
-    { value: 'qemu_arm_virt', label: 'qemu_arm_virt' },
+    { value: 'qemu_virt_aarch64', label: 'QEMU virt (AArch64)' },
+    { value: 'odroidc4', label: 'Odroid-C4' },
   ]
 
   const switchBoard = (value: string) => {
@@ -74,7 +75,7 @@ const App = () => {
   }
 
   const readDtb = () => {
-    fetch(board + '.dtb').then(response =>
+    fetch("dtb/" + board + '.dtb').then(response =>
       response.arrayBuffer()
     ).then(bytes => {
       const typedArray = new Uint8Array(bytes)
@@ -91,8 +92,7 @@ const App = () => {
   }, [board])
 
   useEffect(() => {
-    fetch('gui_sdfgen.wasm').then(response => {
-    // fetch('test_gui.wasm').then(response => {
+    fetch('bin/gui_sdfgen.wasm').then(response => {
       return response.arrayBuffer()
     }).then(bytes => {
       const typedArray = new Uint8Array(bytes)

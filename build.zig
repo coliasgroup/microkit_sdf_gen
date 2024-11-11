@@ -23,26 +23,48 @@ pub fn build(b: *std.Build) !void {
     });
     sdf_module.addImport("dtb", dtb_module);
 
-    const sdfgen_step = b.step("zig_example", "Exmaples of using Zig bindings");
-    const sdfgen = b.addExecutable(.{
+    const dtb_step = b.step("dtbs", "Compile Device Tree Sources into .dtb");
+    const dts_dir = try std.fs.cwd().openDir("dts", .{ .iterate = true });
+    var dts_dir_iter = dts_dir.iterate();
+    while (try dts_dir_iter.next()) |entry| {
+        if (entry.kind != .file) {
+            continue;
+        }
+
+        const dtc_cmd = b.addSystemCommand(&[_][]const u8{
+            "dtc", "-q", "-I", "dts", "-O", "dtb"
+        });
+        dtc_cmd.addFileInput(b.path(b.fmt("dts/{s}", .{ entry.name })));
+        dtc_cmd.addFileArg(b.path(b.fmt("dts/{s}", .{ entry.name })));
+        const dtb = dtc_cmd.captureStdOut();
+        dtb_step.dependOn(&b.addInstallFileWithDir(dtb, .{ .custom = "dtb" }, b.fmt("{s}.dtb", .{ std.fs.path.stem(entry.name) })).step);
+    }
+
+    const zig_example_step = b.step("zig_example", "Exmaples of using Zig bindings");
+    const zig_example = b.addExecutable(.{
         .name = "zig_example",
         .root_source_file = b.path("examples/examples.zig"),
         .target = target,
         .optimize = optimize,
     });
+    const zig_example_options = b.addOptions();
+    zig_example_options.addOptionPath("dtbs", .{ .cwd_relative = b.getInstallPath(.{ .custom = "dtb"}, "") });
+    zig_example_options.addOptionPath("sddf", b.path("sddf"));
 
-    sdfgen.root_module.addImport("sdf", sdf_module);
+    zig_example.root_module.addOptions("config", zig_example_options);
+    zig_example.root_module.addImport("sdf", sdf_module);
 
-    const sdfgen_cmd = b.addRunArtifact(sdfgen);
+    const zig_example_cmd = b.addRunArtifact(zig_example);
     if (b.args) |args| {
-        sdfgen_cmd.addArgs(args);
+        zig_example_cmd.addArgs(args);
     }
     // In case any sDDF configuration files are changed
-    _ = try sdfgen_cmd.step.addDirectoryWatchInput(b.path("sddf"));
+    _ = try zig_example_cmd.step.addDirectoryWatchInput(b.path("sddf"));
+    zig_example_cmd.step.dependOn(dtb_step);
 
-    sdfgen_step.dependOn(&sdfgen_cmd.step);
-    const sdfgen_install = b.addInstallArtifact(sdfgen, .{});
-    sdfgen_step.dependOn(&sdfgen_install.step);
+    zig_example_step.dependOn(&zig_example_cmd.step);
+    const zig_example_install = b.addInstallArtifact(zig_example, .{});
+    zig_example_step.dependOn(&zig_example_install.step);
 
     b.installArtifact(lib);
 
@@ -145,4 +167,5 @@ pub fn build(b: *std.Build) !void {
     run_tests.step.dependOn(&c_example_install.step);
     // In case any sDDF configuration files are changed
     _ = try test_step.addDirectoryWatchInput(b.path("sddf"));
+
 }

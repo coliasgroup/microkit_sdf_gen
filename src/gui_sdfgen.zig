@@ -15,11 +15,10 @@ const Irq = SystemDescription.Interrupt;
 const Channel = SystemDescription.Channel;
 const DeviceTree = sddf.DeviceTree;
 
-var dtbs_path: []const u8 = "dtbs";
 var board: MicrokitBoard = undefined;
 
 const MicrokitBoard = enum {
-    qemu_arm_virt,
+    qemu_virt_aarch64,
     odroidc4,
 
     pub fn fromStr(str: []const u8) !MicrokitBoard {
@@ -34,7 +33,7 @@ const MicrokitBoard = enum {
 
     pub fn arch(b: MicrokitBoard) SystemDescription.Arch {
         return switch (b) {
-            .qemu_arm_virt, .odroidc4 => .aarch64,
+            .qemu_virt_aarch64, .odroidc4 => .aarch64,
         };
     }
 
@@ -42,7 +41,7 @@ const MicrokitBoard = enum {
     /// each board
     pub fn uartNode(b: MicrokitBoard) []const u8 {
         return switch (b) {
-            .qemu_arm_virt => "pl011@9000000",
+            .qemu_virt_aarch64 => "pl011@9000000",
             .odroidc4 => "serial@3000",
         };
     }
@@ -237,7 +236,7 @@ fn parseSddfSubsystemFromJson(sdf: *SystemDescription, subsystem_config: anytype
                 const bus_node = soc_node.child("bus@ff800000").?;
                 uart_node = bus_node.child("serial@3000");
             },
-            .qemu_arm_virt => {
+            .qemu_virt_aarch64 => {
                 uart_node = blob.child(board.uartNode());
             },
         }
@@ -322,9 +321,6 @@ fn printMsg(result_ptr: [*]u8, msg: []const u8) usize {
     std.mem.copyForwards(u8, result_ptr[0..msg.len], msg);
     return msg.len;
 }
-
-// Compile: zig build wasm
-// Copy to GUI repo: cp zig-out/bin/gui_sdfgen.wasm ../lionsos_vis/public
 
 export fn jsonToXml(input_ptr: [*]const u8, input_len: usize, result_ptr: [*]u8) usize {
     const input = input_ptr[0..input_len];

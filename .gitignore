@@ -6,11 +6,15 @@ zig-out
 .DS_Store
 venv
 .elf
+.wasm
 
 # vis: dependencies
 vis/node_modules
 vis/.pnp
 vis/.pnp.js
+
+vis/public/bin
+vis/public/dtb
 
 # vis: testing
 vis/coverage
@@ -27,3 +31,4 @@ vis/coverage
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
