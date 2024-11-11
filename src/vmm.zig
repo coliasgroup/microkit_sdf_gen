@@ -41,6 +41,7 @@ pub const VirtualMachineSystem = struct {
     /// to a virtual machine.
     /// This adds the required interrupts to be given to the VMM, and the TODO finish description
     pub fn addPassthrough(system: *VirtualMachineSystem, name: []const u8, device: *dtb.Node, irqs: bool) !void {
+        const allocator = system.allocator;
         // Find the device, get it's memory regions and add it to the guest. Add its IRQs to the VMM.
         if (device.prop(.Reg)) |device_reg| {
             for (device_reg, 0..) |d, i| {
@@ -49,12 +50,12 @@ pub const VirtualMachineSystem = struct {
                 const device_size = DeviceTree.regToSize(d[1]);
                 var mr_name: []const u8 = undefined;
                 if (device_reg.len > 1) {
-                    // TODO: deallocate?
-                    mr_name = std.fmt.allocPrint(system.allocator, "{s}{}", .{ name, i }) catch @panic("OOM");
+                    mr_name = std.fmt.allocPrint(allocator, "{s}{}", .{ name, i }) catch @panic("OOM");
+                    defer allocator.free(mr_name);
                 } else {
                     mr_name = name;
                 }
-                const device_mr = Mr.create(system.allocator, mr_name, device_size, device_paddr, .small);
+                const device_mr = Mr.create(allocator, mr_name, device_size, device_paddr, .small);
                 system.sdf.addMemoryRegion(device_mr);
                 system.vm.addMap(Map.create(device_mr, device_paddr, .rw, false, null));
             }

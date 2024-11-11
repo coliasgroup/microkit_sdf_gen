@@ -314,7 +314,6 @@ pub const DeviceTree = struct {
 
         pub fn fromDtb(d: *dtb.Node) ArmGic {
             // Find the GIC with any compatible string, regardless of version.
-            // TODO: check if findCompatible returns null
             const maybe_gic_node = DeviceTree.findCompatible(d, &ArmGic.compatible);
             if (maybe_gic_node == null) {
                 @panic("Cannot find ARM GIC device in device tree");
@@ -478,10 +477,11 @@ pub const TimerSystem = struct {
 
         try createDriver(system.sdf, system.driver, system.device, .timer);
         for (system.clients.items) |client| {
-            // In order to connect a client we simply have to create a channel between
-            // each client and the driver.
             system.sdf.addChannel(Channel.create(system.driver, client, .{
+                // Client needs to be able to PPC into driver
                 .pp = .b,
+                // Client does not need to notify driver
+                .pd_b_notify = false,
             }));
         }
     }
@@ -649,9 +649,12 @@ pub const BlockSystem = struct {
     device: *dtb.Node,
     virt: *Pd,
     clients: std.ArrayList(*Pd),
+    client_partitions: std.ArrayList(u32),
     connected: bool = false,
     // TODO: make this configurable per component
     queue_mr_size: usize,
+    // TODO: make configurable
+    queue_capacity: usize = 128,
     config: SerialiseConfig,
 
     const SerialiseConfig = struct {
@@ -669,6 +672,7 @@ pub const BlockSystem = struct {
             .allocator = allocator,
             .sdf = sdf,
             .clients = std.ArrayList(*Pd).init(allocator),
+            .client_partitions = std.ArrayList(u32).init(allocator),
             .driver = driver,
             .device = device,
             .virt = virt,
@@ -681,8 +685,9 @@ pub const BlockSystem = struct {
         };
     }
 
-    pub fn addClient(system: *BlockSystem, client: *Pd) void {
+    pub fn addClient(system: *BlockSystem, client: *Pd, partition: u32) void {
         system.clients.append(client) catch @panic("Could not add client to BlockSystem");
+        system.client_partitions.append(partition) catch @panic("Could not add client to BlockSystem");
     }
 
     pub fn connectDriver(system: *BlockSystem) void {
@@ -795,8 +800,7 @@ pub const BlockSystem = struct {
             .data_paddr = mr_data.paddr.?,
             .data_size = mr_data.size,
             .queue_mr_size = queue_mr_size,
-            // TODO: fix,
-            .partition = @intCast(i),
+            .partition = system.client_partitions.items[i],
         }) catch @panic("could not add virt client config");
 
         system.config.clients.append(.{
@@ -804,8 +808,7 @@ pub const BlockSystem = struct {
             .req_queue = map_req_client.vaddr,
             .resp_queue = map_resp_client.vaddr,
             .data_vaddr = map_data_client.vaddr,
-            // TODO: fix
-            .queue_capacity = 128,
+            .queue_capacity = system.queue_capacity,
         }) catch @panic("could not add client config");
     }
 
@@ -911,7 +914,6 @@ pub const SerialSystem = struct {
             };
             const mr = Mr.create(allocator, mr_name, mr_size, .{});
             system.sdf.addMemoryRegion(mr);
-            // @ivanv: vaddr has invariant that needs to be checked
             const virt_vaddr = system.virt_rx.?.getMapVaddr(&mr);
             const virt_map = Map.create(mr, virt_vaddr, .rw, true, .{});
             system.virt_rx.?.addMap(virt_map);
@@ -952,7 +954,6 @@ pub const SerialSystem = struct {
             };
             const mr = Mr.create(allocator, mr_name, mr_size, .{});
             system.sdf.addMemoryRegion(mr);
-            // @ivanv: vaddr has invariant that needs to be checked
             const virt_vaddr = system.virt_tx.getMapVaddr(&mr);
             const virt_map = Map.create(mr, virt_vaddr, .rw, true, .{});
             system.virt_tx.addMap(virt_map);
@@ -997,7 +998,6 @@ pub const SerialSystem = struct {
             };
             const mr = Mr.create(allocator, mr_name, mr_size, .{});
             system.sdf.addMemoryRegion(mr);
-            // @ivanv: vaddr has invariant that needs to be checked
             const virt_vaddr = system.virt_rx.?.getMapVaddr(&mr);
             const virt_map = Map.create(mr, virt_vaddr, .rw, true, .{});
             system.virt_rx.?.addMap(virt_map);
@@ -1038,7 +1038,6 @@ pub const SerialSystem = struct {
             };
             const mr = Mr.create(allocator, mr_name, mr_size, .{});
             system.sdf.addMemoryRegion(mr);
-            // @ivanv: vaddr has invariant that needs to be checked
             const virt_vaddr = system.virt_tx.getMapVaddr(&mr);
             const virt_map = Map.create(mr, virt_vaddr, .rw, true, .{});
             system.virt_tx.addMap(virt_map);
@@ -1114,6 +1113,8 @@ pub const SerialSystem = struct {
     }
 };
 
+// TODO: connect functions look disgusting because I'm doing weird looping stuff with the
+// Region enum
 pub const NetworkSystem = struct {
     pub const Options = struct {
         region_size: usize = 0x200_000,
@@ -1173,7 +1174,6 @@ pub const NetworkSystem = struct {
                 else => Map.Permissions{ .read = true, .write = true },
             };
             // Data regions are not to be mapped in the driver's address space
-            // @ivanv: gross syntax
             if (@as(Region, @enumFromInt(region.value)) != .data) {
                 const driver_vaddr = system.driver.getMapVaddr(&mr);
                 const driver_setvar_vaddr = std.fmt.allocPrint(system.allocator, "rx_{s}", .{region.name}) catch @panic("OOM");
@@ -1183,8 +1183,6 @@ pub const NetworkSystem = struct {
                 system.virt_rx.addSetVar(SetVar.create("buffer_data_paddr", &mr));
             }
 
-            // @ivanv: vaddr has invariant that needs to be checked
-            // @ivanv: gross syntax
             if (@as(Region, @enumFromInt(region.value)) != .data) {
                 const virt_vaddr = system.virt_rx.getMapVaddr(&mr);
                 const virt_setvar_vaddr = std.fmt.allocPrint(system.allocator, "rx_{s}_drv", .{region.name}) catch @panic("OOM");
@@ -1208,14 +1206,12 @@ pub const NetworkSystem = struct {
             const mr = Mr.create(allocator, mr_name, system.region_size, .{});
             system.sdf.addMemoryRegion(mr);
             // Data regions are not to be mapped in the driver's address space
-            // @ivanv: gross syntax
             if (@as(Region, @enumFromInt(region.value)) != .data) {
                 const driver_vaddr = system.driver.getMapVaddr(&mr);
                 const driver_setvar_vaddr = std.fmt.allocPrint(system.allocator, "tx_{s}", .{region.name}) catch @panic("OOM");
                 const driver_map = Map.create(mr, driver_vaddr, .rw, true, .{ .setvar_vaddr = driver_setvar_vaddr });
                 system.driver.addMap(driver_map);
 
-                // @ivanv: vaddr has invariant that needs to be checked
                 const virt_vaddr = system.virt_tx.getMapVaddr(&mr);
                 const virt_setvar_vaddr = std.fmt.allocPrint(system.allocator, "tx_{s}_drv", .{region.name}) catch @panic("OOM");
                 const virt_map = Map.create(mr, virt_vaddr, .rw, true, .{ .setvar_vaddr = virt_setvar_vaddr });
@@ -1231,10 +1227,8 @@ pub const NetworkSystem = struct {
             const mr = Mr.create(allocator, mr_name, system.region_size, .{});
             system.sdf.addMemoryRegion(mr);
             const perms: Map.Permissions = .{ .read = true, .write = true };
-            // @ivanv: vaddr has invariant that needs to be checked
             const virt_vaddr = rx.getMapVaddr(&mr);
             var virt_setvar_vaddr: ?[]const u8 = null;
-            // @ivanv: gross syntax
             if (@as(Region, @enumFromInt(region.value)) != .data) {
                 virt_setvar_vaddr = std.fmt.allocPrint(system.allocator, "rx_{s}_cli", .{region.name}) catch @panic("OOM");
             } else {
@@ -1262,10 +1256,8 @@ pub const NetworkSystem = struct {
             const mr = Mr.create(allocator, mr_name, system.region_size, .{});
             system.sdf.addMemoryRegion(mr);
             const perms: Map.Permissions = .{ .read = true, .write = true };
-            // @ivanv: vaddr has invariant that needs to be checked
             const virt_vaddr = tx.getMapVaddr(&mr);
             var virt_setvar_vaddr: ?[]const u8 = null;
-            // @ivanv: gross syntax
             if (client_idx == 0 and @as(Region, @enumFromInt(region.value)) != .data) {
                 virt_setvar_vaddr = fmt(system.allocator, "tx_{s}_cli0", .{region.name});
             } else if (@as(Region, @enumFromInt(region.value)) == .data) {
@@ -1419,20 +1411,6 @@ pub fn createDriver(sdf: *SystemDescription, pd: *Pd, device: *dtb.Node, class: 
         return error.InvalidConfig;
     }
 
-    // For each set of interrupt values in the device tree 'interrupts' property
-    // we expect three entries.
-    //      1st is the IRQ type.
-    //      2nd is the IRQ number.
-    //      3rd is the IRQ trigger.
-    // Note that this is specific to the ARM architecture. Fucking DTS people couldn't
-    // make it easy to distinguish based on architecture. :((
-    for (interrupts) |interrupt| {
-        assert(interrupt.len == 3);
-    }
-
-    // IRQ device tree handling is currently ARM specific.
-    assert(sdf.arch == .aarch64 or sdf.arch == .aarch32);
-
     // TODO: support more than one device region, it will most likely be needed in the future.
     assert(driver.resources.device_regions.len <= 1);
     if (driver.resources.device_regions.len > 0) {
@@ -1493,14 +1471,27 @@ pub fn createDriver(sdf: *SystemDescription, pd: *Pd, device: *dtb.Node, class: 
     for (driver.resources.irqs) |driver_irq| {
         const dt_irq = interrupts[driver_irq.dt_index];
 
-        // Determine the IRQ trigger and (software-observable) number based on the device tree.
-        const irq_type = try DeviceTree.armGicIrqType(dt_irq[0]);
-        const irq_number = DeviceTree.armGicIrqNumber(dt_irq[1], irq_type);
-        // Assume trigger is level if we are dealing with an IRQ that is not an SPI.
-        // TODO: come back to this, do we need to care about the trigger for non-SPIs?
-        const irq_trigger = if (irq_type == .spi) try DeviceTree.armGicSpiTrigger(dt_irq[2]) else .level;
+        const irq = blk: switch (sdf.arch) {
+            .aarch64, .aarch32 => {
+                std.debug.assert(dt_irq.len == 3);
+                // Determine the IRQ trigger and (software-observable) number based on the device tree.
+                const irq_type = try DeviceTree.armGicIrqType(dt_irq[0]);
+                const irq_number = DeviceTree.armGicIrqNumber(dt_irq[1], irq_type);
+                // Assume trigger is level if we are dealing with an IRQ that is not an SPI.
+                // TODO: come back to this, do we need to care about the trigger for non-SPIs?
+                const irq_trigger = if (irq_type == .spi) try DeviceTree.armGicSpiTrigger(dt_irq[2]) else .level;
 
-        const irq = SystemDescription.Interrupt.create(irq_number, irq_trigger, driver_irq.channel_id);
+                break :blk SystemDescription.Interrupt.create(irq_number, irq_trigger, driver_irq.channel_id);
+            },
+            .riscv64, .riscv32 => {
+                std.debug.assert(dt_irq.len == 1);
+                const irq_number = dt_irq[0];
+                const irq_trigger = .level;
+                break :blk SystemDescription.Interrupt.create(irq_number, irq_trigger, driver_irq.channel_id);
+            },
+            else => @panic("device driver IRQ handling is unimplemented for given arch"),
+        };
+
         try pd.addInterrupt(irq);
     }
 }

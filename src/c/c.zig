@@ -174,9 +174,9 @@ export fn sdfgen_sddf_block(c_sdf: *align(8) anyopaque, c_device: *align(8) anyo
     return block;
 }
 
-export fn sdfgen_sddf_block_add_client(system: *align(8) anyopaque, client: *align(8) anyopaque) void {
+export fn sdfgen_sddf_block_add_client(system: *align(8) anyopaque, client: *align(8) anyopaque, partition: u32) void {
     const block: *sddf.BlockSystem = @ptrCast(system);
-    block.addClient(@ptrCast(client));
+    block.addClient(@ptrCast(client), partition);
 }
 
 export fn sdfgen_sddf_block_connect(system: *align(8) anyopaque) bool {

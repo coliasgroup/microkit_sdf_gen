@@ -19,6 +19,7 @@ const Channel = SystemDescription.Channel;
 const VirtualMachineSystem = mod_vmm.VirtualMachineSystem;
 
 const MicrokitBoard = enum {
+    star64,
     qemu_virt_aarch64,
     odroidc4,
 
@@ -35,6 +36,7 @@ const MicrokitBoard = enum {
     pub fn paddrTop(b: MicrokitBoard) u64 {
         // TODO: just get this from the DTS
         return switch (b) {
+            .star64 => 0x100000000,
             .qemu_virt_aarch64 => 0xa0000000,
             .odroidc4 => 0x80000000,
         };
@@ -42,6 +44,7 @@ const MicrokitBoard = enum {
 
     pub fn arch(b: MicrokitBoard) SystemDescription.Arch {
         return switch (b) {
+            .star64 => .riscv64,
             .qemu_virt_aarch64, .odroidc4 => .aarch64,
         };
     }
@@ -60,6 +63,7 @@ const Example = enum {
     blk,
     i2c,
     serial,
+    timer,
 
     pub fn fromStr(str: []const u8) !Example {
         inline for (std.meta.fields(Example)) |field| {
@@ -77,6 +81,7 @@ const Example = enum {
             .blk => try blk(allocator, sdf, blob),
             .i2c => try i2c(allocator, sdf, blob),
             .serial => try serial(allocator, sdf, blob),
+            .timer => try timer(allocator, sdf, blob),
         }
     }
 
@@ -211,6 +216,7 @@ fn i2c(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !void {
     const i2c_node = switch (board) {
         .odroidc4 => blob.child("soc").?.child("bus@ffd00000").?.child("i2c@1d000").?,
         .qemu_virt_aarch64 => @panic("no i2c for qemu"),
+        .star64 => @panic("unsupported platform"),
     };
 
     const clk_mr = Mr.physical(allocator, sdf, "clk", 0x1000, .{ .paddr = 0xFF63C000 });
@@ -244,6 +250,7 @@ fn i2c(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !void {
     const timer_node = switch (board) {
         .odroidc4 => blob.child("soc").?.child("bus@ffd00000").?.child("watchdog@f0d0").?,
         .qemu_virt_aarch64 => @panic("no i2c for qemu"),
+        .star64 => @panic("unsupported platform"),
     };
 
     var timer_driver = Pd.create(allocator, "timer_driver", "timer_driver.elf");
@@ -267,6 +274,7 @@ fn blk(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !void {
     const blk_node = switch (board) {
         .odroidc4 => @panic("no block for odroidc4"),
         .qemu_virt_aarch64 => blob.child("virtio_mmio@a003e00").?,
+        .star64 => @panic("unsupported platform"),
     };
 
     var client = Pd.create(allocator, "client", "client.elf");
@@ -278,11 +286,32 @@ fn blk(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !void {
     sdf.addProtectionDomain(&blk_virt);
 
     var blk_system = sddf.BlockSystem.init(allocator, sdf, blk_node, &blk_driver, &blk_virt, .{});
-    blk_system.addClient(&client);
+    blk_system.addClient(&client, 0);
 
     _ = try blk_system.connect();
 
     try blk_system.serialiseConfig("blk_virt.data");
+
+    try sdf.print();
+}
+
+fn timer(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !void {
+    const timer_node = switch (board) {
+        .odroidc4 => blob.child("soc").?.child("bus@ffd00000").?.child("watchdog@f0d0").?,
+        .qemu_virt_aarch64 => blob.child("timer").?,
+        .star64 => blob.child("soc").?.child("timer@13050000").?,
+    };
+
+    var timer_driver = Pd.create(allocator, "timer_driver", "timer_driver.elf");
+    sdf.addProtectionDomain(&timer_driver);
+
+    var client = Pd.create(allocator, "client", "client.elf");
+    sdf.addProtectionDomain(&client);
+
+    var timer_system = sddf.TimerSystem.init(allocator, sdf, timer_node, &timer_driver);
+    timer_system.addClient(&client);
+
+    try timer_system.connect();
 
     try sdf.print();
 }
@@ -296,6 +325,7 @@ fn webserver(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !vo
     const uart_node = switch (board) {
         .odroidc4 => blob.child("soc").?.child("bus@ff800000").?.child("serial@3000").?,
         .qemu_virt_aarch64 => blob.child("pl011@9000000").?,
+        .star64 => @panic("unsupported platform"),
     };
 
     var uart_driver = Pd.create(allocator, "uart_driver", "uart_driver.elf");
@@ -314,6 +344,7 @@ fn webserver(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !vo
     const timer_node = switch (board) {
         .odroidc4 => blob.child("soc").?.child("bus@ffd00000").?.child("watchdog@f0d0").?,
         .qemu_virt_aarch64 => blob.child("timer").?,
+        .star64 => @panic("unsupported platform"),
     };
 
     var timer_driver = Pd.create(allocator, "timer_driver", "timer_driver.elf");
@@ -336,6 +367,7 @@ fn webserver(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !vo
     const blk_node = switch (board) {
         .odroidc4 => @panic("no block for odroidc4"),
         .qemu_virt_aarch64 => blob.child("virtio_mmio@a002e00").?,
+        .star64 => @panic("unsupported platform"),
     };
 
     var blk_driver = Pd.create(allocator, "blk_driver", "blk_driver.elf");
@@ -344,11 +376,12 @@ fn webserver(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !vo
     sdf.addProtectionDomain(&blk_virt);
 
     var blk_system = sddf.BlockSystem.init(allocator, sdf, blk_node, &blk_driver, &blk_virt, .{});
-    blk_system.addClient(&fatfs);
+    blk_system.addClient(&fatfs, 0);
 
     const eth_node = switch (board) {
         .odroidc4 => blob.child("soc").?.child("ethernet@ff3f0000").?,
         .qemu_virt_aarch64 => blob.child("virtio_mmio@a003e00").?,
+        .star64 => @panic("unsupported platform"),
     };
     var eth_driver = Pd.create(allocator, "eth_driver", "eth_driver.elf");
     sdf.addProtectionDomain(&eth_driver);
@@ -415,6 +448,7 @@ fn kitty(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !void {
     const uart_node = switch (board) {
         .odroidc4 => blob.child("soc").?.child("bus@ff800000").?.child("serial@3000").?,
         .qemu_virt_aarch64 => blob.child("pl011@9000000").?,
+        .star64 => @panic("unsupported platform"),
     };
 
     var uart_driver = Pd.create(sdf, "uart_driver", "uart_driver.elf");
@@ -473,6 +507,7 @@ fn echo_server(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !
         .qemu_virt_aarch64 => {
             uart_node = blob.child("pl011@9000000");
         },
+        .star64 => @panic("unsupported platform"),
     }
 
     if (uart_node == null) {
@@ -528,12 +563,12 @@ fn echo_server(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !
     var timer_driver = Pd.create(sdf, "timer_driver", "timer_driver.elf");
     sdf.addProtectionDomain(&timer_driver);
 
-    const timer = switch (board) {
+    const timer_node = switch (board) {
         .odroidc4 => blob.child("soc").?.child("bus@ffd00000").?.child("watchdog@f0d0").?,
         .qemu_virt_aarch64 => @panic("TODO"),
     };
 
-    var timer_system = sddf.TimerSystem.init(allocator, sdf, &timer_driver, timer);
+    var timer_system = sddf.TimerSystem.init(allocator, sdf, &timer_driver, timer_node);
 
     serial_system.addClient(&client0);
     serial_system.addClient(&client1);
@@ -557,6 +592,7 @@ fn serial(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !void 
     const uart_node = switch (board) {
         .odroidc4 => blob.child("soc").?.child("bus@ff800000").?.child("serial@3000").?,
         .qemu_virt_aarch64 => blob.child("pl011@9000000").?,
+        .star64 => blob.child("soc").?.child("serial@10000000").?,
     };
 
     var uart_driver = Pd.create(allocator, "uart_driver", "uart_driver.elf");
@@ -641,9 +677,9 @@ pub fn main() !void {
     const compatible_drivers = try sddf.compatibleDrivers(allocator);
     defer allocator.free(compatible_drivers);
 
-    std.log.debug("sDDF drivers found:\n", .{});
+    std.log.debug("sDDF drivers found:", .{});
     for (compatible_drivers) |driver| {
-        std.log.debug("   - {s}\n", .{driver});
+        std.log.debug("   - {s}", .{driver});
     }
 
     var sdf = SystemDescription.create(allocator, board.arch(), board.paddrTop());

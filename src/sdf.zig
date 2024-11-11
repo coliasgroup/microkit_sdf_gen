@@ -165,7 +165,7 @@ pub const SystemDescription = struct {
             }
 
             pub fn optimal(arch: Arch, region_size: usize) PageSize {
-                // @ivanv: would be better if we did some meta programming in case the
+                // TODO would be better if we did some meta programming in case the
                 // number of elements in PageSize change
                 // if (region_size % PageSize.huge.toSize(sdf.arch) == 0) return .huge;
                 if (region_size % PageSize.large.toInt(arch) == 0) return .large;
@@ -255,9 +255,11 @@ pub const SystemDescription = struct {
         pub fn toXml(map: *const Map, sdf: *SystemDescription, writer: ArrayList(u8).Writer, separator: []const u8) !void {
             const mr_str =
                 \\{s}<map mr="{s}" vaddr="0x{x}" perms="{s}" cached="{s}" />
+                \\
             ;
             const mr_str_with_setvar =
                 \\{s}<map mr="{s}" vaddr="0x{x}" perms="{s}" cached="{s}" setvar_vaddr="{s}" />
+                \\
             ;
             // TODO: use null terminated pointer from Zig?
             var perms = [_]u8{0} ** 4;
@@ -273,8 +275,6 @@ pub const SystemDescription = struct {
             defer sdf.allocator.free(xml);
 
             _ = try writer.write(xml);
-            // @ivanv: come back to, try put it in a single string
-            _ = try writer.write("\n");
         }
     };
 
@@ -285,8 +285,6 @@ pub const SystemDescription = struct {
         // the budget
         budget: usize = 100,
         period: usize = 100,
-        // TODO: deal with passive
-        passive: bool = false,
         vcpus: []const Vcpu,
         maps: ArrayList(Map),
 
@@ -562,7 +560,7 @@ pub const SystemDescription = struct {
                 .pd_a_id = pd_a.allocateId(null) catch @panic("Could not allocate ID for channel"),
                 .pd_b_id = pd_b.allocateId(null) catch @panic("Could not allocate ID for channel"),
                 .pd_a_notify = options.pd_a_notify,
-                .pd_b_notify = options.pd_a_notify,
+                .pd_b_notify = options.pd_b_notify,
                 .pp = options.pp,
             };
         }
