@@ -63,6 +63,31 @@ test "PD + MR + mappings + channel" {
     try std.testing.expectEqualStrings(expected, output);
 }
 
+test "fixed channel" {
+    var sdf = SystemDescription.create(allocator, .aarch64, 0x100_000_000);
+
+    var pd1 = ProtectionDomain.create(allocator, "hello-1", "hello.elf");
+    var pd2 = ProtectionDomain.create(allocator, "hello-2", "hello.elf");
+
+    sdf.addProtectionDomain(&pd1);
+    sdf.addProtectionDomain(&pd2);
+
+    try pd1.addInterrupt(.create(33, .level, 0));
+
+    sdf.addChannel(Channel.create(&pd1, &pd2, .{
+        .pd_a_id = 3,
+        .pd_b_id = 5,
+    }));
+    sdf.addChannel(Channel.create(&pd1, &pd2, .{}));
+
+    const expected = try readTestFile("pd_fixed_channel.system");
+    const output = try sdf.toXml();
+    defer allocator.free(expected);
+    defer sdf.destroy();
+
+    try std.testing.expectEqualStrings(expected, output);
+}
+
 test "C example" {
     var example_process = std.process.Child.init(&.{ config.c_example, config.sddf }, allocator);
 

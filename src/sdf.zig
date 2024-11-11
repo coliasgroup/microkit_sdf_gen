@@ -551,14 +551,16 @@ pub const SystemDescription = struct {
             pd_a_notify: bool = true,
             pd_b_notify: bool = true,
             pp: ?End = null,
+            pd_a_id: ?usize = null,
+            pd_b_id: ?usize = null,
         };
 
         pub fn create(pd_a: *ProtectionDomain, pd_b: *ProtectionDomain, options: Options) Channel {
             return .{
                 .pd_a = pd_a,
                 .pd_b = pd_b,
-                .pd_a_id = pd_a.allocateId(null) catch @panic("Could not allocate ID for channel"),
-                .pd_b_id = pd_b.allocateId(null) catch @panic("Could not allocate ID for channel"),
+                .pd_a_id = pd_a.allocateId(options.pd_a_id) catch @panic("Could not allocate ID for channel"),
+                .pd_b_id = pd_b.allocateId(options.pd_b_id) catch @panic("Could not allocate ID for channel"),
                 .pd_a_notify = options.pd_a_notify,
                 .pd_b_notify = options.pd_b_notify,
                 .pp = options.pp,
