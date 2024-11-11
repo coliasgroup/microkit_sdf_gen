@@ -1105,8 +1105,8 @@ pub const SerialSystem = struct {
         try data.jsonify(system.virt_tx_config, "serial_virt_tx.json", .{ .whitespace = .indent_4 });
 
         for (system.clients.items, 0..) |client, i| {
-            const data_name = std.fmt.allocPrint(system.allocator, "{s}.data", .{client.name}) catch @panic("OOM");
-            const json_name = std.fmt.allocPrint(system.allocator, "{s}.json", .{client.name}) catch @panic("OOM");
+            const data_name = std.fmt.allocPrint(system.allocator, "serial_client_{s}.data", .{client.name}) catch @panic("OOM");
+            const json_name = std.fmt.allocPrint(system.allocator, "serial_client_{s}.json", .{client.name}) catch @panic("OOM");
             try data.serialize(system.client_configs.items[i], data_name);
             try data.jsonify(system.client_configs.items[i], json_name, .{ .whitespace = .indent_4 });
         }
