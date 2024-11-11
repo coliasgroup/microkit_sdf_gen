@@ -66,6 +66,7 @@ const Example = enum {
     i2c,
     serial,
     timer,
+    echo_server,
 
     pub fn fromStr(str: []const u8) !Example {
         inline for (std.meta.fields(Example)) |field| {
@@ -84,6 +85,7 @@ const Example = enum {
             .i2c => try i2c(allocator, sdf, blob),
             .serial => try serial(allocator, sdf, blob),
             .timer => try timer(allocator, sdf, blob),
+            .echo_server => try echo_server(allocator, sdf, blob),
         }
     }
 
@@ -492,102 +494,112 @@ fn kitty(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !void {
 /// Do not worry about the abstraction stuff. First reproduce the echo server,
 /// then consider whether the abstractions are correct.
 fn echo_server(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !void {
-    const image = "uart_driver.elf";
-    var driver = Pd.create(sdf, "uart_driver", image);
-    sdf.addProtectionDomain(&driver);
-
-    var uart_node: ?*dtb.Node = undefined;
-    // TODO: We would probably want some helper functionality that just takes
-    // the full node name such as "/soc/bus@ff8000000/serial@3000" and would
-    // find the DTB node info that we need. For now, this fine.
-    switch (board) {
-        .odroidc4 => {
-            const soc_node = blob.child("soc").?;
-            const bus_node = soc_node.child("bus@ff800000").?;
-            uart_node = bus_node.child("serial@3000");
-        },
-        .qemu_virt_aarch64 => {
-            uart_node = blob.child("pl011@9000000");
-        },
-        .star64 => @panic("unsupported platform"),
-    }
-
-    if (uart_node == null) {
-        std.log.err("Could not find UART node '{s}'", .{"pl011@9000000"});
-        std.process.exit(1);
-    }
-
-    var serial_virt_rx = Pd.create(sdf, "serial_virt_rx", "serial_virt_rx.elf");
-    sdf.addProtectionDomain(&serial_virt_rx);
-
-    var serial_virt_tx = Pd.create(sdf, "serial_virt_tx", "serial_virt_tx.elf");
-    sdf.addProtectionDomain(&serial_virt_tx);
-
-    var serial_system = sddf.SerialSystem.init(allocator, sdf, uart_node.?, &driver, &serial_virt_tx, &serial_virt_rx, .{});
-
-    const ethernet = switch (board) {
-        .odroidc4 => blk: {
-            const soc_node = blob.child("soc").?;
-            break :blk soc_node.child("ethernet@ff3f0000").?;
-        },
-        .qemu_virt_aarch64 => @panic("TODO"),
-    };
-
-    var eth_driver = Pd.create(sdf, "eth_driver", "eth_driver.elf");
-    eth_driver.budget = 100;
-    eth_driver.period = 400;
-    eth_driver.priority = 101;
-    sdf.addProtectionDomain(&eth_driver);
-
-    var net_virt_tx = Pd.create(sdf, "net_virt_tx", "net_virt_tx.elf");
-    net_virt_tx.priority = 100;
-    net_virt_tx.budget = 20000;
-    sdf.addProtectionDomain(&net_virt_tx);
-
-    var net_virt_rx = Pd.create(sdf, "net_virt_rx", "net_virt_rx.elf");
-    net_virt_tx.priority = 99;
-    sdf.addProtectionDomain(&net_virt_rx);
-
-    var net_copier0_rx = Pd.create(sdf, "net_copier0_rx", "net_copier_rx.elf");
-    sdf.addProtectionDomain(&net_copier0_rx);
-    var net_copier1_rx = Pd.create(sdf, "net_copier1_rx", "net_copier_rx.elf");
-    sdf.addProtectionDomain(&net_copier1_rx);
-
-    var client0 = Pd.create(sdf, "client0", "lwip.elf");
-    sdf.addProtectionDomain(&client0);
-    var client1 = Pd.create(sdf, "client1", "lwip.elf");
-    sdf.addProtectionDomain(&client1);
-
-    var ethernet_system = sddf.NetworkSystem.init(allocator, sdf, ethernet, &eth_driver, &net_virt_rx, &net_virt_tx, .{ .region_size = 0x200_000 });
-    ethernet_system.addClientWithCopier(&client0, &net_copier0_rx);
-    ethernet_system.addClientWithCopier(&client1, &net_copier1_rx);
-
-    var timer_driver = Pd.create(sdf, "timer_driver", "timer_driver.elf");
-    sdf.addProtectionDomain(&timer_driver);
+    // Timer system
 
     const timer_node = switch (board) {
         .odroidc4 => blob.child("soc").?.child("bus@ffd00000").?.child("watchdog@f0d0").?,
-        .qemu_virt_aarch64 => @panic("TODO"),
+        .qemu_virt_aarch64 => blob.child("timer").?,
+        .star64 => blob.child("soc").?.child("timer@13050000").?,
     };
+    var timer_driver = Pd.create(allocator, "timer_driver", "timer_driver.elf", .{});
+    var timer_system = sddf.TimerSystem.init(allocator, sdf, timer_node, &timer_driver);
 
-    var timer_system = sddf.TimerSystem.init(allocator, sdf, &timer_driver, timer_node);
+    // Serial system
 
-    serial_system.addClient(&client0);
-    serial_system.addClient(&client1);
+    const uart_node = switch (board) {
+        .odroidc4 => blob.child("soc").?.child("bus@ff800000").?.child("serial@3000").?,
+        .qemu_virt_aarch64 => blob.child("pl011@9000000").?,
+        .star64 => blob.child("soc").?.child("serial@10000000").?,
+    };
+    var uart_driver = Pd.create(allocator, "uart_driver", "uart_driver.elf", .{});
+    var serial_virt_tx = Pd.create(allocator, "serial_virt_tx", "serial_virt_tx.elf", .{});
+    var serial_system = try sddf.SerialSystem.init(allocator, sdf, uart_node, &uart_driver, &serial_virt_tx, null, .{ .rx = false });
+
+    // Ethernet system
+
+    const eth_node = switch (board) {
+        .odroidc4 => blob.child("soc").?.child("ethernet@ff3f0000").?,
+        .qemu_virt_aarch64 => blob.child("virtio_mmio@a003e00").?,
+        .star64 => @panic("unsupported platform"),
+    };
+    var eth_driver = Pd.create(allocator, "eth_driver", "eth_driver.elf", .{});
+    eth_driver.budget = 100;
+    eth_driver.period = 400;
+    var eth_virt_rx = Pd.create(allocator, "eth_virt_rx", "network_virt_rx.elf", .{});
+    var eth_virt_tx = Pd.create(allocator, "eth_virt_tx", "network_virt_tx.elf", .{});
+    var eth_copy_client0 = Pd.create(allocator, "eth_copy_client0", "copy.elf", .{});
+    var eth_copy_client1 = Pd.create(allocator, "eth_copy_client1", "copy.elf", .{});
+    var eth_system = sddf.NetworkSystem.init(allocator, sdf, eth_node, &eth_driver, &eth_virt_rx, &eth_virt_tx, .{});
+
+    // Benchmark
+
+    var bench_idle = Pd.create(allocator, "bench_idle", "idle.elf", .{});
+    sdf.addProtectionDomain(&bench_idle);
+
+    var bench = Pd.create(allocator, "bench", "benchmark.elf", .{});
+    sdf.addProtectionDomain(&bench);
+
+    // Clients
+
+    var client0 = Pd.create(allocator, "client0", "lwip.elf", .{});
+    var client1 = Pd.create(allocator, "client1", "lwip.elf", .{});
+
+    // Make PDs children of benchmark
+
+    try bench.addChild(&client0);
+    try bench.addChild(&client1);
+    try bench.addChild(&eth_copy_client0);
+    try bench.addChild(&eth_copy_client1);
+    try bench.addChild(&eth_virt_rx);
+    try bench.addChild(&eth_virt_tx);
+    try bench.addChild(&eth_driver);
+    try bench.addChild(&serial_virt_tx);
+    try bench.addChild(&uart_driver);
+    try bench.addChild(&timer_driver);
+
+    // Priorities
+
+    timer_driver.priority = 101;
+
+    bench_idle.priority = 1;
+    bench.priority = 102;
+
+    uart_driver.priority = 100;
+    serial_virt_tx.priority = 99;
+
+    eth_driver.priority = 101;
+    eth_virt_tx.priority = 100;
+    eth_virt_rx.priority = 99;
+    eth_copy_client0.priority = 98;
+    eth_copy_client1.priority = 96;
+
+    client0.priority = 97;
+    client1.priority = 95;
+
+    // Connections
 
     timer_system.addClient(&client0);
     timer_system.addClient(&client1);
 
-    try ethernet_system.connect();
+    serial_system.addClient(&bench);
+    serial_system.addClient(&client0);
+    serial_system.addClient(&client1);
+
+    eth_system.addClientWithCopier(&client0, &eth_copy_client0);
+    eth_system.addClientWithCopier(&client1, &eth_copy_client1);
+
+    sdf.addChannel(Channel.create(&bench, &serial_virt_tx, .{}));
+    sdf.addChannel(Channel.create(&bench, &client0, .{}));
+    sdf.addChannel(Channel.create(&bench, &client0, .{}));
+    sdf.addChannel(Channel.create(&bench, &bench_idle, .{}));
+
+    try eth_system.connect();
     try timer_system.connect();
     try serial_system.connect();
 
-    const xml = try sdf.toXml();
-    std.debug.print("{s}", .{xml});
+    try serial_system.serialiseConfig();
 
-    const file = try std.fs.cwd().createFile("echo_server.system", .{});
-    defer file.close();
-    _ = try file.writeAll(xml);
+    try sdf.print();
 }
 
 fn serial(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !void {
