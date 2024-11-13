@@ -24,7 +24,7 @@ fn readTestFile(test_path: []const u8) ![]const u8 {
 test "basic" {
     var sdf = SystemDescription.create(allocator, .aarch64, 0x100_000_000);
 
-    var pd = ProtectionDomain.create(allocator, "hello", "hello.elf");
+    var pd = ProtectionDomain.create(allocator, "hello", "hello.elf", .{});
 
     sdf.addProtectionDomain(&pd);
 
@@ -42,13 +42,13 @@ test "PD + MR + mappings + channel" {
     sdf.addMemoryRegion(mr);
 
     const image = "hello.elf";
-    var pd1 = ProtectionDomain.create(allocator, "hello-1", image);
+    var pd1 = ProtectionDomain.create(allocator, "hello-1", image, .{});
     try pd1.addInterrupt(.create(33, .level, null));
     pd1.addMap(.create(mr, 0x400000000, .r, true, .{}));
     pd1.addMap(.create(mr, 0x600000000, .x, true, .{}));
     pd1.addMap(.create(mr, 0x800000000, .rwx, true, .{}));
 
-    var pd2 = ProtectionDomain.create(allocator, "hello-2", image);
+    var pd2 = ProtectionDomain.create(allocator, "hello-2", image, .{});
 
     sdf.addProtectionDomain(&pd1);
     sdf.addProtectionDomain(&pd2);
@@ -66,8 +66,8 @@ test "PD + MR + mappings + channel" {
 test "fixed channel" {
     var sdf = SystemDescription.create(allocator, .aarch64, 0x100_000_000);
 
-    var pd1 = ProtectionDomain.create(allocator, "hello-1", "hello.elf");
-    var pd2 = ProtectionDomain.create(allocator, "hello-2", "hello.elf");
+    var pd1 = ProtectionDomain.create(allocator, "hello-1", "hello.elf", .{});
+    var pd2 = ProtectionDomain.create(allocator, "hello-2", "hello.elf", .{});
 
     sdf.addProtectionDomain(&pd1);
     sdf.addProtectionDomain(&pd2);

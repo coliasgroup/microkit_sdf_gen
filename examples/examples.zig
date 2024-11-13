@@ -227,15 +227,15 @@ fn i2c(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !void {
     sdf.addMemoryRegion(clk_mr);
     sdf.addMemoryRegion(gpio_mr);
 
-    var client_ds3231 = Pd.create(allocator, "client_ds3231", "client_ds3231.elf");
+    var client_ds3231 = Pd.create(allocator, "client_ds3231", "client_ds3231.elf", .{});
     sdf.addProtectionDomain(&client_ds3231);
 
-    var client_pn532 = Pd.create(allocator, "client_pn532", "client_pn532.elf");
+    var client_pn532 = Pd.create(allocator, "client_pn532", "client_pn532.elf", .{});
     sdf.addProtectionDomain(&client_pn532);
 
-    var i2c_driver = Pd.create(allocator, "i2c_driver", "i2c_driver.elf");
+    var i2c_driver = Pd.create(allocator, "i2c_driver", "i2c_driver.elf", .{});
     sdf.addProtectionDomain(&i2c_driver);
-    var i2c_virt = Pd.create(allocator, "i2c_virt", "i2c_virt.elf");
+    var i2c_virt = Pd.create(allocator, "i2c_virt", "i2c_virt.elf", .{});
     sdf.addProtectionDomain(&i2c_virt);
 
     var i2c_system = sddf.I2cSystem.init(allocator, sdf, i2c_node, &i2c_driver, &i2c_virt, .{});
@@ -255,7 +255,7 @@ fn i2c(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !void {
         .star64 => @panic("unsupported platform"),
     };
 
-    var timer_driver = Pd.create(allocator, "timer_driver", "timer_driver.elf");
+    var timer_driver = Pd.create(allocator, "timer_driver", "timer_driver.elf", .{});
     sdf.addProtectionDomain(&timer_driver);
 
     timer_driver.priority = 101;
@@ -279,12 +279,12 @@ fn blk(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !void {
         .star64 => @panic("unsupported platform"),
     };
 
-    var client = Pd.create(allocator, "client", "client.elf");
+    var client = Pd.create(allocator, "client", "client.elf", .{});
     sdf.addProtectionDomain(&client);
 
-    var blk_driver = Pd.create(allocator, "blk_driver", "blk_driver.elf");
+    var blk_driver = Pd.create(allocator, "blk_driver", "blk_driver.elf", .{});
     sdf.addProtectionDomain(&blk_driver);
-    var blk_virt = Pd.create(allocator, "blk_virt", "blk_virt.elf");
+    var blk_virt = Pd.create(allocator, "blk_virt", "blk_virt.elf", .{});
     sdf.addProtectionDomain(&blk_virt);
 
     var blk_system = sddf.BlockSystem.init(allocator, sdf, blk_node, &blk_driver, &blk_virt, .{});
@@ -304,10 +304,10 @@ fn timer(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !void {
         .star64 => blob.child("soc").?.child("timer@13050000").?,
     };
 
-    var timer_driver = Pd.create(allocator, "timer_driver", "timer_driver.elf");
+    var timer_driver = Pd.create(allocator, "timer_driver", "timer_driver.elf", .{});
     sdf.addProtectionDomain(&timer_driver);
 
-    var client = Pd.create(allocator, "client", "client.elf");
+    var client = Pd.create(allocator, "client", "client.elf", .{});
     sdf.addProtectionDomain(&client);
 
     var timer_system = sddf.TimerSystem.init(allocator, sdf, timer_node, &timer_driver);
@@ -330,17 +330,17 @@ fn webserver(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !vo
         .star64 => @panic("unsupported platform"),
     };
 
-    var uart_driver = Pd.create(allocator, "uart_driver", "uart_driver.elf");
+    var uart_driver = Pd.create(allocator, "uart_driver", "uart_driver.elf", .{});
     sdf.addProtectionDomain(&uart_driver);
 
     // var serial_virt_rx = Pd.create(allocator, "serial_virt_rx", "serial_virt_rx.elf");
     // sdf.addProtectionDomain(&serial_virt_rx);
-    var serial_virt_tx = Pd.create(allocator, "serial_virt_tx", "serial_virt_tx.elf");
+    var serial_virt_tx = Pd.create(allocator, "serial_virt_tx", "serial_virt_tx.elf", .{});
     sdf.addProtectionDomain(&serial_virt_tx);
 
-    var eth_virt_rx = Pd.create(allocator, "eth_virt_rx", "network_virt_rx.elf");
+    var eth_virt_rx = Pd.create(allocator, "eth_virt_rx", "network_virt_rx.elf", .{});
     sdf.addProtectionDomain(&eth_virt_rx);
-    var eth_virt_tx = Pd.create(allocator, "eth_virt_tx", "network_virt_tx.elf");
+    var eth_virt_tx = Pd.create(allocator, "eth_virt_tx", "network_virt_tx.elf", .{});
     sdf.addProtectionDomain(&eth_virt_tx);
 
     const timer_node = switch (board) {
@@ -349,13 +349,13 @@ fn webserver(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !vo
         .star64 => @panic("unsupported platform"),
     };
 
-    var timer_driver = Pd.create(allocator, "timer_driver", "timer_driver.elf");
+    var timer_driver = Pd.create(allocator, "timer_driver", "timer_driver.elf", .{});
     sdf.addProtectionDomain(&timer_driver);
 
-    var micropython = Pd.create(allocator, "micropython", "micropython.elf");
+    var micropython = Pd.create(allocator, "micropython", "micropython.elf", .{});
     sdf.addProtectionDomain(&micropython);
 
-    var fatfs = Pd.create(allocator, "fatfs", "fatfs.elf");
+    var fatfs = Pd.create(allocator, "fatfs", "fatfs.elf", .{});
     sdf.addProtectionDomain(&fatfs);
 
     var timer_system = sddf.TimerSystem.init(allocator, sdf, timer_node, &timer_driver);
@@ -372,9 +372,9 @@ fn webserver(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !vo
         .star64 => @panic("unsupported platform"),
     };
 
-    var blk_driver = Pd.create(allocator, "blk_driver", "blk_driver.elf");
+    var blk_driver = Pd.create(allocator, "blk_driver", "blk_driver.elf", .{});
     sdf.addProtectionDomain(&blk_driver);
-    var blk_virt = Pd.create(allocator, "blk_virt", "blk_virt.elf");
+    var blk_virt = Pd.create(allocator, "blk_virt", "blk_virt.elf", .{});
     sdf.addProtectionDomain(&blk_virt);
 
     var blk_system = sddf.BlockSystem.init(allocator, sdf, blk_node, &blk_driver, &blk_virt, .{});
@@ -385,10 +385,10 @@ fn webserver(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !vo
         .qemu_virt_aarch64 => blob.child("virtio_mmio@a003e00").?,
         .star64 => @panic("unsupported platform"),
     };
-    var eth_driver = Pd.create(allocator, "eth_driver", "eth_driver.elf");
+    var eth_driver = Pd.create(allocator, "eth_driver", "eth_driver.elf", .{});
     sdf.addProtectionDomain(&eth_driver);
 
-    var eth_copy_mp = Pd.create(allocator, "eth_copy_mp", "copy.elf");
+    var eth_copy_mp = Pd.create(allocator, "eth_copy_mp", "copy.elf", .{});
     sdf.addProtectionDomain(&eth_copy_mp);
     // var eth_copy_nfs = Pd.create(sdf, "eth_copy_nfs", "copy.elf");
     // sdf.addProtectionDomain(&eth_copy_nfs);
@@ -597,17 +597,17 @@ fn serial(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !void 
         .star64 => blob.child("soc").?.child("serial@10000000").?,
     };
 
-    var uart_driver = Pd.create(allocator, "uart_driver", "uart_driver.elf");
+    var uart_driver = Pd.create(allocator, "uart_driver", "uart_driver.elf", .{});
     sdf.addProtectionDomain(&uart_driver);
 
-    var serial_virt_rx = Pd.create(allocator, "serial_virt_rx", "serial_virt_rx.elf");
+    var serial_virt_rx = Pd.create(allocator, "serial_virt_rx", "serial_virt_rx.elf", .{});
     sdf.addProtectionDomain(&serial_virt_rx);
-    var serial_virt_tx = Pd.create(allocator, "serial_virt_tx", "serial_virt_tx.elf");
+    var serial_virt_tx = Pd.create(allocator, "serial_virt_tx", "serial_virt_tx.elf", .{});
     sdf.addProtectionDomain(&serial_virt_tx);
 
-    var client0 = Pd.create(allocator, "client0", "serial_server.elf");
+    var client0 = Pd.create(allocator, "client0", "serial_server.elf", .{});
     sdf.addProtectionDomain(&client0);
-    var client1 = Pd.create(allocator, "client1", "serial_server.elf");
+    var client1 = Pd.create(allocator, "client1", "serial_server.elf", .{});
     sdf.addProtectionDomain(&client1);
 
     var serial_system = try sddf.SerialSystem.init(allocator, sdf, uart_node, &uart_driver, &serial_virt_tx, &serial_virt_rx, .{ .rx = true });

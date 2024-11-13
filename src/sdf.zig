@@ -350,12 +350,12 @@ pub const SystemDescription = struct {
         program_image: ?[]const u8,
         /// Scheduling parameters
         /// The policy here is to follow the default values that Microkit uses.
-        priority: u8 = 100,
-        budget: ?usize,
-        period: ?usize,
-        passive: bool = false,
-        stack_size: usize = 0x1000,
-        /// Child nodes
+        priority: u8,
+        budget: usize,
+        period: usize,
+        passive: bool,
+        stack_size: usize,
+        /// Memory mappings
         maps: ArrayList(Map),
         /// The length of this array is bound by the maximum number of child PDs a PD can have.
         child_pds: ArrayList(*ProtectionDomain),
@@ -364,6 +364,8 @@ pub const SystemDescription = struct {
         vm: ?*VirtualMachine,
         /// Keeping track of what IDs are available for channels, IRQs, etc
         ids: std.bit_set.StaticBitSet(MAX_IDS),
+        /// Whether or not ARM SMC is available
+        arm_smc: bool,
 
         setvars: ArrayList(SetVar),
 
@@ -372,7 +374,19 @@ pub const SystemDescription = struct {
         const MAX_IRQS = MAX_IDS;
         const MAX_CHILD_PDS = MAX_IDS;
 
-        pub fn create(allocator: Allocator, name: []const u8, program_image: ?[]const u8) ProtectionDomain {
+        const Options = struct {
+            passive: bool = false,
+            priority: u8 = 100,
+            budget: ?usize = null,
+            period: ?usize = null,
+            stack_size: usize = 0x1000,
+            arm_smc: bool = false,
+        };
+
+        pub fn create(allocator: Allocator, name: []const u8, program_image: ?[]const u8, options: Options) ProtectionDomain {
+            const budget = if (options.budget) |budget| budget else 100;
+            const period = if (options.period) |period| period else budget;
+
             return ProtectionDomain{
                 .name = name,
                 .program_image = program_image,
@@ -382,8 +396,12 @@ pub const SystemDescription = struct {
                 .vm = null,
                 .ids = std.bit_set.StaticBitSet(MAX_IDS).initEmpty(),
                 .setvars = ArrayList(SetVar).init(allocator),
-                .budget = null,
-                .period = null,
+                .priority = options.priority,
+                .passive = options.passive,
+                .budget = budget,
+                .period = period,
+                .arm_smc = options.arm_smc,
+                .stack_size = options.stack_size,
             };
         }
 
@@ -484,12 +502,10 @@ pub const SystemDescription = struct {
             // specify the ID for the root PD to use when referring to this child PD.
             // TODO: simplify this whole logic, it's quite messy right now
             // TODO: find a better way of caluclating the period
-            const budget = if (pd.budget) |budget| budget else 100;
-            const period = if (pd.period) |period| period else budget;
             const attributes_str =
-                \\priority="{}" budget="{}" period="{}" passive="{}" stack_size="0x{x}"
+                \\priority="{}" budget="{}" period="{}" passive="{}" stack_size="0x{x}" smc="{}"
             ;
-            const attributes_xml = try allocPrint(sdf.allocator, attributes_str, .{ pd.priority, budget, period, pd.passive, pd.stack_size });
+            const attributes_xml = try allocPrint(sdf.allocator, attributes_str, .{ pd.priority, pd.budget, pd.period, pd.passive, pd.stack_size, pd.arm_smc });
             defer sdf.allocator.free(attributes_xml);
             var top: []const u8 = undefined;
             if (id) |id_val| {

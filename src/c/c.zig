@@ -89,9 +89,10 @@ export fn sdfgen_dtb_destroy(c_blob: *align(8) anyopaque) void {
 }
 
 // TODO: handle deallocation
+// TODO: handle options
 export fn sdfgen_pd_create(name: [*c]u8, elf: [*c]u8) *anyopaque {
     const pd = allocator.create(Pd) catch @panic("OOM");
-    pd.* = Pd.create(allocator, std.mem.span(name), std.mem.span(elf));
+    pd.* = Pd.create(allocator, std.mem.span(name), std.mem.span(elf), .{});
 
     return pd;
 }
