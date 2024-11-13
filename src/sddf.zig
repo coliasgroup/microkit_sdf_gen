@@ -1247,52 +1247,77 @@ pub const NetworkSystem = struct {
         system.virt_tx_config.active_drv = active_virt_map.vaddr;
     }
 
-    fn clientRxConnect(system: *NetworkSystem, copier: *Pd, client: *Pd, rx_dma: Mr) void {
+    fn clientRxConnect(system: *NetworkSystem, rx_dma: Mr, client_idx: usize) void {
         const allocator = system.allocator;
 
-        const rx_dma_copier_vaddr = copier.getMapVaddr(&rx_dma);
-        const rx_dma_copier_map = Map.create(rx_dma, rx_dma_copier_vaddr, .r, true, .{});
+        var client = system.clients.items[client_idx];
+        var copier = system.copiers.items[client_idx];
+        var client_config = &system.client_configs.items[client_idx];
+        var copier_config = &system.copy_configs.items[client_idx];
+
+        const rx_dma_copier_map = Map.create(rx_dma, copier.getMapVaddr(&rx_dma), .r, true, .{});
         copier.addMap(rx_dma_copier_map);
+        copier_config.virt_data = rx_dma_copier_map.vaddr;
 
-        const data_mr_name = std.fmt.allocPrint(system.allocator, "net_rx_data_{s}", .{client.name}) catch @panic("OOM");
-        const data_mr = Mr.create(allocator, data_mr_name, system.region_size, .{});
-        system.sdf.addMemoryRegion(data_mr);
-        
-        const data_client_vaddr = client.getMapVaddr(&data_mr);
-        const data_client_map = Map.create(data_mr, data_client_vaddr, .rw, true, .{});
-        client.addMap(data_client_map);
+        const client_data_mr_name = std.fmt.allocPrint(system.allocator, "net_rx_data_{s}", .{client.name}) catch @panic("OOM");
+        const client_data_mr = Mr.create(allocator, client_data_mr_name, system.region_size, .{});
+        system.sdf.addMemoryRegion(client_data_mr);
 
-        const data_copier_vaddr = copier.getMapVaddr(&data_mr);
-        const data_copier_map = Map.create(data_mr, data_copier_vaddr, .rw, true, .{});
-        copier.addMap(data_copier_map);
+        const client_data_client_map = Map.create(client_data_mr, client.getMapVaddr(&client_data_mr), .rw, true, .{});
+        client.addMap(client_data_client_map);
+        client_config.rx_buffer_data_region = client_data_client_map.vaddr;
 
-        inline for (std.meta.fields(QueueRegion)) |region| {
-            const mr_name = std.fmt.allocPrint(system.allocator, "net_rx_{s}_{s}", .{ region.name, copier.name }) catch @panic("OOM");
-            const mr = Mr.create(allocator, mr_name, system.region_size, .{});
-            system.sdf.addMemoryRegion(mr);
+        const client_data_copier_map = Map.create(client_data_mr, copier.getMapVaddr(&client_data_mr), .rw, true, .{});
+        copier.addMap(client_data_copier_map);
+        copier_config.cli_data = client_data_copier_map.vaddr;
 
-            const virt_vaddr = system.virt_rx.getMapVaddr(&mr);
-            const virt_map = Map.create(mr, virt_vaddr, .rw, true, .{});
-            system.virt_rx.addMap(virt_map);
+        const copier_free_mr_name = std.fmt.allocPrint(system.allocator, "net_rx_free_{s}", .{ copier.name }) catch @panic("OOM");
+        const copier_free_mr = Mr.create(allocator, copier_free_mr_name, system.region_size, .{});
+        system.sdf.addMemoryRegion(copier_free_mr);
 
-            const copier_vaddr = copier.getMapVaddr(&mr);
-            const copier_map = Map.create(mr, copier_vaddr, .rw, true, .{});
-            copier.addMap(copier_map);
-        }
+        const copier_free_virt_map = Map.create(copier_free_mr, system.virt_rx.getMapVaddr(&copier_free_mr), .rw, true, .{});
+        system.virt_rx.addMap(copier_free_virt_map);
+        system.virt_rx_config.clients[client_idx].free = copier_free_virt_map.vaddr;
 
-        inline for (std.meta.fields(QueueRegion)) |region| {
-            const mr_name = std.fmt.allocPrint(system.allocator, "net_rx_{s}_{s}", .{ region.name, client.name }) catch @panic("OOM");
-            const mr = Mr.create(allocator, mr_name, system.region_size, .{});
-            system.sdf.addMemoryRegion(mr);
+        const copier_free_copier_map = Map.create(copier_free_mr, copier.getMapVaddr(&copier_free_mr), .rw, true, .{});
+        copier.addMap(copier_free_copier_map);
+        copier_config.virt_free = copier_free_copier_map.vaddr;
 
-            const copier_vaddr = copier.getMapVaddr(&mr);
-            const copier_map = Map.create(mr, copier_vaddr, .rw, true, .{});
-            copier.addMap(copier_map);
+        const copier_active_mr_name = std.fmt.allocPrint(system.allocator, "net_rx_active_{s}", .{ copier.name }) catch @panic("OOM");
+        const copier_active_mr = Mr.create(allocator, copier_active_mr_name, system.region_size, .{});
+        system.sdf.addMemoryRegion(copier_active_mr);
 
-            const client_vaddr = client.getMapVaddr(&mr);
-            const client_map = Map.create(mr, client_vaddr, .rw, true, .{});
-            client.addMap(client_map);
-        }
+        const copier_active_virt_map = Map.create(copier_active_mr, system.virt_rx.getMapVaddr(&copier_active_mr), .rw, true, .{});
+        system.virt_rx.addMap(copier_active_virt_map);
+        system.virt_rx_config.clients[client_idx].active = copier_active_virt_map.vaddr;
+
+        const copier_active_copier_map = Map.create(copier_active_mr, copier.getMapVaddr(&copier_active_mr), .rw, true, .{});
+        copier.addMap(copier_active_copier_map);
+        copier_config.virt_active = copier_active_copier_map.vaddr;
+
+        const client_free_mr_name = std.fmt.allocPrint(system.allocator, "net_rx_free_{s}", .{ client.name }) catch @panic("OOM");
+        const client_free_mr = Mr.create(allocator, client_free_mr_name, system.region_size, .{});
+        system.sdf.addMemoryRegion(client_free_mr);
+
+        const client_free_copier_map = Map.create(client_free_mr, copier.getMapVaddr(&client_free_mr), .rw, true, .{});
+        copier.addMap(client_free_copier_map);
+        copier_config.cli_free = client_free_copier_map.vaddr;
+
+        const client_free_client_map = Map.create(client_free_mr, client.getMapVaddr(&client_free_mr), .rw, true, .{});
+        client.addMap(client_free_client_map);
+        client_config.rx_free = client_free_client_map.vaddr;
+
+        const client_active_mr_name = std.fmt.allocPrint(system.allocator, "net_rx_active_{s}", .{ client.name }) catch @panic("OOM");
+        const client_active_mr = Mr.create(allocator, client_active_mr_name, system.region_size, .{});
+        system.sdf.addMemoryRegion(client_active_mr);
+
+        const client_active_copier_map = Map.create(client_active_mr, copier.getMapVaddr(&client_active_mr), .rw, true, .{});
+        copier.addMap(client_active_copier_map);
+        copier_config.cli_active = client_active_copier_map.vaddr;
+
+        const client_active_client_map = Map.create(client_active_mr, client.getMapVaddr(&client_active_mr), .rw, true, .{});
+        client.addMap(client_active_client_map);
+        client_config.rx_active = client_active_client_map.vaddr;
     }
 
     fn clientTxConnect(system: *NetworkSystem, client: *Pd) void {
@@ -1348,7 +1373,7 @@ pub const NetworkSystem = struct {
             sdf.addChannel(.create(system.virt_tx, client, .{}));
             sdf.addChannel(.create(system.copiers.items[i], system.virt_rx, .{}));
 
-            system.clientRxConnect(system.copiers.items[i], client, rx_dma_mr);
+            system.clientRxConnect(rx_dma_mr, i);
             system.clientTxConnect(client);
         }
     }
