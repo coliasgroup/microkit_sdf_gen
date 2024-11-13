@@ -1136,6 +1136,11 @@ pub const NetworkSystem = struct {
         free,
     };
 
+    const QueueRegion = enum {
+        active,
+        free,
+    };
+
     pub fn init(allocator: Allocator, sdf: *SystemDescription, device: *dtb.Node, driver: *Pd, virt_rx: *Pd, virt_tx: *Pd, options: Options) NetworkSystem {
         return .{
             .allocator = allocator,
@@ -1150,168 +1155,132 @@ pub const NetworkSystem = struct {
         };
     }
 
-    // TODO: support the case where clients do not have a copier
-    // Note that we should check whether it's possible that some clients in a system have copiers
-    // while others do not even though they're in the same system.
-    pub fn addClient(system: *NetworkSystem, client: *Pd) void {
-        system.clients.append(client) catch @panic("Could not add client to NetworkSystem");
-    }
-
     pub fn addClientWithCopier(system: *NetworkSystem, client: *Pd, copier: *Pd) void {
-        system.addClient(client);
+        system.clients.append(client) catch @panic("Could not add client with copier to NetworkSystem");
         system.copiers.append(copier) catch @panic("Could not add client with copier to NetworkSystem");
     }
 
     fn rxConnectDriver(system: *NetworkSystem) Mr {
         const allocator = system.allocator;
-        var data_mr: Mr = undefined;
-        inline for (std.meta.fields(Region)) |region| {
-            const mr_name = std.fmt.allocPrint(system.allocator, "net_driver_rx_{s}", .{region.name}) catch @panic("OOM");
+
+        const rx_dma_mr = Mr.create(allocator, "net_rx_dma", system.region_size, .{});
+        system.sdf.addMemoryRegion(rx_dma_mr);
+
+        const rx_dma_virt_vaddr = system.virt_rx.getMapVaddr(&rx_dma_mr);
+        const rx_dma_virt_map = Map.create(rx_dma_mr, rx_dma_virt_vaddr, .r, true, .{});
+        system.virt_rx.addMap(rx_dma_virt_map);
+
+        inline for (std.meta.fields(QueueRegion)) |region| {
+            const mr_name = std.fmt.allocPrint(system.allocator, "net_driver_virt_rx_{s}", .{region.name}) catch @panic("OOM");
+
             const mr = Mr.create(allocator, mr_name, system.region_size, .{});
             system.sdf.addMemoryRegion(mr);
-            const perms = switch (@as(Region, @enumFromInt(region.value))) {
-                .data => Map.Permissions{ .read = true },
-                else => Map.Permissions{ .read = true, .write = true },
-            };
-            // Data regions are not to be mapped in the driver's address space
-            if (@as(Region, @enumFromInt(region.value)) != .data) {
-                const driver_vaddr = system.driver.getMapVaddr(&mr);
-                const driver_setvar_vaddr = std.fmt.allocPrint(system.allocator, "rx_{s}", .{region.name}) catch @panic("OOM");
-                const driver_map = Map.create(mr, driver_vaddr, perms, true, .{ .setvar_vaddr = driver_setvar_vaddr });
-                system.driver.addMap(driver_map);
-            } else {
-                system.virt_rx.addSetVar(SetVar.create("buffer_data_paddr", &mr));
-            }
 
-            if (@as(Region, @enumFromInt(region.value)) != .data) {
-                const virt_vaddr = system.virt_rx.getMapVaddr(&mr);
-                const virt_setvar_vaddr = std.fmt.allocPrint(system.allocator, "rx_{s}_drv", .{region.name}) catch @panic("OOM");
-                const virt_map = Map.create(mr, virt_vaddr, perms, true, .{ .setvar_vaddr = virt_setvar_vaddr });
-                system.virt_rx.addMap(virt_map);
-            } else {
-                const virt_vaddr = system.virt_rx.getMapVaddr(&mr);
-                const virt_map = Map.create(mr, virt_vaddr, perms, true, .{ .setvar_vaddr = "buffer_data_vaddr" });
-                system.virt_rx.addMap(virt_map);
-                data_mr = mr;
-            }
+            const driver_vaddr = system.driver.getMapVaddr(&mr);
+            const driver_map = Map.create(mr, driver_vaddr, .rw, true, .{});
+            system.driver.addMap(driver_map);
+
+            const virt_vaddr = system.virt_rx.getMapVaddr(&mr);
+            const virt_map = Map.create(mr, virt_vaddr, .rw, true, .{});
+            system.virt_rx.addMap(virt_map);
         }
 
-        return data_mr;
+        return rx_dma_mr;
     }
 
     fn txConnectDriver(system: *NetworkSystem) void {
         const allocator = system.allocator;
-        inline for (std.meta.fields(Region)) |region| {
-            const mr_name = std.fmt.allocPrint(system.allocator, "net_driver_tx_{s}", .{region.name}) catch @panic("OOM");
+
+        inline for (std.meta.fields(QueueRegion)) |region| {
+            const mr_name = std.fmt.allocPrint(system.allocator, "net_driver_virt_tx_{s}", .{region.name}) catch @panic("OOM");
             const mr = Mr.create(allocator, mr_name, system.region_size, .{});
             system.sdf.addMemoryRegion(mr);
-            // Data regions are not to be mapped in the driver's address space
-            if (@as(Region, @enumFromInt(region.value)) != .data) {
-                const driver_vaddr = system.driver.getMapVaddr(&mr);
-                const driver_setvar_vaddr = std.fmt.allocPrint(system.allocator, "tx_{s}", .{region.name}) catch @panic("OOM");
-                const driver_map = Map.create(mr, driver_vaddr, .rw, true, .{ .setvar_vaddr = driver_setvar_vaddr });
-                system.driver.addMap(driver_map);
 
-                const virt_vaddr = system.virt_tx.getMapVaddr(&mr);
-                const virt_setvar_vaddr = std.fmt.allocPrint(system.allocator, "tx_{s}_drv", .{region.name}) catch @panic("OOM");
-                const virt_map = Map.create(mr, virt_vaddr, .rw, true, .{ .setvar_vaddr = virt_setvar_vaddr });
-                system.virt_tx.addMap(virt_map);
-            }
+            const driver_vaddr = system.driver.getMapVaddr(&mr);
+            const driver_map = Map.create(mr, driver_vaddr, .rw, true, .{});
+            system.driver.addMap(driver_map);
+
+            const virt_vaddr = system.virt_tx.getMapVaddr(&mr);
+            const virt_map = Map.create(mr, virt_vaddr, .rw, true, .{});
+            system.virt_tx.addMap(virt_map);
         }
     }
 
-    fn clientRxConnect(system: *NetworkSystem, client: *Pd, rx: *Pd) void {
+    fn clientRxConnect(system: *NetworkSystem, copier: *Pd, client: *Pd, rx_dma: Mr) void {
         const allocator = system.allocator;
-        inline for (std.meta.fields(Region)) |region| {
-            const mr_name = std.fmt.allocPrint(system.allocator, "net_client_rx_{s}_{s}", .{ client.name, region.name }) catch @panic("OOM");
-            const mr = Mr.create(allocator, mr_name, system.region_size, .{});
-            system.sdf.addMemoryRegion(mr);
-            const perms: Map.Permissions = .{ .read = true, .write = true };
-            const virt_vaddr = rx.getMapVaddr(&mr);
-            var virt_setvar_vaddr: ?[]const u8 = null;
-            if (@as(Region, @enumFromInt(region.value)) != .data) {
-                virt_setvar_vaddr = std.fmt.allocPrint(system.allocator, "rx_{s}_cli", .{region.name}) catch @panic("OOM");
-            } else {
-                virt_setvar_vaddr = "cli_buffer_data_region";
-            }
-            const virt_map = Map.create(mr, virt_vaddr, perms, true, .{ .setvar_vaddr = virt_setvar_vaddr });
-            rx.addMap(virt_map);
 
-            const client_vaddr = client.getMapVaddr(&mr);
-            var client_setvar_vaddr: ?[]const u8 = null;
-            if (@as(Region, @enumFromInt(region.value)) == .data) {
-                client_setvar_vaddr = "rx_buffer_data_region";
-            } else {
-                client_setvar_vaddr = std.fmt.allocPrint(system.allocator, "rx_{s}", .{region.name}) catch @panic("OOM");
-            }
-            const client_map = Map.create(mr, client_vaddr, perms, true, .{ .setvar_vaddr = client_setvar_vaddr });
-            client.addMap(client_map);
-        }
-    }
+        const rx_dma_copier_vaddr = copier.getMapVaddr(&rx_dma);
+        const rx_dma_copier_map = Map.create(rx_dma, rx_dma_copier_vaddr, .r, true, .{});
+        copier.addMap(rx_dma_copier_map);
 
-    fn clientTxConnect(system: *NetworkSystem, client: *Pd, tx: *Pd, client_idx: usize) void {
-        const allocator = system.allocator;
-        inline for (std.meta.fields(Region)) |region| {
-            const mr_name = fmt(system.allocator, "net_client_tx_{s}_{s}", .{ client.name, region.name });
-            const mr = Mr.create(allocator, mr_name, system.region_size, .{});
-            system.sdf.addMemoryRegion(mr);
-            const perms: Map.Permissions = .{ .read = true, .write = true };
-            const virt_vaddr = tx.getMapVaddr(&mr);
-            var virt_setvar_vaddr: ?[]const u8 = null;
-            if (client_idx == 0 and @as(Region, @enumFromInt(region.value)) != .data) {
-                virt_setvar_vaddr = fmt(system.allocator, "tx_{s}_cli0", .{region.name});
-            } else if (@as(Region, @enumFromInt(region.value)) == .data) {
-                virt_setvar_vaddr = fmt(allocator, "buffer_data_region_cli{}_vaddr", .{client_idx});
-            }
-            const virt_map = Map.create(mr, virt_vaddr, perms, true, .{ .setvar_vaddr = virt_setvar_vaddr });
-            tx.addMap(virt_map);
+        const data_mr_name = std.fmt.allocPrint(system.allocator, "net_rx_data_{s}", .{client.name}) catch @panic("OOM");
+        const data_mr = Mr.create(allocator, data_mr_name, system.region_size, .{});
+        system.sdf.addMemoryRegion(data_mr);
+        
+        const data_client_vaddr = client.getMapVaddr(&data_mr);
+        const data_client_map = Map.create(data_mr, data_client_vaddr, .rw, true, .{});
+        client.addMap(data_client_map);
 
-            const client_vaddr = client.getMapVaddr(&mr);
-            var client_setvar_vaddr: ?[]const u8 = null;
-            if (@as(Region, @enumFromInt(region.value)) == .data) {
-                client_setvar_vaddr = "tx_buffer_data_region";
-            } else {
-                client_setvar_vaddr = fmt(allocator, "tx_{s}", .{region.name});
-            }
-            const client_map = Map.create(mr, client_vaddr, perms, true, .{ .setvar_vaddr = client_setvar_vaddr });
-            client.addMap(client_map);
+        const data_copier_vaddr = copier.getMapVaddr(&data_mr);
+        const data_copier_map = Map.create(data_mr, data_copier_vaddr, .rw, true, .{});
+        copier.addMap(data_copier_map);
 
-            if (@as(Region, @enumFromInt(region.value)) == .data) {
-                const data_setvar = fmt(allocator, "buffer_data_region_cli{}_paddr", .{client_idx});
-                system.virt_tx.addSetVar(SetVar.create(data_setvar, &mr));
-            }
-        }
-    }
-
-    // We need to map in the data region between the driver/virt into the copier with setvar "virt_buffer_data_region".
-    fn copierRxConnect(system: *NetworkSystem, copier: *Pd, first_client: bool, virt_data_mr: Mr) void {
-        const allocator = system.allocator;
-        inline for (std.meta.fields(Region)) |region| {
-            const mr_name = fmt(allocator, "net_{s}_{s}", .{ copier.name, region.name });
+        inline for (std.meta.fields(QueueRegion)) |region| {
+            const mr_name = std.fmt.allocPrint(system.allocator, "net_rx_{s}_{s}", .{ region.name, copier.name }) catch @panic("OOM");
             const mr = Mr.create(allocator, mr_name, system.region_size, .{});
             system.sdf.addMemoryRegion(mr);
 
-            // Map the MR into the virtualiser RX and copier RX
             const virt_vaddr = system.virt_rx.getMapVaddr(&mr);
-            if (@as(Region, @enumFromInt(region.value)) != .data) {
-                var virt_setvar_vaddr: ?[]const u8 = null;
-                if (first_client) {
-                    virt_setvar_vaddr = fmt(allocator, "rx_{s}_cli0", .{region.name});
-                }
-                const virt_map = Map.create(mr, virt_vaddr, .rw, true, .{ .setvar_vaddr = virt_setvar_vaddr });
-                system.virt_rx.addMap(virt_map);
-            }
+            const virt_map = Map.create(mr, virt_vaddr, .rw, true, .{});
+            system.virt_rx.addMap(virt_map);
 
-            if (@as(Region, @enumFromInt(region.value)) == .data) {
-                const copier_vaddr = copier.getMapVaddr(&virt_data_mr);
-                const copier_map = Map.create(virt_data_mr, copier_vaddr, .rw, true, .{ .setvar_vaddr = "virt_buffer_data_region" });
-                copier.addMap(copier_map);
-            } else {
-                const copier_vaddr = copier.getMapVaddr(&mr);
-                const copier_setvar_vaddr = std.fmt.allocPrint(system.allocator, "rx_{s}_virt", .{region.name}) catch @panic("OOM");
-                const copier_map = Map.create(mr, copier_vaddr, .rw, true, .{ .setvar_vaddr = copier_setvar_vaddr });
-                copier.addMap(copier_map);
-            }
+            const copier_vaddr = copier.getMapVaddr(&mr);
+            const copier_map = Map.create(mr, copier_vaddr, .rw, true, .{});
+            copier.addMap(copier_map);
+        }
+
+        inline for (std.meta.fields(QueueRegion)) |region| {
+            const mr_name = std.fmt.allocPrint(system.allocator, "net_rx_{s}_{s}", .{ region.name, client.name }) catch @panic("OOM");
+            const mr = Mr.create(allocator, mr_name, system.region_size, .{});
+            system.sdf.addMemoryRegion(mr);
+
+            const copier_vaddr = copier.getMapVaddr(&mr);
+            const copier_map = Map.create(mr, copier_vaddr, .rw, true, .{});
+            copier.addMap(copier_map);
+
+            const client_vaddr = client.getMapVaddr(&mr);
+            const client_map = Map.create(mr, client_vaddr, .rw, true, .{});
+            client.addMap(client_map);
+        }
+    }
+
+    fn clientTxConnect(system: *NetworkSystem, client: *Pd) void {
+        const allocator = system.allocator;
+
+        const data_mr_name = std.fmt.allocPrint(system.allocator, "net_tx_data_{s}", .{client.name}) catch @panic("OOM");
+        const data_mr = Mr.create(allocator, data_mr_name, system.region_size, .{});
+        system.sdf.addMemoryRegion(data_mr);
+
+        const data_client_vaddr = client.getMapVaddr(&data_mr);
+        const data_client_map = Map.create(data_mr, data_client_vaddr, .rw, true, .{});
+        client.addMap(data_client_map);
+
+        const data_virt_vaddr = system.virt_tx.getMapVaddr(&data_mr);
+        const data_virt_map = Map.create(data_mr, data_virt_vaddr, .rw, true, .{});
+        client.addMap(data_virt_map);
+
+        inline for (std.meta.fields(QueueRegion)) |region| {
+            const mr_name = std.fmt.allocPrint(system.allocator, "net_tx_{s}_{s}", .{ region.name, client.name }) catch @panic("OOM");
+            const mr = Mr.create(allocator, mr_name, system.region_size, .{});
+            system.sdf.addMemoryRegion(mr);
+
+            const virt_vaddr = system.virt_tx.getMapVaddr(&mr);
+            const virt_map = Map.create(mr, virt_vaddr, .rw, true, .{});
+            system.virt_tx.addMap(virt_map);
+
+            const client_vaddr = client.getMapVaddr(&mr);
+            const client_map = Map.create(mr, client_vaddr, .rw, true, .{});
+            client.addMap(client_map);
         }
     }
 
@@ -1324,14 +1293,12 @@ pub const NetworkSystem = struct {
         // we should make this configurable but right no we'll just add it here
         const hw_ring_buffer_mr = Mr.create(allocator, "hw_ring_buffer", 0x10_000, .{});
         system.sdf.addMemoryRegion(hw_ring_buffer_mr);
-        system.driver.addMap(Map.create(hw_ring_buffer_mr, system.driver.getMapVaddr(&hw_ring_buffer_mr), .rw, false, .{ .setvar_vaddr = "hw_ring_buffer_vaddr" }));
-
-        system.driver.addSetVar(SetVar.create("hw_ring_buffer_paddr", @constCast(&hw_ring_buffer_mr)));
+        system.driver.addMap(Map.create(hw_ring_buffer_mr, system.driver.getMapVaddr(&hw_ring_buffer_mr), .rw, false, .{}));
 
         sdf.addChannel(.create(system.driver, system.virt_tx, .{}));
         sdf.addChannel(.create(system.driver, system.virt_rx, .{}));
 
-        const virt_data_mr = system.rxConnectDriver();
+        const rx_dma_mr = system.rxConnectDriver();
         system.txConnectDriver();
 
         for (system.clients.items, 0..) |client, i| {
@@ -1340,10 +1307,8 @@ pub const NetworkSystem = struct {
             sdf.addChannel(.create(system.virt_tx, client, .{}));
             sdf.addChannel(.create(system.copiers.items[i], system.virt_rx, .{}));
 
-            system.copierRxConnect(system.copiers.items[i], i == 0, virt_data_mr);
-            // TODO: we assume there exists a copier for each client, on the RX side
-            system.clientRxConnect(client, system.copiers.items[i]);
-            system.clientTxConnect(client, system.virt_tx, i);
+            system.clientRxConnect(system.copiers.items[i], client, rx_dma_mr);
+            system.clientTxConnect(client);
         }
     }
 };
