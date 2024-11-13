@@ -1,5 +1,11 @@
 const std = @import("std");
 
+const test_device_trees = .{
+    "qemu_virt_aarch64",
+    "odroidc4",
+    "star64",
+};
+
 pub fn build(b: *std.Build) !void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
@@ -24,20 +30,15 @@ pub fn build(b: *std.Build) !void {
     sdf_module.addImport("dtb", dtb_module);
 
     const dtb_step = b.step("dtbs", "Compile Device Tree Sources into .dtb");
-    const dts_dir = try std.fs.cwd().openDir("dts", .{ .iterate = true });
-    var dts_dir_iter = dts_dir.iterate();
-    while (try dts_dir_iter.next()) |entry| {
-        if (entry.kind != .file) {
-            continue;
-        }
-
+    inline for (test_device_trees) |device_tree| {
         const dtc_cmd = b.addSystemCommand(&[_][]const u8{
             "dtc", "-q", "-I", "dts", "-O", "dtb"
         });
-        dtc_cmd.addFileInput(b.path(b.fmt("dts/{s}", .{ entry.name })));
-        dtc_cmd.addFileArg(b.path(b.fmt("dts/{s}", .{ entry.name })));
+        const device_tree_path = b.path(b.fmt("dts/{s}.dts", .{ device_tree }));
+        dtc_cmd.addFileInput(device_tree_path);
+        dtc_cmd.addFileArg(device_tree_path);
         const dtb = dtc_cmd.captureStdOut();
-        dtb_step.dependOn(&b.addInstallFileWithDir(dtb, .{ .custom = "dtb" }, b.fmt("{s}.dtb", .{ std.fs.path.stem(entry.name) })).step);
+        dtb_step.dependOn(&b.addInstallFileWithDir(dtb, .{ .custom = "dtb" }, b.fmt("{s}.dtb", .{ device_tree })).step);
     }
 
     const zig_example_step = b.step("zig_example", "Exmaples of using Zig bindings");
