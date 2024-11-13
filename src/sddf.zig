@@ -1142,6 +1142,11 @@ pub const NetworkSystem = struct {
     copiers: std.ArrayList(*Pd),
     clients: std.ArrayList(*Pd),
 
+    driver_config: ConfigResources.Net.Driver,
+    virt_rx_config: ConfigResources.Net.VirtRx,
+    virt_tx_config: ConfigResources.Net.VirtTx,
+    copy_configs: std.ArrayList(ConfigResources.Net.Copy),
+    client_configs: std.ArrayList(ConfigResources.Net.Client),
 
     const QueueRegion = enum {
         active,
@@ -1159,12 +1164,20 @@ pub const NetworkSystem = struct {
             .device = device,
             .virt_rx = virt_rx,
             .virt_tx = virt_tx,
+
+            .driver_config = std.mem.zeroes(ConfigResources.Net.Driver),
+            .virt_rx_config = std.mem.zeroes(ConfigResources.Net.VirtRx),
+            .virt_tx_config = std.mem.zeroes(ConfigResources.Net.VirtTx),
+            .copy_configs = std.ArrayList(ConfigResources.Net.Copy).init(allocator),
+            .client_configs = std.ArrayList(ConfigResources.Net.Client).init(allocator),
         };
     }
 
     pub fn addClientWithCopier(system: *NetworkSystem, client: *Pd, copier: *Pd) void {
         system.clients.append(client) catch @panic("Could not add client with copier to NetworkSystem");
         system.copiers.append(copier) catch @panic("Could not add client with copier to NetworkSystem");
+        system.client_configs.append(std.mem.zeroes(ConfigResources.Net.Client)) catch @panic("Could not add client with copier to NetworkSystem");
+        system.copy_configs.append(std.mem.zeroes(ConfigResources.Net.Copy)) catch @panic("Could not add client with copier to NetworkSystem");
     }
 
     fn rxConnectDriver(system: *NetworkSystem) Mr {
@@ -1316,6 +1329,33 @@ pub const NetworkSystem = struct {
 
             system.clientRxConnect(system.copiers.items[i], client, rx_dma_mr);
             system.clientTxConnect(client);
+        }
+    }
+
+    pub fn serialiseConfig(system: *NetworkSystem, prefix: []const u8) !void {
+        const allocator = system.allocator;
+
+        try data.serialize(system.driver_config, try fs.path.join(allocator, &.{ prefix, "net_driver.data" }));
+        try data.jsonify(system.driver_config, try fs.path.join(allocator, &.{ prefix, "net_driver.json"}), .{ .whitespace = .indent_4 });
+
+        try data.serialize(system.virt_rx_config, try fs.path.join(allocator, &.{ prefix, "net_virt_rx.data" }));
+        try data.jsonify(system.virt_rx_config, try fs.path.join(allocator, &.{ prefix, "net_virt_rx.json" }), .{ .whitespace = .indent_4 });
+
+        try data.serialize(system.virt_tx_config, try fs.path.join(allocator, &.{ prefix, "net_virt_tx.data" }));
+        try data.jsonify(system.virt_tx_config, try fs.path.join(allocator, &.{ prefix, "net_virt_tx.json" }), .{ .whitespace = .indent_4 });
+
+        for (system.copiers.items, 0..) |copier, i| {
+            const data_name = std.fmt.allocPrint(system.allocator, "{s}.data", .{copier.name}) catch @panic("OOM");
+            const json_name = std.fmt.allocPrint(system.allocator, "{s}.json", .{copier.name}) catch @panic("OOM");
+            try data.serialize(system.copy_configs.items[i], try fs.path.join(allocator, &.{ prefix, data_name }));
+            try data.jsonify(system.copy_configs.items[i], try fs.path.join(allocator, &.{ prefix, json_name }), .{ .whitespace = .indent_4 });
+        }
+
+        for (system.clients.items, 0..) |client, i| {
+            const data_name = std.fmt.allocPrint(system.allocator, "net_client_{s}.data", .{client.name}) catch @panic("OOM");
+            const json_name = std.fmt.allocPrint(system.allocator, "net_client_{s}.json", .{client.name}) catch @panic("OOM");
+            try data.serialize(system.client_configs.items[i], try fs.path.join(allocator, &.{ prefix, data_name }));
+            try data.jsonify(system.client_configs.items[i], try fs.path.join(allocator, &.{ prefix, json_name }), .{ .whitespace = .indent_4 });
         }
     }
 };
