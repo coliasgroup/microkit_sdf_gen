@@ -594,7 +594,6 @@ fn echo_server(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !
     eth_system.addClientWithCopier(&client0, &eth_copy_client0);
     eth_system.addClientWithCopier(&client1, &eth_copy_client1);
 
-    sdf.addChannel(Channel.create(&bench, &serial_virt_tx, .{}));
     sdf.addChannel(Channel.create(&bench, &client0, .{}));
     sdf.addChannel(Channel.create(&bench, &client0, .{}));
     sdf.addChannel(Channel.create(&bench, &bench_idle, .{}));
