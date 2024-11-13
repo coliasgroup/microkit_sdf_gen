@@ -105,7 +105,7 @@ const App = () => {
 
   return (
     <div className="App">
-      <div className="top-bar">LionsOS system composer</div>
+      <h1 className="title">Microkit System Visualiser/Editor</h1>
       <div className="arch-config-bar">
         <Space wrap>
           FileName:
