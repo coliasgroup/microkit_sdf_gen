@@ -1224,19 +1224,27 @@ pub const NetworkSystem = struct {
     fn txConnectDriver(system: *NetworkSystem) void {
         const allocator = system.allocator;
 
-        inline for (std.meta.fields(QueueRegion)) |region| {
-            const mr_name = std.fmt.allocPrint(system.allocator, "net_driver_virt_tx_{s}", .{region.name}) catch @panic("OOM");
-            const mr = Mr.create(allocator, mr_name, system.region_size, .{});
-            system.sdf.addMemoryRegion(mr);
+        const free_mr = Mr.create(allocator, "net_driver_virt_tx_free", system.region_size, .{});
+        system.sdf.addMemoryRegion(free_mr);
 
-            const driver_vaddr = system.driver.getMapVaddr(&mr);
-            const driver_map = Map.create(mr, driver_vaddr, .rw, true, .{});
-            system.driver.addMap(driver_map);
+        const free_driver_map = Map.create(free_mr, system.driver.getMapVaddr(&free_mr), .rw, true, .{});
+        system.driver.addMap(free_driver_map);
+        system.driver_config.tx_free = free_driver_map.vaddr;
 
-            const virt_vaddr = system.virt_tx.getMapVaddr(&mr);
-            const virt_map = Map.create(mr, virt_vaddr, .rw, true, .{});
-            system.virt_tx.addMap(virt_map);
-        }
+        const free_virt_map = Map.create(free_mr, system.virt_tx.getMapVaddr(&free_mr), .rw, true, .{});
+        system.virt_tx.addMap(free_virt_map);
+        system.virt_tx_config.free_drv = free_virt_map.vaddr;
+
+        const active_mr = Mr.create(allocator, "net_driver_virt_tx_active", system.region_size, .{});
+        system.sdf.addMemoryRegion(active_mr);
+
+        const active_driver_map = Map.create(active_mr, system.driver.getMapVaddr(&active_mr), .rw, true, .{});
+        system.driver.addMap(active_driver_map);
+        system.driver_config.tx_active = active_driver_map.vaddr;
+
+        const active_virt_map = Map.create(active_mr, system.virt_tx.getMapVaddr(&active_mr), .rw, true, .{});
+        system.virt_tx.addMap(active_virt_map);
+        system.virt_tx_config.active_drv = active_virt_map.vaddr;
     }
 
     fn clientRxConnect(system: *NetworkSystem, copier: *Pd, client: *Pd, rx_dma: Mr) void {
