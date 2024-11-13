@@ -1142,11 +1142,6 @@ pub const NetworkSystem = struct {
     copiers: std.ArrayList(*Pd),
     clients: std.ArrayList(*Pd),
 
-    const Region = enum {
-        data,
-        active,
-        free,
-    };
 
     const QueueRegion = enum {
         active,
