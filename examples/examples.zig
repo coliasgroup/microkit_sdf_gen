@@ -537,6 +537,19 @@ fn echo_server(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !
     var client0 = Pd.create(allocator, "client0", "lwip.elf", .{});
     var client1 = Pd.create(allocator, "client1", "lwip.elf", .{});
 
+    // Cycle counters shared memory region
+
+    const cycle_counters_mr = Mr.create(allocator, "cyclecounters", 0x1000, .{});
+    sdf.addMemoryRegion(cycle_counters_mr);
+
+    const cycle_counters_bench_idle_vaddr = bench_idle.getMapVaddr(&cycle_counters_mr);
+    const cycle_counters_bench_idle_map = Map.create(cycle_counters_mr, cycle_counters_bench_idle_vaddr, .rw, true, .{});
+    bench_idle.addMap(cycle_counters_bench_idle_map);
+
+    const cycle_counters_client0_vaddr = client0.getMapVaddr(&cycle_counters_mr);
+    const cycle_counters_client0_map = Map.create(cycle_counters_mr, cycle_counters_client0_vaddr, .rw, true, .{});
+    client0.addMap(cycle_counters_client0_map);
+
     // Make PDs children of benchmark
 
     try bench.addChild(&client0);
