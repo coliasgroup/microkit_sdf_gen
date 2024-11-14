@@ -115,8 +115,8 @@ test "C example" {
     const expected = try readTestFile("c_example.system");
     defer allocator.free(expected);
 
-    try std.testing.expectEqual(term, std.process.Child.Term{ .Exited = 0 });
     try std.testing.expectEqualStrings(expected, stdout.items);
+    try std.testing.expectEqual(term, std.process.Child.Term{ .Exited = 0 });
 }
 
 test "basic VM" {
