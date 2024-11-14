@@ -49,6 +49,13 @@ There are two dependencies:
     Once 0.14.0 is released (most likely in a couple of months) we can pin to that release.
 * Device Tree Compiler (dtc)
 
+### Tests
+
+To test the Zig and C bindings, you can run:
+```sh
+zig build tests
+```
+
 ### Zig bindings
 
 The source code for the sdfgen tooling is written in Zig, and so we simply expose a module called
