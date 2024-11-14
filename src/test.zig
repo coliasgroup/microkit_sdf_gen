@@ -115,15 +115,6 @@ test "C example" {
     const expected = try readTestFile("c_example.system");
     defer allocator.free(expected);
 
-    switch (term) {
-        .Exited => if (term.Exited != 0) {
-            @panic(try std.fmt.allocPrint(allocator, "exited is {any}", .{ term.Exited }));
-        },
-        .Signal => @panic("Signal"),
-        .Stopped => @panic("Stopped"),
-        .Unknown => @panic("Unknown"),
-    }
-
     try std.testing.expectEqualStrings(expected, stdout.items);
     try std.testing.expectEqual(term, std.process.Child.Term{ .Exited = 0 });
 }
