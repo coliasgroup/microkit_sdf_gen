@@ -625,6 +625,9 @@ pub const I2cSystem = struct {
         for (system.clients.items, 0..) |client, i| {
             system.connectClient(client, i);
         }
+
+        // To avoid cross-core IPC, we make the virtualiser passive
+        system.virt.passive = true;
     }
 
     pub fn serialiseConfig(system: *I2cSystem, prefix: []const u8) !void {
