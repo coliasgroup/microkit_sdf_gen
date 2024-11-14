@@ -1,18 +1,9 @@
+import argparse
 from sdfgen import SystemDescription, ProtectionDomain, Sddf, DeviceTree, LionsOS, Channel
 
-SDDF_PATH = "/Users/ivanv/ts/lionsos_tutorial/lionsos/dep/sddf"
-DTB_PATH = "/Users/ivanv/ts/lionsos_tutorial/qemu_virt_aarch64.dtb"
+PLATFORM = "qemu_virt_aarch64"
 
-# TODO: temporary
-PADDR_TOP = 0xa_000_000
-
-if __name__ == '__main__':
-    sdf = SystemDescription(PADDR_TOP)
-    sddf = Sddf(SDDF_PATH)
-
-    with open(DTB_PATH, "rb") as f:
-        dtb = DeviceTree(f.read())
-
+def generate_sdf():
     reactor_client = ProtectionDomain("reactor_client", "reactor_client.elf", priority=2)
 
     i2c_reactor_driver = ProtectionDomain("i2c_reactor_driver", "reactor_driver.elf", priority=200)
@@ -86,3 +77,19 @@ if __name__ == '__main__':
     sdf.add_channel(Channel(reactor_client, micropython))
 
     print(sdf.xml())
+
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--dtb", required=True)
+    parser.add_argument("--sddf", required=True)
+
+    args = parser.parse_args()
+
+    sdf = SystemDescription(0xa_000_000)
+    sddf = Sddf(args.sddf)
+
+    with open(args.dtb + f"/{PLATFORM}.dtb", "rb") as f:
+        dtb = DeviceTree(f.read())
+
+    generate_sdf()
