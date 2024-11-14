@@ -30,6 +30,7 @@
           name = "dev";
 
           nativeBuildInputs = with pkgs; [
+            dtc
             zig
           ];
         };
