@@ -44,8 +44,9 @@ for other languages available.
 
 There are two dependencies:
 
-* Zig (`0.14.0-dev.2079+ba2d00663` or higher).
+* Zig (`0.14.0-dev.2079+ba2d00663` or higher)
   * See https://ziglang.org/download/, until 0.14.0 is released we rely on a master version of Zig.
+    Once 0.14.0 is released (most likely in a couple of months) we can pin to that release.
 * Device Tree Compiler (dtc)
 
 ### Zig bindings
