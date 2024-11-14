@@ -1,11 +1,17 @@
 const std = @import("std");
+const mod = @import("sdf");
+const mod_sdf = mod.sdf;
+const mod_vmm = mod.vmm;
 
-const SystemDescription = @import("sdf.zig").SystemDescription;
+const SystemDescription = mod_sdf.SystemDescription;
 const ProtectionDomain = SystemDescription.ProtectionDomain;
 const MemoryRegion = SystemDescription.MemoryRegion;
 const Map = SystemDescription.Map;
 const Interrupt = SystemDescription.Interrupt;
 const Channel = SystemDescription.Channel;
+const VirtualMachine = SystemDescription.VirtualMachine;
+
+const VirtualMachineSystem = mod_vmm.VirtualMachineSystem;
 
 const allocator = std.testing.allocator;
 
@@ -111,4 +117,32 @@ test "C example" {
 
     try std.testing.expectEqual(term, std.process.Child.Term{ .Exited = 0 });
     try std.testing.expectEqualStrings(expected, stdout.items);
+}
+
+test "basic VM" {
+    var sdf = SystemDescription.create(allocator, .aarch64, 0x100_000_000);
+
+    const dtb_file = try std.fs.cwd().openFile(config.dtb ++ "/qemu_virt_aarch64.dtb", .{});
+    const dtb_size = (try dtb_file.stat()).size;
+    const blob_bytes = try dtb_file.reader().readAllAlloc(allocator, dtb_size);
+    defer allocator.free(blob_bytes);
+    // Parse the DTB
+    const guest_dtb = try mod.dtb.parse(allocator, blob_bytes);
+    defer guest_dtb.deinit(allocator);
+
+    var vmm = ProtectionDomain.create(allocator, "vmm", "vmm.elf", .{});
+    sdf.addProtectionDomain(&vmm);
+
+    var vm = VirtualMachine.create(allocator, "vm", &.{ .{ .id = 0 } });
+
+    var vmm_system = VirtualMachineSystem.init(allocator, &sdf, &vmm, &vm, guest_dtb, .{});
+
+    try vmm_system.connect();
+
+    const expected = try readTestFile("basic_vm.system");
+    const output = try sdf.toXml();
+    defer allocator.free(expected);
+    defer sdf.destroy();
+
+    try std.testing.expectEqualStrings(expected, output);
 }

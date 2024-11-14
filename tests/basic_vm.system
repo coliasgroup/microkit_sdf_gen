@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<system>
+    <memory_region name="gic_vcpu" size="0x10000" phys_addr="0x8040000" />
+    <memory_region name="guest_ram_vm" size="0x80000000" />
+    <protection_domain name="vmm" priority="100" budget="100" period="100" passive="false" stack_size="0x1000" smc="false">
+        <program_image path="vmm.elf" />
+        <map mr="guest_ram_vm" vaddr="0x40000000" perms="rw" cached="true" />
+        <virtual_machine name="vm" priority="100" budget="100" period="100" >
+            <vcpu id="0" cpu="0" />
+            <map mr="gic_vcpu" vaddr="0x8010000" perms="rw" cached="false" />
+            <map mr="guest_ram_vm" vaddr="0x40000000" perms="rwx" cached="true" />
+        </virtual_machine>
+    </protection_domain>
+</system>

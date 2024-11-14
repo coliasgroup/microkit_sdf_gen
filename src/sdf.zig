@@ -324,7 +324,8 @@ pub const SystemDescription = struct {
             defer sdf.allocator.free(child_separator);
 
             for (vm.vcpus) |vcpu| {
-                const vcpu_xml = try allocPrint(sdf.allocator, "{s}<vcpu id=\"{}\" vcpu=\"{}\" />", .{ child_separator, vcpu.id, vcpu.cpu });
+                const vcpu_xml = try allocPrint(sdf.allocator, "{s}<vcpu id=\"{}\" cpu=\"{}\" />", .{ child_separator, vcpu.id, vcpu.cpu });
+                defer sdf.allocator.free(vcpu_xml);
                 _ = try writer.write(vcpu_xml);
                 _ = try writer.write("\n");
             }
@@ -409,6 +410,9 @@ pub const SystemDescription = struct {
             pd.child_pds.deinit();
             for (pd.child_pds.items) |child_pd| {
                 child_pd.destroy();
+            }
+            if (pd.vm) |vm| {
+                vm.destroy();
             }
             pd.irqs.deinit();
         }

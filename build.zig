@@ -161,13 +161,16 @@ pub fn build(b: *std.Build) !void {
     test_options.addOptionPath("c_example", .{ .cwd_relative = b.getInstallPath(.bin, c_example.name) });
     test_options.addOptionPath("test_dir", b.path("tests"));
     test_options.addOptionPath("sddf", b.path("sddf"));
+    test_options.addOption([]const u8, "dtb", b.getInstallPath(.{ .custom = "dtb" }, ""));
 
+    tests.root_module.addImport("sdf", sdf_module);
     tests.root_module.addOptions("config", test_options);
 
     const run_tests = b.addRunArtifact(tests);
     const test_step = b.step("test", "Run tests");
     test_step.dependOn(&run_tests.step);
     run_tests.step.dependOn(&c_example_install.step);
+    run_tests.step.dependOn(dtb_step);
     // In case any sDDF configuration files are changed
     _ = try test_step.addDirectoryWatchInput(b.path("sddf"));
 }
