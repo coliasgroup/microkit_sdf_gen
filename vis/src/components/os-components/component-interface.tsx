@@ -13,6 +13,8 @@ export interface DataModel {
 }
 
 export interface EditableAttrs {
+    // TODO: make not optional
+    label?: string,
     name: string,
     type: 'string' | 'number' | 'boolean' | 'options',
     required: boolean,

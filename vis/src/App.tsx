@@ -67,6 +67,8 @@ const App = () => {
     const resultString = new TextDecoder().decode(memory.subarray(resultPtr, resultPtr + ret_len))
 
     const board_info_json = JSON.parse(resultString)
+    console.log("BOARD INFO")
+    console.log(board_info_json)
     setDeviceTreeJson(board_info_json.device_tree)
     const devices = listDevices(board_info_json.device_tree, '')
     setDevices(devices)

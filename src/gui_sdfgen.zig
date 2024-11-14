@@ -69,10 +69,11 @@ fn getMRByName(sdf: *SystemDescription, name: []const u8) !Mr {
 }
 
 fn parsePDFromJson(sdf: *SystemDescription, node_config: anytype) !*Pd {
-    var pd_new = Pd.create(sdf.allocator, node_config.get("name").?.string, node_config.get("prog_img").?.string);
-    pd_new.budget = @intCast(node_config.get("budget").?.integer);
-    pd_new.priority = @intCast(node_config.get("priority").?.integer);
-    pd_new.period = @intCast(node_config.get("period").?.integer);
+    var pd_new = Pd.create(sdf.allocator, node_config.get("name").?.string, node_config.get("prog_img").?.string, .{
+        .priority = @intCast(node_config.get("priority").?.integer),
+        .budget = @intCast(node_config.get("budget").?.integer),
+        .period = @intCast(node_config.get("period").?.integer),
+    });
     // pp has been moved to channel
     // pd_new.pp = node_config.get("pp").?.bool;
 
@@ -127,24 +128,11 @@ fn parsePDFromJson(sdf: *SystemDescription, node_config: anytype) !*Pd {
     return pd_copy;
 }
 
-fn getPDByName(sdf: *SystemDescription, name: []const u8) !*Pd {
-    for (sdf.pds.items) |pd| {
-        if (std.mem.eql(u8, name, pd.name)) {
-            return pd;
-        }
-    }
-    return error.InvalidPdName;
-}
-
 fn parseChannelFromJson(sdf: *SystemDescription, channel_config: anytype) !Channel {
     const pd1_name = channel_config.get("pd1").?.string;
     const pd2_name = channel_config.get("pd2").?.string;
-    const pd1 = getPDByName(sdf, pd1_name) catch {
-        return error.PdCannotBeFound;
-    };
-    const pd2 = getPDByName(sdf, pd2_name) catch {
-        return error.PdCannotBeFound;
-    };
+    const pd1 = if (sdf.findPd(pd1_name)) |pd| pd else return error.PdCannotBeFound;
+    const pd2 = if (sdf.findPd(pd2_name)) |pd| pd else return error.PdCannotBeFound;
 
     var channel_new = Channel.create(pd1, pd2, .{});
     channel_new.pd_a_id = @intCast(channel_config.get("pd1_end_id").?.integer);
@@ -240,26 +228,17 @@ fn parseSddfSubsystemFromJson(sdf: *SystemDescription, subsystem_config: anytype
                 uart_node = blob.child(board.uartNode());
             },
         }
-        const driver = getPDByName(sdf, driver_name) catch {
-            return error.PdCannotBeFound;
-        };
+        const driver = if (sdf.findPd(driver_name)) |pd| pd else return error.PdCannotBeFound;
+        const mux_tx = if (sdf.findPd(mux_tx_name)) |pd| pd else return error.PdCannotBeFound;
+        const mux_rx = if (sdf.findPd(mux_rx_name)) |pd| pd else return error.PdCannotBeFound;
 
-        const mux_tx = getPDByName(sdf, mux_tx_name) catch {
-            return error.PdCannotBeFound;
-        };
-        const mux_rx = getPDByName(sdf, mux_rx_name) catch {
-            return error.PdCannotBeFound;
-        };
         var serial_system = sddf.SerialSystem.init(sdf.allocator, sdf, uart_node.?, driver, mux_tx, mux_rx, .{}) catch {
             return error.FailedToCreateSerialSystem;
         };
 
-        const client1_pd = getPDByName(sdf, client1_name) catch {
-            return error.PdCannotBeFound;
-        };
-        const client2_pd = getPDByName(sdf, client2_name) catch {
-            return error.PdCannotBeFound;
-        };
+        const client1_pd = if (sdf.findPd(client1_name)) |pd| pd else return error.PdCannotBeFound;
+        const client2_pd = if (sdf.findPd(client2_name)) |pd| pd else return error.PdCannotBeFound;
+
         serial_system.addClient(client1_pd);
         serial_system.addClient(client2_pd);
         serial_system.connect() catch {
@@ -386,19 +365,6 @@ export fn jsonToXml(input_ptr: [*]const u8, input_len: usize, result_ptr: [*]u8)
     return printMsg(result_ptr, xml);
 }
 
-fn getPageSizeOptionsJson(board_str: []const u8, writer: anytype) !void {
-    board = try MicrokitBoard.fromStr(board_str);
-    const arch = board.arch();
-
-    inline for (std.meta.fields(PageSize), 0..) |field, i| {
-        if (i != 0) {
-            _ = try writer.write(", ");
-        }
-        const page_size: PageSize = @enumFromInt(field.value);
-        try writer.print("{{\"label\":\"{s}\",\"value\":{}}}", .{ field.name, page_size.toInt(arch) });
-    }
-}
-
 fn getDtJson(allocator: Allocator, blob: *dtb.Node, writer: anytype) !void {
     _ = try writer.write("{");
     const json_string = try std.fmt.allocPrint(allocator, "\"name\":\"{s}\",\"compatibles\":", .{blob.name});
@@ -446,6 +412,28 @@ fn getDtJson(allocator: Allocator, blob: *dtb.Node, writer: anytype) !void {
     _ = try writer.write("]}");
 }
 
+const BoardInfo = struct {
+    const BoardPageSize = struct {
+        label: []const u8,
+        value: u32,
+    };
+
+    // const DeviceTreeIrq = struct {
+    //     number: u32,
+    //     trigger: []const u8,
+    // };
+
+    const DeviceTreeNode = struct {
+        name: []const u8,
+        compatibles: [][]const u8,
+        children: []DeviceTreeNode,
+        // irq: ?DeviceTreeIrq,
+    };
+
+    page_size: []const BoardPageSize,
+    device_tree: DeviceTreeNode,
+};
+
 export fn fetchInitInfo(input_ptr: [*]const u8, input_len: usize, result_ptr: [*]u8) usize {
     const input = input_ptr[0..input_len];
     const allocator = std.heap.wasm_allocator;
@@ -480,29 +468,24 @@ export fn fetchInitInfo(input_ptr: [*]const u8, input_len: usize, result_ptr: [*
     };
     defer blob.deinit(allocator);
 
-    var board_info = std.ArrayList(u8).init(allocator);
-    defer board_info.deinit();
-
-    board_info.writer().print("{{\"page_size\":[", .{}) catch {
-        return printMsg(result_ptr, "Failed to parse DTB children ");
+    const board_info = BoardInfo{
+        // TODO: don't hardcode
+        .page_size = &[_]BoardInfo.BoardPageSize{
+            .{ .label = "small", .value = 0x1000 },
+            .{ .label = "large", .value = 0x200_000 },
+        },
+        .device_tree = .{
+            .name = "root",
+            .compatibles = &.{},
+            .children = &.{},
+        },
     };
 
-    const board_str = object.get("board").?.string;
-    getPageSizeOptionsJson(board_str, board_info.writer()) catch {
-        return printMsg(result_ptr, "Failed to parse DTB children ");
-    };
+    var board_info_json = std.ArrayList(u8).init(allocator);
+    defer board_info_json.deinit();
 
-    board_info.writer().print("],\"device_tree\":", .{}) catch {
-        return printMsg(result_ptr, "Failed to parse DTB children ");
-    };
+    // TODO: properly handle OOM
+    std.json.stringify(board_info, .{}, board_info_json.writer()) catch @panic("OOM");
 
-    getDtJson(allocator, blob, board_info.writer()) catch {
-        return printMsg(result_ptr, "Failed to parse DTB children ");
-    };
-
-    board_info.writer().print("}}", .{}) catch {
-        return printMsg(result_ptr, "Failed to parse DTB children ");
-    };
-
-    return printMsg(result_ptr, board_info.items[0..board_info.items.len]);
+    return printMsg(result_ptr, board_info_json.items[0..board_info_json.items.len]);
 }

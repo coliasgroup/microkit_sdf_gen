@@ -6,6 +6,7 @@ import { Graph } from '@antv/x6'
 export const getFormItem = (attr) => {
   const inputType = attr?.type
   const attrName = attr?.name
+  const label = attr?.label
 
   const inputNodes = {
     'number': <InputNumber min={attr?.min} max={attr?.max} />,
@@ -16,7 +17,7 @@ export const getFormItem = (attr) => {
 
   return (
     <Form.Item
-      label={attrName}
+      label={label}
       name={attrName}
       rules={[{ required: attr?.required }]}
       valuePropName={inputType === 'boolean' ? 'checked' : 'value'}

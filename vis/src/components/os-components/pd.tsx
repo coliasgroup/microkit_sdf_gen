@@ -22,8 +22,7 @@ interface PDDataModel extends DataModel {
     priority: number,
     budget: number,
     period: number,
-    pp: boolean,
-    prog_img: string,
+    program_image: string,
   },
   mappings: SysMapItem[],
   irqs: SysIrq[],
@@ -114,8 +113,7 @@ export class PDComponent implements SystemComponent {
       priority: 0,
       budget: 0,
       period: 0,
-      pp: false,
-      prog_img: 'default.elf',
+      program_image: 'default.elf',
     },
     mappings: [],
     irqs: [],
@@ -123,12 +121,11 @@ export class PDComponent implements SystemComponent {
   };
 
   editable_attrs: EditableAttrs[] = [
-    { name: 'name', type: 'string', required: true },
-    { name: 'priority', type: 'number', min: 0, max: 255, required: true },
-    { name: 'budget', type: 'number', min: 0, max: 1000, required: false },
-    { name: 'period', type: 'number', min: 0, max: 1000, required: false },
-    { name: 'pp', type: 'boolean', required: true },
-    { name: 'prog_img', type: 'string', required: true },
+    { label: "Name", name: 'name', type: 'string', required: true },
+    { label: "Priority", name: 'priority', type: 'number', min: 0, max: 255, required: true },
+    { label: "Budget", name: 'budget', type: 'number', min: 0, max: 1000, required: false },
+    { label: "Period", name: 'period', type: 'number', min: 0, max: 1000, required: false },
+    { label: "Program Image", name: 'program_image', type: 'string', required: true },
   ];
 
   constructor(node_id: string, subsystem: string | null) {

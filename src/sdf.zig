@@ -675,6 +675,16 @@ pub const SystemDescription = struct {
         return pd;
     }
 
+    pub fn findPd(sdf: *SystemDescription, name: []const u8) ?*ProtectionDomain {
+        for (sdf.pds.items) |pd| {
+            if (std.mem.eql(u8, name, pd.name)) {
+                return pd;
+            }
+        }
+
+        return null;
+    }
+
     pub fn toXml(sdf: *SystemDescription) ![:0]const u8 {
         const writer = sdf.xml_data.writer();
         _ = try writer.write("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<system>\n");
