@@ -19,7 +19,7 @@ jobs:
         with:
           nix_path: nixpkgs=channel:nixos-unstable
       - name: Test
-        run: nix develop -c bash -c zig build test
+        run: nix develop -c bash -c 'zig build test'
   build_macos_64:
     name: Build and run (macOS x64)
     runs-on: macos-12
@@ -33,4 +33,4 @@ jobs:
         with:
           nix_path: nixpkgs=channel:nixos-unstable
       - name: Test
-        run: nix develop -c bash -c zig build test
+        run: nix develop -c bash -c 'zig build test'
