@@ -53,7 +53,7 @@ There are two dependencies:
 
 To test the Zig and C bindings, you can run:
 ```sh
-zig build tests
+zig build test
 ```
 
 ### Zig bindings
