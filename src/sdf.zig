@@ -291,7 +291,7 @@ pub const SystemDescription = struct {
         const Vcpu = struct {
             id: usize,
             /// Physical core the vCPU will run on
-            cpu: usize,
+            cpu: usize = 0,
         };
 
         pub fn create(allocator: Allocator, name: []const u8, vcpus: []const Vcpu) VirtualMachine {
@@ -324,8 +324,7 @@ pub const SystemDescription = struct {
             defer sdf.allocator.free(child_separator);
 
             for (vm.vcpus) |vcpu| {
-                // TODO: write out cpu field
-                const vcpu_xml = try allocPrint(sdf.allocator, "{s}<vcpu id=\"{}\" />", .{ child_separator, vcpu.id });
+                const vcpu_xml = try allocPrint(sdf.allocator, "{s}<vcpu id=\"{}\" vcpu=\"{}\" />", .{ child_separator, vcpu.id, vcpu.cpu });
                 _ = try writer.write(vcpu_xml);
                 _ = try writer.write("\n");
             }
