@@ -15,13 +15,6 @@ pub fn build(b: *std.Build) !void {
 
     const python_include = b.option([]const []const u8, "python-include", "Include directory for Python bindings") orelse &.{};
 
-    const lib = b.addStaticLibrary(.{
-        .name = "microkit_sdf_gen",
-        .root_source_file = b.path("src/sdf.zig"),
-        .target = target,
-        .optimize = optimize,
-    });
-
     const sdf_module = b.addModule("sdf", .{
         .root_source_file = b.path("src/mod.zig"),
         .target = target,
@@ -68,8 +61,6 @@ pub fn build(b: *std.Build) !void {
     zig_example_step.dependOn(&zig_example_cmd.step);
     const zig_example_install = b.addInstallArtifact(zig_example, .{});
     zig_example_step.dependOn(&zig_example_install.step);
-
-    b.installArtifact(lib);
 
     const modsdf = b.addModule("sdf", .{ .root_source_file = b.path("src/mod.zig") });
     modsdf.addImport("dtb", dtbzig_dep.module("dtb"));
