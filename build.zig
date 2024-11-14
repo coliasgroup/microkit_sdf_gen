@@ -48,9 +48,11 @@ pub fn build(b: *std.Build) !void {
         .target = target,
         .optimize = optimize,
     });
+    // TODO: should these be runtime options instead?
     const zig_example_options = b.addOptions();
-    zig_example_options.addOptionPath("dtbs", .{ .cwd_relative = b.getInstallPath(.{ .custom = "dtb"}, "") });
     zig_example_options.addOptionPath("sddf", b.path("sddf"));
+    zig_example_options.addOption([]const u8, "dtbs", b.getInstallPath(.{ .custom = "dtb"}, ""));
+    zig_example_options.addOption([]const u8, "data_output", b.getInstallPath(.prefix, ""));
 
     zig_example.root_module.addOptions("config", zig_example_options);
     zig_example.root_module.addImport("sdf", sdf_module);
@@ -168,5 +170,4 @@ pub fn build(b: *std.Build) !void {
     run_tests.step.dependOn(&c_example_install.step);
     // In case any sDDF configuration files are changed
     _ = try test_step.addDirectoryWatchInput(b.path("sddf"));
-
 }

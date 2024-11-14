@@ -101,6 +101,7 @@ const Example = enum {
 var xml_out_path: []const u8 = "example.system";
 var sddf_path: []const u8 = config.sddf;
 var dtbs_path: []const u8 = config.dtbs;
+var data_output: []const u8 = config.data_output;
 var board: MicrokitBoard = undefined;
 var example: Example = undefined;
 
@@ -269,7 +270,7 @@ fn i2c(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !void {
     _ = try i2c_system.connect();
     try timer_system.connect();
 
-    try i2c_system.serialiseConfig();
+    try i2c_system.serialiseConfig(data_output);
 
     try sdf.print();
 }
@@ -294,7 +295,7 @@ fn blk(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !void {
 
     _ = try blk_system.connect();
 
-    try blk_system.serialiseConfig("blk_virt.data");
+    try blk_system.serialiseConfig(data_output);
 
     try sdf.print();
 }
@@ -589,7 +590,7 @@ fn echo_server(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !
     try timer_system.connect();
     try serial_system.connect();
 
-    try serial_system.serialiseConfig();
+    try serial_system.serialiseConfig(data_output);
 
     try sdf.print();
 }
@@ -623,7 +624,7 @@ fn serial(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !void 
     serial_virt_rx.priority = 98;
 
     try serial_system.connect();
-    try serial_system.serialiseConfig();
+    try serial_system.serialiseConfig(data_output);
     try sdf.print();
 }
 

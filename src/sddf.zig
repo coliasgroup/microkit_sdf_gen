@@ -5,6 +5,7 @@ const dtb = @import("dtb");
 const data = @import("data.zig");
 const log = @import("log.zig");
 
+const fs = std.fs;
 const assert = std.debug.assert;
 const Allocator = std.mem.Allocator;
 
@@ -626,18 +627,20 @@ pub const I2cSystem = struct {
         }
     }
 
-    pub fn serialiseConfig(system: *I2cSystem) !void {
-        try data.serialize(system.driver_config, "i2c_driver.data");
-        try data.jsonify(system.driver_config, "i2c_driver.json", .{ .whitespace = .indent_4 });
+    pub fn serialiseConfig(system: *I2cSystem, prefix: []const u8) !void {
+        const allocator = system.allocator;
 
-        try data.serialize(system.virt_config, "i2c_virt.data");
-        try data.jsonify(system.virt_config, "i2c_virt.json", .{ .whitespace = .indent_4 });
+        try data.serialize(system.driver_config, try fs.path.join(allocator, &.{ prefix, "i2c_driver.data" }));
+        try data.jsonify(system.driver_config, try fs.path.join(allocator, &.{ prefix, "i2c_driver.json" }), .{ .whitespace = .indent_4 });
+
+        try data.serialize(system.virt_config, try fs.path.join(allocator, &.{ prefix, "i2c_virt.data" }));
+        try data.jsonify(system.virt_config, try fs.path.join(allocator, &.{ prefix, "i2c_virt.json" }), .{ .whitespace = .indent_4 });
 
         for (system.clients.items, 0..) |client, i| {
-            const data_name = std.fmt.allocPrint(system.allocator, "i2c_{s}.data", .{client.name}) catch @panic("OOM");
-            const json_name = std.fmt.allocPrint(system.allocator, "i2c_{s}.json", .{client.name}) catch @panic("OOM");
-            try data.serialize(system.client_configs.items[i], data_name);
-            try data.jsonify(system.client_configs.items[i], json_name, .{ .whitespace = .indent_4 });
+            const data_name = std.fmt.allocPrint(allocator, "i2c_{s}.data", .{client.name}) catch @panic("OOM");
+            const json_name = std.fmt.allocPrint(allocator, "i2c_{s}.json", .{client.name}) catch @panic("OOM");
+            try data.serialize(system.client_configs.items[i], try fs.path.join(allocator, &.{ prefix, data_name }));
+            try data.jsonify(system.client_configs.items[i], try fs.path.join(allocator, &.{ prefix, json_name }), .{ .whitespace = .indent_4 });
         }
     }
 };
@@ -827,16 +830,20 @@ pub const BlockSystem = struct {
         system.connected = true;
     }
 
-    pub fn serialiseConfig(system: *BlockSystem, output: []const u8) !void {
+    pub fn serialiseConfig(system: *BlockSystem, prefix: []const u8) !void {
         if (!system.connected) return error.SystemNotConnected;
 
+        const allocator = system.allocator;
+
         const virt_config = ConfigResources.Block.Virt.create(system.config.virt_driver, system.config.virt_clients.items);
-        try data.serialize(virt_config, fmt(system.allocator, "{s}/blk_virt.data", .{output}));
-        try data.jsonify(virt_config, fmt(system.allocator, "{s}/blk_virt.json", .{output}), .{ .whitespace = .indent_4 });
+        try data.serialize(virt_config, try fs.path.join(allocator, &.{ prefix, "blk_virt.data" }));
+        try data.jsonify(virt_config, try fs.path.join(allocator, &.{ prefix, "blk_virt.json" }), .{ .whitespace = .indent_4 });
 
         for (system.config.clients.items, 0..) |config, i| {
-            try data.serialize(config, fmt(system.allocator, "{s}/{s}.data", .{ output, system.clients.items[i].name }));
-            try data.jsonify(config, fmt(system.allocator, "{s}/{s}.json", .{ output, system.clients.items[i].name }), .{ .whitespace = .indent_4 });
+            const client_data = fmt(allocator, "{s}.data", .{ system.clients.items[i].name });
+            const client_json = fmt(allocator, "{s}.json", .{ system.clients.items[i].name });
+            try data.serialize(config, try fs.path.join(allocator, &.{ prefix, client_data }));
+            try data.jsonify(config, try fs.path.join(allocator, &.{ prefix, client_json }), .{ .whitespace = .indent_4 });
         }
     }
 };
@@ -1094,21 +1101,23 @@ pub const SerialSystem = struct {
         }
     }
 
-    pub fn serialiseConfig(system: *SerialSystem) !void {
-        try data.serialize(system.driver_config, "serial_driver.data");
-        try data.jsonify(system.driver_config, "serial_driver.json", .{ .whitespace = .indent_4 });
+    pub fn serialiseConfig(system: *SerialSystem, prefix: []const u8) !void {
+        const allocator = system.allocator;
 
-        try data.serialize(system.virt_rx_config, "serial_virt_rx.data");
-        try data.jsonify(system.virt_rx_config, "serial_virt_rx.json", .{ .whitespace = .indent_4 });
+        try data.serialize(system.driver_config, try fs.path.join(allocator, &.{ prefix, "serial_driver.data" }));
+        try data.jsonify(system.driver_config, try fs.path.join(allocator, &.{ prefix, "serial_driver.json"}), .{ .whitespace = .indent_4 });
 
-        try data.serialize(system.virt_tx_config, "serial_virt_tx.data");
-        try data.jsonify(system.virt_tx_config, "serial_virt_tx.json", .{ .whitespace = .indent_4 });
+        try data.serialize(system.virt_rx_config, try fs.path.join(allocator, &.{ prefix, "serial_virt_rx.data" }));
+        try data.jsonify(system.virt_rx_config, try fs.path.join(allocator, &.{ prefix, "serial_virt_rx.json" }), .{ .whitespace = .indent_4 });
+
+        try data.serialize(system.virt_tx_config, try fs.path.join(allocator, &.{ prefix, "serial_virt_tx.data" }));
+        try data.jsonify(system.virt_tx_config, try fs.path.join(allocator, &.{ prefix, "serial_virt_tx.json" }), .{ .whitespace = .indent_4 });
 
         for (system.clients.items, 0..) |client, i| {
             const data_name = std.fmt.allocPrint(system.allocator, "serial_client_{s}.data", .{client.name}) catch @panic("OOM");
             const json_name = std.fmt.allocPrint(system.allocator, "serial_client_{s}.json", .{client.name}) catch @panic("OOM");
-            try data.serialize(system.client_configs.items[i], data_name);
-            try data.jsonify(system.client_configs.items[i], json_name, .{ .whitespace = .indent_4 });
+            try data.serialize(system.client_configs.items[i], try fs.path.join(allocator, &.{ prefix, data_name }));
+            try data.jsonify(system.client_configs.items[i], try fs.path.join(allocator, &.{ prefix, json_name }), .{ .whitespace = .indent_4 });
         }
     }
 };
