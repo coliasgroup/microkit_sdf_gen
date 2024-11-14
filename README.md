@@ -40,10 +40,13 @@ Both of these solutions are very much in a work-in-progress state.
 All the tooling is currently written in [Zig](https://ziglang.org/download/) with bindings
 for other languages available.
 
-To work on the tooling you will need the Zig compiler.
+### Dependencies
 
-Right now we rely on unreleased features of Zig which means you will need a master version of
-Zig, e.g version `0.14.0-dev.2079+ba2d00663` or higher. See https://ziglang.org/download/.
+There are two dependencies:
+
+* Zig (`0.14.0-dev.2079+ba2d00663` or higher).
+  * See https://ziglang.org/download/, until 0.14.0 is released we rely on a master version of Zig.
+* Device Tree Compiler (dtc)
 
 ### Zig bindings
 
