@@ -485,14 +485,6 @@ fn kitty(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !void {
     std.debug.print("{s}", .{xml});
 }
 
-// One by one we will figure it out.
-/// DONE: 1. Driver is correct and has the right resources
-/// 2. Virtualisers are correct and have the right resources
-/// 3. Copiers are correct and have the right resources
-/// 4. Clients are correct and have the right resources
-/// 5. Benchmark program stuff
-/// Do not worry about the abstraction stuff. First reproduce the echo server,
-/// then consider whether the abstractions are correct.
 fn echo_server(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !void {
     // Timer system
 
