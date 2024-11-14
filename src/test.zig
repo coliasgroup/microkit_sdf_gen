@@ -116,7 +116,9 @@ test "C example" {
     defer allocator.free(expected);
 
     switch (term) {
-        .Exited => {},
+        .Exited => if (term.Exited != 0) {
+            @panic(try std.fmt.allocPrint(allocator, "exited is {any}", .{ term.Exited }));
+        },
         .Signal => @panic("Signal"),
         .Stopped => @panic("Stopped"),
         .Unknown => @panic("Unknown"),
