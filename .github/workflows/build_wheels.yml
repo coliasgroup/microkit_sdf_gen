@@ -16,7 +16,9 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-      - uses: mlugg/setup-zig@v1
+      - uses: mlugg/setup-zig@v1.2.1
+        with:
+          version: master
       - name: Build wheels
         uses: pypa/cibuildwheel@v2.21.3
         env:
