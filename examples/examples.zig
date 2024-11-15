@@ -557,15 +557,14 @@ fn echo_server(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !
 
     // Make PDs children of benchmark
 
-    try bench.addChild(&eth_driver);
-    try bench.addChild(&uart_driver);
-    try bench.addChild(&serial_virt_tx);
-    try bench.addChild(&eth_virt_rx);
-    try bench.addChild(&eth_copy_client0);
-    try bench.addChild(&eth_copy_client1);
-    try bench.addChild(&eth_virt_tx);
-    try bench.addChild(&client0);
-    try bench.addChild(&timer_driver);
+    sdf.addProtectionDomain(&eth_driver);
+    sdf.addProtectionDomain(&uart_driver);
+    sdf.addProtectionDomain(&serial_virt_tx);
+    sdf.addProtectionDomain(&eth_virt_rx);
+    sdf.addProtectionDomain(&eth_copy_client0);
+    sdf.addProtectionDomain(&eth_virt_tx);
+    sdf.addProtectionDomain(&client0);
+    sdf.addProtectionDomain(&timer_driver);
 
     // Priorities
 
