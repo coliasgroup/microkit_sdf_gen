@@ -1371,9 +1371,12 @@ pub const NetworkSystem = struct {
 
         // TODO: The driver needs the HW ring buffer memory region as well. In the future
         // we should make this configurable but right no we'll just add it here
-        const hw_ring_buffer_mr = Mr.create(allocator, "hw_ring_buffer", 0x10_000, .{});
+        const hw_ring_buffer_mr = Mr.physical(allocator, system.sdf, "hw_ring_buffer", 0x10_000, .{});
         system.sdf.addMemoryRegion(hw_ring_buffer_mr);
-        system.driver.addMap(Map.create(hw_ring_buffer_mr, system.driver.getMapVaddr(&hw_ring_buffer_mr), .rw, false, .{}));
+        const hw_ring_buffer_map = Map.create(hw_ring_buffer_mr, system.driver.getMapVaddr(&hw_ring_buffer_mr), .rw, false, .{});
+        system.driver.addMap(hw_ring_buffer_map);
+        system.driver_config.hw_ring_buffer_paddr = hw_ring_buffer_mr.paddr.?;
+        system.driver_config.hw_ring_buffer_vaddr = hw_ring_buffer_map.vaddr;
 
         sdf.addChannel(.create(system.driver, system.virt_tx, .{}));
         sdf.addChannel(.create(system.driver, system.virt_rx, .{}));
