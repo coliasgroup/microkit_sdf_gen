@@ -601,6 +601,7 @@ fn echo_server(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !
     try serial_system.connect();
 
     try eth_system.serialiseConfig(data_output);
+    try timer_system.serialiseConfig(data_output);
     try serial_system.serialiseConfig(data_output);
 
     try sdf.print();

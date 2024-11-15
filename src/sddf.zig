@@ -459,6 +459,7 @@ pub const TimerSystem = struct {
     device: *dtb.Node,
     /// Client PDs serviced by the timer driver
     clients: std.ArrayList(*Pd),
+    client_configs: std.ArrayList(ConfigResources.Timer.Client),
 
     pub fn init(allocator: Allocator, sdf: *SystemDescription, device: *dtb.Node, driver: *Pd) TimerSystem {
         // First we have to set some properties on the driver. It is currently our policy that every timer
@@ -471,6 +472,7 @@ pub const TimerSystem = struct {
             .driver = driver,
             .device = device,
             .clients = std.ArrayList(*Pd).init(allocator),
+            .client_configs = std.ArrayList(ConfigResources.Timer.Client).init(allocator),
         };
     }
 
@@ -480,6 +482,7 @@ pub const TimerSystem = struct {
 
     pub fn addClient(system: *TimerSystem, client: *Pd) void {
         system.clients.append(client) catch @panic("Could not add client to TimerSystem");
+        system.client_configs.append(std.mem.zeroes(ConfigResources.Timer.Client)) catch @panic("Could not add client to TimerSystem");
     }
 
     pub fn connect(system: *TimerSystem) !void {
@@ -487,13 +490,26 @@ pub const TimerSystem = struct {
         assert(system.driver.passive);
 
         try createDriver(system.sdf, system.driver, system.device, .timer);
-        for (system.clients.items) |client| {
-            system.sdf.addChannel(Channel.create(system.driver, client, .{
+        for (system.clients.items, 0..) |client, i| {
+            const ch = Channel.create(system.driver, client, .{
                 // Client needs to be able to PPC into driver
                 .pp = .b,
                 // Client does not need to notify driver
                 .pd_b_notify = false,
-            }));
+            });
+            system.sdf.addChannel(ch);
+            system.client_configs.items[i].driver_id = @truncate(ch.pd_b_id);
+        }
+    }
+
+    pub fn serialiseConfig(system: *TimerSystem, prefix: []const u8) !void {
+        const allocator = system.allocator;
+
+        for (system.clients.items, 0..) |client, i| {
+            const data_name = std.fmt.allocPrint(system.allocator, "timer_client_{s}.data", .{client.name}) catch @panic("OOM");
+            const json_name = std.fmt.allocPrint(system.allocator, "timer_client_{s}.json", .{client.name}) catch @panic("OOM");
+            try data.serialize(system.client_configs.items[i], try fs.path.join(allocator, &.{ prefix, data_name }));
+            try data.jsonify(system.client_configs.items[i], try fs.path.join(allocator, &.{ prefix, json_name }), .{ .whitespace = .indent_4 });
         }
     }
 };

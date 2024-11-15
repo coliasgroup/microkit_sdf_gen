@@ -249,6 +249,14 @@ pub const Resources = struct {
             tx_ch: u8,
         };
     };
+
+    pub const Timer = struct {
+        pub const MAX_NUM_CLIENTS = 61;
+
+        pub const Client = extern struct {
+            driver_id: u8,
+        };
+    };
 };
 
 pub fn serialize(s: anytype, path: []const u8) !void {
