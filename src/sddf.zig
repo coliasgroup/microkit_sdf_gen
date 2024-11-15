@@ -1209,11 +1209,16 @@ pub const NetworkSystem = struct {
         };
     }
 
-    pub fn addClientWithCopier(system: *NetworkSystem, client: *Pd, copier: *Pd) void {
+    pub fn addClientWithCopier(system: *NetworkSystem, client: *Pd, copier: *Pd, mac_addr: [6]u8) void {
+        const client_idx = system.clients.items.len;
+
         system.clients.append(client) catch @panic("Could not add client with copier to NetworkSystem");
         system.copiers.append(copier) catch @panic("Could not add client with copier to NetworkSystem");
         system.client_configs.append(std.mem.zeroes(ConfigResources.Net.Client)) catch @panic("Could not add client with copier to NetworkSystem");
         system.copy_configs.append(std.mem.zeroes(ConfigResources.Net.Copy)) catch @panic("Could not add client with copier to NetworkSystem");
+
+        system.client_configs.items[client_idx].mac_addr = mac_addr;
+        system.virt_rx_config.clients[client_idx].mac_addr = mac_addr;
     }
 
     fn rxConnectDriver(system: *NetworkSystem) Mr {

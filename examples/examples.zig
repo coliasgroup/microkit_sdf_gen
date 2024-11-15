@@ -403,7 +403,8 @@ fn webserver(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !vo
 
     var eth_system = sddf.NetworkSystem.init(allocator, sdf, eth_node, &eth_driver, &eth_virt_rx, &eth_virt_tx, .{});
     // eth_system.addClientWithCopier(&nfs, &eth_copy_nfs);
-    eth_system.addClientWithCopier(&micropython, &eth_copy_mp);
+    const mp_mac_addr: [6]u8 = .{ 0x52, 0x54, 0x01, 0x00, 0x00, 0x00 };
+    eth_system.addClientWithCopier(&micropython, &eth_copy_mp, mp_mac_addr);
 
     eth_driver.priority = 110;
     eth_driver.budget = 100;
@@ -590,11 +591,12 @@ fn echo_server(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !
     serial_system.addClient(&bench);
     serial_system.addClient(&client0);
 
-    eth_system.addClientWithCopier(&client0, &eth_copy_client0);
 
     sdf.addChannel(Channel.create(&bench, &client0, .{}));
     sdf.addChannel(Channel.create(&bench, &client0, .{}));
     sdf.addChannel(Channel.create(&bench, &bench_idle, .{}));
+    const client0_mac_addr: [6]u8 = .{ 0x52, 0x54, 0x01, 0x00, 0x00, 0x00 };
+    eth_system.addClientWithCopier(&client0, &eth_copy_client0, client0_mac_addr);
 
     try eth_system.connect();
     try timer_system.connect();

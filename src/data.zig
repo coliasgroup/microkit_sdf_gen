@@ -179,6 +179,7 @@ pub const Resources = struct {
                 free: u64,
                 active: u64,
                 capacity: u64,
+                mac_addr: [6]u8,
                 id: u8,
             };
 
@@ -245,6 +246,8 @@ pub const Resources = struct {
 
             rx_ch: u8,
             tx_ch: u8,
+
+            mac_addr: [6]u8,
         };
     };
 
