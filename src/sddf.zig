@@ -1399,10 +1399,12 @@ pub const NetworkSystem = struct {
         system.driver_config.hw_ring_buffer_vaddr = hw_ring_buffer_map.vaddr;
 
         const drv_virt_tx_channel = Channel.create(system.driver, system.virt_tx, .{});
+        sdf.addChannel(drv_virt_tx_channel);
         system.driver_config.tx_id = @truncate(drv_virt_tx_channel.pd_a_id);
         system.virt_tx_config.drv_id = @truncate(drv_virt_tx_channel.pd_b_id);
 
         const drv_virt_rx_channel = Channel.create(system.driver, system.virt_rx, .{});
+        sdf.addChannel(drv_virt_rx_channel);
         system.driver_config.rx_id = @truncate(drv_virt_rx_channel.pd_a_id);
         system.virt_rx_config.driver_id = @truncate(drv_virt_rx_channel.pd_b_id);
 
