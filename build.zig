@@ -65,7 +65,7 @@ pub fn build(b: *std.Build) !void {
     const modsdf = b.addModule("sdf", .{ .root_source_file = b.path("src/mod.zig") });
     modsdf.addImport("dtb", dtbzig_dep.module("dtb"));
 
-    const csdfgen = b.addSharedLibrary(.{
+    const csdfgen = b.addStaticLibrary(.{
         .name = "csdfgen",
         .root_source_file = b.path("src/c/c.zig"),
         .target = target,
