@@ -1148,11 +1148,6 @@ pub const NetworkSystem = struct {
     copy_configs: std.ArrayList(ConfigResources.Net.Copy),
     client_configs: std.ArrayList(ConfigResources.Net.Client),
 
-    const QueueRegion = enum {
-        active,
-        free,
-    };
-
     pub fn init(allocator: Allocator, sdf: *SystemDescription, device: *dtb.Node, driver: *Pd, virt_rx: *Pd, virt_tx: *Pd, options: Options) NetworkSystem {
         return .{
             .allocator = allocator,
