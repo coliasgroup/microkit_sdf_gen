@@ -366,6 +366,8 @@ pub const SystemDescription = struct {
         ids: std.bit_set.StaticBitSet(MAX_IDS),
         /// Whether or not ARM SMC is available
         arm_smc: bool,
+        /// If this PD is a child of another PD, this ID identifies it to its parent PD
+        child_id: ?usize,
 
         setvars: ArrayList(SetVar),
 
@@ -402,6 +404,7 @@ pub const SystemDescription = struct {
                 .period = period,
                 .arm_smc = options.arm_smc,
                 .stack_size = options.stack_size,
+                .child_id = null,
             };
         }
 
@@ -470,8 +473,10 @@ pub const SystemDescription = struct {
             pd.setvars.append(setvar) catch @panic("Could not add SetVar to ProtectionDomain");
         }
 
-        pub fn addChild(pd: *ProtectionDomain, child: *ProtectionDomain) !void {
+        pub fn addChild(pd: *ProtectionDomain, child: *ProtectionDomain) !usize {
             try pd.child_pds.append(child);
+            child.child_id = try pd.allocateId(null);
+            return child.child_id.?;
         }
 
         // TODO: get rid of this extra arg?
@@ -533,7 +538,7 @@ pub const SystemDescription = struct {
             }
             // Add child PDs
             for (pd.child_pds.items) |child_pd| {
-                try child_pd.toXml(sdf, writer, child_separator, try pd.allocateId(null));
+                try child_pd.toXml(sdf, writer, child_separator, child_pd.child_id.?);
             }
             // Add virtual machine (if we have one)
             if (pd.vm) |vm| {
