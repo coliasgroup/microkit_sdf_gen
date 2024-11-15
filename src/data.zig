@@ -66,6 +66,8 @@ pub const Resources = struct {
             tx_capacity: u64,
             default_baud: u64,
             rx_enabled: u8,
+            rx_id: u8,
+            tx_id: u8,
         };
 
         pub const VirtRx = extern struct {
@@ -73,6 +75,7 @@ pub const Resources = struct {
                 queue_addr: u64,
                 data_addr: u64,
                 capacity: u64,
+                id: u8,
             };
 
             queue_drv: u64,
@@ -81,6 +84,7 @@ pub const Resources = struct {
             switch_char: u8,
             terminate_num_char: u8,
             num_clients: u64,
+            driver_id: u8,
             clients: [MAX_NUM_CLIENTS]VirtRxClient,
         };
 
@@ -93,6 +97,7 @@ pub const Resources = struct {
                 queue_addr: u64,
                 data_addr: u64,
                 capacity: u64,
+                id: u8,
             };
 
             queue_addr_drv: u64,
@@ -103,6 +108,7 @@ pub const Resources = struct {
             enable_colour: u8,
             enable_rx: u8,
             num_clients: u64,
+            driver_id: u8,
             clients: [MAX_NUM_CLIENTS]VirtTxClient,
         };
 
@@ -113,6 +119,8 @@ pub const Resources = struct {
             tx_queue_addr: u64,
             tx_data_addr: u64,
             tx_capacity: u64,
+            rx_id: u8,
+            tx_id: u8,
         };
     };
 

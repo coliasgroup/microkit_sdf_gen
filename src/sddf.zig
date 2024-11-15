@@ -1088,18 +1088,26 @@ pub const SerialSystem = struct {
         try createDriver(sdf, system.driver, system.device, .serial);
         const ch_driver_virt_tx = Channel.create(system.driver, system.virt_tx, .{});
         sdf.addChannel(ch_driver_virt_tx);
+        system.driver_config.tx_id = @truncate(ch_driver_virt_tx.pd_a_id);
+        system.virt_tx_config.driver_id = @truncate(ch_driver_virt_tx.pd_b_id);
         if (system.rx) {
             const ch_driver_virt_rx = Channel.create(system.driver, system.virt_rx.?, .{});
             sdf.addChannel(ch_driver_virt_rx);
+            system.driver_config.rx_id = @truncate(ch_driver_virt_rx.pd_a_id);
+            system.virt_rx_config.driver_id = @truncate(ch_driver_virt_rx.pd_b_id);
         }
         // 1.2 Create channels between virtualisers and clients
-        for (system.clients.items) |client| {
+        for (system.clients.items, 0..) |client, i| {
             const ch_virt_tx_client = Channel.create(system.virt_tx, client, .{});
             sdf.addChannel(ch_virt_tx_client);
+            system.virt_tx_config.clients[i].id = @truncate(ch_virt_tx_client.pd_a_id);
+            system.client_configs.items[i].tx_id = @truncate(ch_virt_tx_client.pd_b_id);
 
             if (system.rx) {
                 const ch_virt_rx_client = Channel.create(system.virt_rx.?, client, .{});
                 sdf.addChannel(ch_virt_rx_client);
+                system.virt_rx_config.clients[i].id = @truncate(ch_virt_rx_client.pd_a_id);
+                system.client_configs.items[i].tx_id = @truncate(ch_virt_rx_client.pd_b_id);
             }
         }
         if (system.rx) {
