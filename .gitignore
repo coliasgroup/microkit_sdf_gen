@@ -7,6 +7,7 @@ zig-out
 venv
 .elf
 .wasm
+dist/
 
 # vis: dependencies
 vis/node_modules

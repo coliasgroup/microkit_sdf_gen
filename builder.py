@@ -16,18 +16,11 @@ class ZigBuilder(build_ext):
             "zig",
             "build",
             "python",
-            # "-Doptimize=ReleaseFast",
+            "-Doptimize=ReleaseSafe",
             f"-Dpysdfgen-emit={self.get_ext_filename(ext.name)}",
             "--prefix-lib-dir",
             f"{modpath}",
         ]
         args.extend(include_args)
 
-        # cwd = os.getcwd()
-        # package_dir = os.environ.get("SDFGEN_PACKAGE_DIR")
-        # if package_dir is not None:
-        #     os.chdir(package_dir)
-
         self.spawn(args)
-
-        # os.chdir(cwd)
