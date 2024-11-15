@@ -1320,34 +1320,48 @@ pub const NetworkSystem = struct {
         client_config.rx_active = client_active_client_map.vaddr;
     }
 
-    fn clientTxConnect(system: *NetworkSystem, client: *Pd) void {
+    fn clientTxConnect(system: *NetworkSystem, client_id: usize) void {
         const allocator = system.allocator;
 
+        var client = system.clients.items[client_id];
+        var client_config = &system.client_configs.items[client_id];
+
         const data_mr_name = std.fmt.allocPrint(system.allocator, "net_tx_data_{s}", .{client.name}) catch @panic("OOM");
-        const data_mr = Mr.create(allocator, data_mr_name, system.region_size, .{});
+        const data_mr = Mr.physical(allocator, system.sdf, data_mr_name, system.region_size, .{});
         system.sdf.addMemoryRegion(data_mr);
 
-        const data_client_vaddr = client.getMapVaddr(&data_mr);
-        const data_client_map = Map.create(data_mr, data_client_vaddr, .rw, true, .{});
-        client.addMap(data_client_map);
-
-        const data_virt_vaddr = system.virt_tx.getMapVaddr(&data_mr);
-        const data_virt_map = Map.create(data_mr, data_virt_vaddr, .rw, true, .{});
+        const data_virt_map = Map.create(data_mr, system.virt_tx.getMapVaddr(&data_mr), .rw, true, .{});
         client.addMap(data_virt_map);
+        system.virt_tx_config.clients[client_id].buffer_data_region_vaddr = data_virt_map.vaddr;
+        system.virt_tx_config.clients[client_id].buffer_data_region_paddr = data_mr.paddr.?;
 
-        inline for (std.meta.fields(QueueRegion)) |region| {
-            const mr_name = std.fmt.allocPrint(system.allocator, "net_tx_{s}_{s}", .{ region.name, client.name }) catch @panic("OOM");
-            const mr = Mr.create(allocator, mr_name, system.region_size, .{});
-            system.sdf.addMemoryRegion(mr);
+        const data_client_map = Map.create(data_mr, client.getMapVaddr(&data_mr), .rw, true, .{});
+        client.addMap(data_client_map);
+        client_config.tx_buffer_data_region = data_client_map.vaddr;
 
-            const virt_vaddr = system.virt_tx.getMapVaddr(&mr);
-            const virt_map = Map.create(mr, virt_vaddr, .rw, true, .{});
-            system.virt_tx.addMap(virt_map);
+        const free_mr_name = std.fmt.allocPrint(system.allocator, "net_tx_free_{s}", .{ client.name }) catch @panic("OOM");
+        const free_mr = Mr.create(allocator, free_mr_name, system.region_size, .{});
+        system.sdf.addMemoryRegion(free_mr);
 
-            const client_vaddr = client.getMapVaddr(&mr);
-            const client_map = Map.create(mr, client_vaddr, .rw, true, .{});
-            client.addMap(client_map);
-        }
+        const free_virt_map = Map.create(free_mr, system.virt_tx.getMapVaddr(&free_mr), .rw, true, .{});
+        system.virt_tx.addMap(free_virt_map);
+        system.virt_tx_config.clients[client_id].free = free_virt_map.vaddr;
+
+        const free_client_map = Map.create(free_mr, client.getMapVaddr(&free_mr), .rw, true, .{});
+        client.addMap(free_client_map);
+        client_config.tx_free = free_client_map.vaddr;
+
+        const active_mr_name = std.fmt.allocPrint(system.allocator, "net_tx_active_{s}", .{ client.name }) catch @panic("OOM");
+        const active_mr = Mr.create(allocator, active_mr_name, system.region_size, .{});
+        system.sdf.addMemoryRegion(active_mr);
+
+        const active_virt_map = Map.create(active_mr, system.virt_tx.getMapVaddr(&active_mr), .rw, true, .{});
+        system.virt_tx.addMap(active_virt_map);
+        system.virt_tx_config.clients[client_id].active = active_virt_map.vaddr;
+
+        const active_client_map = Map.create(active_mr, client.getMapVaddr(&active_mr), .rw, true, .{});
+        client.addMap(active_client_map);
+        client_config.tx_active = active_client_map.vaddr;
     }
 
     pub fn connect(system: *NetworkSystem) !void {
@@ -1374,7 +1388,7 @@ pub const NetworkSystem = struct {
             sdf.addChannel(.create(system.copiers.items[i], system.virt_rx, .{}));
 
             system.clientRxConnect(rx_dma_mr, i);
-            system.clientTxConnect(client);
+            system.clientTxConnect(i);
         }
     }
 
