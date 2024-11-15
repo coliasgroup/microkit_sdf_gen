@@ -1381,6 +1381,8 @@ pub const NetworkSystem = struct {
         const rx_dma_mr = system.rxConnectDriver();
         system.txConnectDriver();
 
+        system.virt_tx_config.num_clients = @truncate(system.clients.items.len);
+        system.virt_rx_config.num_clients = @truncate(system.clients.items.len);
         for (system.clients.items, 0..) |client, i| {
             // TODO: we have an assumption that all copiers are RX copiers
             sdf.addChannel(.create(system.copiers.items[i], client, .{}));
