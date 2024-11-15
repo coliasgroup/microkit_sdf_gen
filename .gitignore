@@ -1,8 +1,8 @@
 zig-out
 .zig-cache
-*/__pycache__/
-*/*egg-info/
-*/build/
+__pycache__/
+*egg-info/
+build/
 .DS_Store
 venv
 .elf
