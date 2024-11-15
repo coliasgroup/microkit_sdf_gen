@@ -7,6 +7,7 @@ const mod_vmm = mod_sdf.vmm;
 const sddf = mod_sdf.sddf;
 const lionsos = mod_sdf.lionsos;
 const dtb = mod_sdf.dtb;
+const data = @import("../src/data.zig"); // TODO: fix
 const ArrayList = std.ArrayList;
 const Allocator = std.mem.Allocator;
 
@@ -531,7 +532,7 @@ fn echo_server(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !
     var eth_copy_client0 = Pd.create(allocator, "eth_copy_client0", "copy.elf", .{});
     var eth_system = sddf.NetworkSystem.init(allocator, sdf, eth_node, &eth_driver, &eth_virt_rx, &eth_virt_tx, .{});
 
-    // Benchmark
+    // Benchmark PDs
 
     var bench_idle = Pd.create(allocator, "bench_idle", "idle.elf", .{});
     sdf.addProtectionDomain(&bench_idle);
@@ -543,7 +544,30 @@ fn echo_server(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !
 
     var client0 = Pd.create(allocator, "client0", "lwip.elf", .{});
 
-    // Cycle counters shared memory region
+    // Configure benchmark
+
+    const pd_max_name_length = 64;
+    const max_children = 64;
+    const BenchmarkChildConfig = extern struct {
+        name: [pd_max_name_length]u8,
+        child_id: u8,
+    };
+    const BenchmarkConfig = extern struct {
+        start_channel: u8,
+        stop_channel: u8,
+        init_channel: u8,
+        num_children: u64,
+        children: [max_children]BenchmarkChildConfig,
+    };
+    const BenchmarkIdleConfig = extern struct {
+        cycle_counters: u64,
+        init_channel: u8,
+    };
+    const BenchmarkClientConfig = extern struct {
+        cycle_counters: u64,
+        start_channel: u8,
+        stop_channel: u8,
+    };
 
     const cycle_counters_mr = Mr.create(allocator, "cyclecounters", 0x1000, .{});
     sdf.addMemoryRegion(cycle_counters_mr);
@@ -556,23 +580,35 @@ fn echo_server(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !
     const cycle_counters_client0_map = Map.create(cycle_counters_mr, cycle_counters_client0_vaddr, .rw, true, .{});
     client0.addMap(cycle_counters_client0_map);
 
-    // Make PDs children of benchmark
+    var bench_config = std.mem.zeroes(BenchmarkConfig);
+    var idle_config = std.mem.zeroes(BenchmarkIdleConfig);
+    var bench_client_config = std.mem.zeroes(BenchmarkClientConfig);
 
-    sdf.addProtectionDomain(&eth_driver);
-    sdf.addProtectionDomain(&uart_driver);
-    sdf.addProtectionDomain(&serial_virt_tx);
-    sdf.addProtectionDomain(&eth_virt_rx);
-    sdf.addProtectionDomain(&eth_copy_client0);
-    sdf.addProtectionDomain(&eth_virt_tx);
-    sdf.addProtectionDomain(&client0);
-    sdf.addProtectionDomain(&timer_driver);
+    const bench_children = [_]*Pd{
+        &eth_driver,
+        &uart_driver,
+        &serial_virt_tx,
+        &eth_virt_rx,
+        &eth_copy_client0,
+        &eth_virt_tx,
+        &client0,
+        &timer_driver,
+    };
+    bench_config.num_children = bench_children.len;
+    for (bench_children, 0..) |child, i| {
+        bench_config.children[i].child_id = @truncate(try bench.addChild(child));
+        @memcpy(bench_config.children[i].name[0..child.name.len], child.name);
+    }
+
+    idle_config.cycle_counters = cycle_counters_bench_idle_map.vaddr;
+    bench_client_config.cycle_counters = cycle_counters_client0_map.vaddr;
 
     // Priorities
 
     timer_driver.priority = 101;
 
     bench_idle.priority = 1;
-    bench.priority = 102;
+    bench.priority = 254;
 
     uart_driver.priority = 100;
     serial_virt_tx.priority = 99;
@@ -591,12 +627,30 @@ fn echo_server(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !
     serial_system.addClient(&bench);
     serial_system.addClient(&client0);
 
-
-    sdf.addChannel(Channel.create(&bench, &client0, .{}));
-    sdf.addChannel(Channel.create(&bench, &client0, .{}));
-    sdf.addChannel(Channel.create(&bench, &bench_idle, .{}));
     const client0_mac_addr: [6]u8 = .{ 0x52, 0x54, 0x01, 0x00, 0x00, 0x00 };
     eth_system.addClientWithCopier(&client0, &eth_copy_client0, client0_mac_addr);
+
+    const bench_start_channel = Channel.create(&bench, &client0, .{});
+    const bench_stop_channel = Channel.create(&bench, &client0, .{});
+    const bench_init_channel = Channel.create(&bench, &bench_idle, .{});
+    sdf.addChannel(bench_start_channel);
+    sdf.addChannel(bench_stop_channel);
+    sdf.addChannel(bench_init_channel);
+    bench_config.start_channel = @truncate(bench_start_channel.pd_a_id);
+    bench_config.stop_channel = @truncate(bench_stop_channel.pd_a_id);
+    bench_config.init_channel = @truncate(bench_init_channel.pd_a_id);
+    bench_client_config.start_channel = @truncate(bench_start_channel.pd_b_id);
+    bench_client_config.stop_channel = @truncate(bench_stop_channel.pd_b_id);
+    idle_config.init_channel = @truncate(bench_init_channel.pd_b_id);
+
+    try data.serialize(bench_config, try std.fs.path.join(allocator, &.{ data_output, "benchmark_config.data" }));
+    try data.jsonify(bench_config, try std.fs.path.join(allocator, &.{ data_output, "benchmark_config.json" }), .{ .whitespace = .indent_4 });
+
+    try data.serialize(bench_client_config, try std.fs.path.join(allocator, &.{ data_output, "benchmark_client_config.data" }));
+    try data.jsonify(bench_client_config, try std.fs.path.join(allocator, &.{ data_output, "benchmark_client_config.json" }), .{ .whitespace = .indent_4 });
+
+    try data.serialize(idle_config, try std.fs.path.join(allocator, &.{ data_output, "benchmark_idle_config.data" }));
+    try data.jsonify(idle_config, try std.fs.path.join(allocator, &.{ data_output, "benchmark_idle_config.json" }), .{ .whitespace = .indent_4 });
 
     try eth_system.connect();
     try timer_system.connect();
