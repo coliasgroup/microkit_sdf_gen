@@ -1127,8 +1127,10 @@ pub const SerialSystem = struct {
             }
         }
         if (system.rx) {
+            system.virt_rx_config.num_clients = system.clients.items.len;
             system.rxConnectDriver();
         }
+        system.virt_tx_config.num_clients = system.clients.items.len;
         system.txConnectDriver();
         for (system.clients.items, 0..) |client, i| {
             if (system.rx) {
@@ -1324,7 +1326,6 @@ pub const NetworkSystem = struct {
         const rx_dma_copier_map = Map.create(rx_dma, copier.getMapVaddr(&rx_dma), .r, true, .{});
         copier.addMap(rx_dma_copier_map);
         copier_config.virt_data = rx_dma_copier_map.vaddr;
-
 
         const client_data_mr_name = std.fmt.allocPrint(system.allocator, "net_rx_data_{s}", .{client.name}) catch @panic("OOM");
         const client_data_mr = Mr.create(allocator, client_data_mr_name, system.data_region_size, .{});
