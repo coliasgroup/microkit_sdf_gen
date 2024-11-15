@@ -7,7 +7,7 @@ sdfgen = Extension("sdfgen", sources=["module.c"])
 
 setup(
     name="sdfgen",
-    version="0.0.1",
+    version="0.0.2",
     url="https://github.com/Ivan-Velickovic/microkit_sdf_gen",
     description="Automating the creation of Microkit System Description Files (SDF)",
     ext_modules=[sdfgen],
