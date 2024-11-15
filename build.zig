@@ -77,22 +77,14 @@ pub fn build(b: *std.Build) !void {
     b.installArtifact(csdfgen);
 
     const pysdfgen_bin = b.option([]const u8, "pysdfgen-emit", "Build pysdfgen library") orelse "pysdfgen.so";
-    const pysdfgen = blk: {
-        if (target.result.os.tag == .macos) {
-            break :blk b.addSharedLibrary(.{
-                .name = "pysdfgen",
-                .target = target,
-                .optimize = optimize,
-            });
-        } else {
-            break :blk b.addSharedLibrary(.{
-                .name = "pysdfgen",
-                .target = target,
-                .optimize = optimize,
-            });
-        }
-    };
-    pysdfgen.linkLibrary(csdfgen);
+    const pysdfgen = b.addSharedLibrary(.{
+        .name = "pysdfgen",
+        .root_source_file = b.path("src/c/c.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    pysdfgen.root_module.addImport("sdf", modsdf);
+    pysdfgen.addIncludePath(b.path("src/c"));
     pysdfgen.linker_allow_shlib_undefined = true;
     pysdfgen.addCSourceFile(.{ .file = b.path("python/module.c"), .flags = &.{ "-Wall", "-Werror" } });
     for (python_include) |include| {
