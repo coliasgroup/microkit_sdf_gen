@@ -528,7 +528,6 @@ fn echo_server(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !
     var eth_virt_rx = Pd.create(allocator, "eth_virt_rx", "network_virt_rx.elf", .{});
     var eth_virt_tx = Pd.create(allocator, "eth_virt_tx", "network_virt_tx.elf", .{});
     var eth_copy_client0 = Pd.create(allocator, "eth_copy_client0", "copy.elf", .{});
-    var eth_copy_client1 = Pd.create(allocator, "eth_copy_client1", "copy.elf", .{});
     var eth_system = sddf.NetworkSystem.init(allocator, sdf, eth_node, &eth_driver, &eth_virt_rx, &eth_virt_tx, .{});
 
     // Benchmark
@@ -542,7 +541,6 @@ fn echo_server(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !
     // Clients
 
     var client0 = Pd.create(allocator, "client0", "lwip.elf", .{});
-    var client1 = Pd.create(allocator, "client1", "lwip.elf", .{});
 
     // Cycle counters shared memory region
 
@@ -567,7 +565,6 @@ fn echo_server(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !
     try bench.addChild(&eth_copy_client1);
     try bench.addChild(&eth_virt_tx);
     try bench.addChild(&client0);
-    try bench.addChild(&client1);
     try bench.addChild(&timer_driver);
 
     // Priorities
@@ -584,22 +581,17 @@ fn echo_server(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !
     eth_virt_tx.priority = 100;
     eth_virt_rx.priority = 99;
     eth_copy_client0.priority = 98;
-    eth_copy_client1.priority = 96;
 
     client0.priority = 97;
-    client1.priority = 95;
 
     // Connections
 
     timer_system.addClient(&client0);
-    timer_system.addClient(&client1);
 
     serial_system.addClient(&bench);
     serial_system.addClient(&client0);
-    serial_system.addClient(&client1);
 
     eth_system.addClientWithCopier(&client0, &eth_copy_client0);
-    eth_system.addClientWithCopier(&client1, &eth_copy_client1);
 
     sdf.addChannel(Channel.create(&bench, &client0, .{}));
     sdf.addChannel(Channel.create(&bench, &client0, .{}));
