@@ -1385,7 +1385,7 @@ pub const NetworkSystem = struct {
         system.sdf.addMemoryRegion(data_mr);
 
         const data_virt_map = Map.create(data_mr, system.virt_tx.getMapVaddr(&data_mr), .rw, true, .{});
-        client.addMap(data_virt_map);
+        system.virt_tx.addMap(data_virt_map);
         system.virt_tx_config.clients[client_id].buffer_data_region_vaddr = data_virt_map.vaddr;
         system.virt_tx_config.clients[client_id].buffer_data_region_paddr = data_mr.paddr.?;
 
