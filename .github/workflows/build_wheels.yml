@@ -23,9 +23,10 @@ jobs:
         uses: pypa/cibuildwheel@v2.21.3
         env:
           CIBW_BEFORE_BUILD_LINUX: 'cd /tmp && curl -o zig.tar.xz https://sel4.ivanvelickovic.com/$ZIG.tar.xz && tar xf zig.tar.xz && export PATH=$(pwd)/$ZIG/:$PATH && zig version && cd -'
-          CIBW_BUILD: 'cp311-* cp312-* cp313-*'
+          CIBW_BUILD: 'cp310-* cp311-* cp312-* cp313-*'
           CIBW_ARCHS_LINUX: 'x86_64'
           CIBW_ENVIRONMENT: 'PATH=$PATH:/tmp/zig-linux-x86_64-0.14.0-dev.2245+4fc295dc0 ZIG=zig-linux-x86_64-0.14.0-dev.2245+4fc295dc0'
+          CIBW_REPAIR_WHEEL_COMMAND_MACOS: ""
         with:
           output-dir: wheelhouse
       - uses: actions/upload-artifact@v4
