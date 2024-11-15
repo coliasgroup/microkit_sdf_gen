@@ -1233,6 +1233,17 @@ pub const NetworkSystem = struct {
         system.virt_rx_config.buffer_data_vaddr = rx_dma_virt_vaddr;
         system.virt_rx_config.buffer_data_paddr = rx_dma_mr.paddr.?;
 
+        const virt_rx_metadata_mr_size_bytes = system.queue_capacity * 4;
+        var virt_rx_metadata_mr_size_pages = virt_rx_metadata_mr_size_bytes / 0x1000;
+        if (virt_rx_metadata_mr_size_bytes % 0x1000 != 0) {
+            virt_rx_metadata_mr_size_pages += 1;
+        }
+        const virt_rx_metadata_mr = Mr.create(allocator, "net_virt_rx_metadata", virt_rx_metadata_mr_size_pages * 0x1000, .{});
+        system.sdf.addMemoryRegion(virt_rx_metadata_mr);
+        const virt_rx_metadata_map = Map.create(virt_rx_metadata_mr, system.virt_rx.getMapVaddr(&virt_rx_metadata_mr), .rw, true, .{});
+        system.virt_rx.addMap(virt_rx_metadata_map);
+        system.virt_rx_config.buffer_metadata = virt_rx_metadata_map.vaddr;
+
         system.driver_config.rx_capacity = system.queue_capacity;
         system.virt_rx_config.capacity_drv = system.queue_capacity;
 
