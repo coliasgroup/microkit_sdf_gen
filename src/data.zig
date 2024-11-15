@@ -179,8 +179,6 @@ pub const Resources = struct {
                 free: u64,
                 active: u64,
                 capacity: u64,
-                buffer_data_region_vaddr: u64,
-                buffer_data_region_paddr: u64,
                 id: u8,
             };
 
