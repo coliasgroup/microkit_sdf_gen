@@ -1378,8 +1378,13 @@ pub const NetworkSystem = struct {
         system.driver_config.hw_ring_buffer_paddr = hw_ring_buffer_mr.paddr.?;
         system.driver_config.hw_ring_buffer_vaddr = hw_ring_buffer_map.vaddr;
 
-        sdf.addChannel(.create(system.driver, system.virt_tx, .{}));
-        sdf.addChannel(.create(system.driver, system.virt_rx, .{}));
+        const drv_virt_tx_channel = Channel.create(system.driver, system.virt_tx, .{});
+        system.driver_config.tx_id = @truncate(drv_virt_tx_channel.pd_a_id);
+        system.virt_tx_config.drv_id = @truncate(drv_virt_tx_channel.pd_b_id);
+
+        const drv_virt_rx_channel = Channel.create(system.driver, system.virt_rx, .{});
+        system.driver_config.rx_id = @truncate(drv_virt_rx_channel.pd_a_id);
+        system.virt_rx_config.driver_id = @truncate(drv_virt_rx_channel.pd_b_id);
 
         const rx_dma_mr = system.rxConnectDriver();
         system.txConnectDriver();
@@ -1388,9 +1393,20 @@ pub const NetworkSystem = struct {
         system.virt_rx_config.num_clients = @truncate(system.clients.items.len);
         for (system.clients.items, 0..) |client, i| {
             // TODO: we have an assumption that all copiers are RX copiers
-            sdf.addChannel(.create(system.copiers.items[i], client, .{}));
-            sdf.addChannel(.create(system.virt_tx, client, .{}));
-            sdf.addChannel(.create(system.copiers.items[i], system.virt_rx, .{}));
+            const virt_rx_copier_channel = Channel.create(system.virt_rx, system.copiers.items[i], .{});
+            sdf.addChannel(virt_rx_copier_channel);
+            system.virt_rx_config.clients[i].id = @truncate(virt_rx_copier_channel.pd_a_id);
+            system.copy_configs.items[i].virt_id = @truncate(virt_rx_copier_channel.pd_b_id);
+
+            const copier_client_channel = Channel.create(system.copiers.items[i], client, .{});
+            sdf.addChannel(copier_client_channel);
+            system.copy_configs.items[i].cli_id = @truncate(copier_client_channel.pd_a_id);
+            system.client_configs.items[i].rx_ch = @truncate(copier_client_channel.pd_b_id);
+
+            const virt_tx_client_channel = Channel.create(system.virt_tx, client, .{});
+            sdf.addChannel(virt_tx_client_channel);
+            system.virt_tx_config.clients[i].id = @truncate(virt_tx_client_channel.pd_a_id);
+            system.client_configs.items[i].tx_ch = @truncate(virt_tx_client_channel.pd_b_id);
 
             system.clientRxConnect(rx_dma_mr, i);
             system.clientTxConnect(i);
