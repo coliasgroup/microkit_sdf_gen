@@ -1,0 +1,30 @@
+name: Build Python package
+
+on: []
+
+jobs:
+  build_wheels:
+    name: Build wheels on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        # macos-13 is an intel runner, macos-14 is apple silicon
+        os: [ubuntu-latest]
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build wheels
+        uses: pypa/cibuildwheel@v2.21.3
+        env:
+          ZIG='zig-linux-x86_64-0.14.0-dev.2245+4fc295dc0.tar.xz'
+          CIBW_BEFORE_BUILD='cd /tmp && curl -o zig.tar.xz https://sel4.ivanvelickovic.com/$ZIG.tar.xz && tar xf zig.tar.xz && export PATH=$(pwd)/$ZIG/:$PATH && zig version && cd -'
+          CIBW_BUILD='cp310-* cp311-* cp312-* cp313-*'
+          CIBW_ARCHS_LINUX='x86_64'
+          CIBW_ENVIRONMENT='PATH=$PATH:/tmp/zig-linux-x86_64-0.14.0-dev.2245+4fc295dc0'
+        with:
+          package-dir: python
+          output-dir: wheelhouse
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cibw-wheels-${{ matrix.os }}-${{ strategy.job-index }}
+          path: ./wheelhouse/*.whl
