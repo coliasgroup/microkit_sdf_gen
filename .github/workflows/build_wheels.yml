@@ -20,7 +20,7 @@ jobs:
         with:
           version: master
       - name: test
-      - run: realpath $(which zig)
+        run: realpath $(which zig)
       - name: Build wheels
         uses: pypa/cibuildwheel@v2.21.3
         env:
