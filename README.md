@@ -1,8 +1,10 @@
 # Higher-level tooling for constructing seL4 Microkit systems
 
-**NOTE: this project is experimental, we are using it internally to get it into a
-  usable state for the public. For development this work exists in a separate repository,
-  but that may change once it is ready for use.**
+> [!WARNING]
+> this project is experimental, we are using it internally to get it into a
+> usable state for the public. For development this work exists in a separate repository,
+> but that may change once it has matured (e.g by being apart of the official Microkit
+> repository.
 
 This repository currently holds various programs to help with automating the
 process of creating seL4 Microkit systems.
@@ -93,7 +95,7 @@ The source code for the example is in `examples/examples.c`.
 ### Python bindings
 
 The Python package is supported for versions 3.9 to 3.13.
-Linux (x86_64) and macOS (Intel/Apple Silicon) are supported. Windows is *not* supported.
+Linux (x86-64) and macOS (Intel/Apple Silicon) are supported. Windows is *not* supported.
 
 The Python bindings are based on the C bindings. While it is possible to just use pure
 Zig with the Python C API to create modules, types, functions etc for the Python bindings,
@@ -126,3 +128,44 @@ Now you should be able to import and use the bindings:
 >>> help(sdfgen)
 ```
 
+#### Publishing Python packages
+
+Binary releases of the Python package (known as 'wheels' in the Python universe) are published to
+[PyPI](https://pypi.org/).
+
+Unlike most Python packages, ours is a bit more complicated because:
+1. We are publishing a binary C extension to Python
+2. We are building the binary extension via Zig and not a regular C compiler.
+
+These have some consequences, mainly that the regular `setup.py` process for
+building C extension modules does not work, hence we have a custom `builder.py`
+script.
+
+The `builder.py` script calls out to `zig build python` using the correct includes
+and output library name/path that the caller of `setup.py` wanted to use.
+
+An alternative to this could have been to build the C bindings, `csdfgen` as a separate library
+and simply get `setup.py` to compile the C source for the Python module itself and then later
+link with `csdfgen`. This approach was consciously not chosen as it now requires the building
+and distribution of multiple shared libraries, `csdfgen` and `pysdfgen` which makes things
+even more complicated!
+
+So instead, we build one `pysdfgen` library that contains everything. The consequence of this
+is that you *must* use Zig to build the Python package.
+
+##### Supported versions
+
+We try to support all versions of Python people would want to use, within reason.
+
+Right now, that means CPython 3.9 is the lowest version available. If there is a
+missing Python package target (missing architecture or version), please open an issue.
+
+The Python bindings do not use `Py_LIMITED_API` and so we must build the bindings
+for each version of Python we want to target.
+
+##### CI
+
+For the CI, we use [cibuildwheel](https://cibuildwheel.pypa.io/) to automate the process of building
+for various architectures/operating systems.
+
+The CI runs on every commit and produces GitHub action artefacts that contain all the wheels (`*.whl`).
