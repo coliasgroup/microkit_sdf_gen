@@ -92,17 +92,12 @@ The source code for the example is in `examples/examples.c`.
 
 ### Python bindings
 
+The Python package is supported for versions 3.10 to 3.13.
+
 The Python bindings are based on the C bindings. While it is possible to just use pure
 Zig with the Python C API to create modules, types, functions etc for the Python bindings,
 I opted with the C API to minimise friction. There are minor things like macros that are not
 usable within Zig hence making writing the module in C slightly easier.
-
-First, create a virtual environment and activate it:
-```sh
-cd python
-python3 -m venv venv
-source venv/bin/activate
-```
 
 To build just the bindings, without the package, you can run the command below.
 
@@ -119,6 +114,7 @@ If you have multiple versions of Python on your machine, this can be an easy mis
 
 Finally, to build the package, you can run:
 ```sh
+python3 -m venv venv
 ./venv/bin/python3 -m pip install .
 ```
 
