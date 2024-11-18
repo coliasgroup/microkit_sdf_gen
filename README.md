@@ -92,7 +92,8 @@ The source code for the example is in `examples/examples.c`.
 
 ### Python bindings
 
-The Python package is supported for versions 3.10 to 3.13.
+The Python package is supported for versions 3.9 to 3.13.
+Linux (x86_64) and macOS (Intel/Apple Silicon) are supported. Windows is *not* supported.
 
 The Python bindings are based on the C bindings. While it is possible to just use pure
 Zig with the Python C API to create modules, types, functions etc for the Python bindings,
