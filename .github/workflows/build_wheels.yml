@@ -22,10 +22,9 @@ jobs:
       - name: Build wheels
         uses: pypa/cibuildwheel@v2.21.3
         env:
-          CIBW_BEFORE_BUILD_LINUX: 'ls -l /host/ && echo "ls -l /opt" && ls -l /opt/'
           CIBW_BUILD: 'cp39-* cp310-* cp311-* cp312-* cp313-*'
           CIBW_ARCHS_LINUX: 'x86_64'
-          CIBW_ENVIRONMENT: 'PATH=$PATH:/opt/hostedtoolcache/zig/0.14.0-dev.2253/x64/'
+          CIBW_ENVIRONMENT: 'PATH=$PATH:/host/opt/hostedtoolcache/zig/0.14.0-dev.2253/x64/'
           CIBW_REPAIR_WHEEL_COMMAND_MACOS: ""
         with:
           output-dir: wheelhouse
