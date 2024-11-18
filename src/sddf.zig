@@ -1528,57 +1528,55 @@ pub fn createDriver(sdf: *SystemDescription, pd: *Pd, device: *dtb.Node, class: 
 
     // TODO: support more than one device region, it will most likely be needed in the future.
     assert(driver.resources.device_regions.len <= 1);
-    if (driver.resources.device_regions.len > 0) {
-        for (driver.resources.device_regions) |region| {
-            const reg = device.prop(.Reg).?;
-            assert(region.dt_index < reg.len);
+    for (driver.resources.device_regions) |region| {
+        const reg = device.prop(.Reg).?;
+        assert(region.dt_index < reg.len);
 
-            const reg_entry = reg[region.dt_index];
-            assert(reg_entry.len == 2);
-            const reg_paddr = reg_entry[0];
-            // In case the device region is less than a page
-            const reg_size = if (reg_entry[1] < 0x1000) 0x1000 else reg_entry[1];
+        const reg_entry = reg[region.dt_index];
+        assert(reg_entry.len == 2);
+        const reg_paddr = reg_entry[0];
+        // In case the device region is less than a page
+        const reg_size = if (reg_entry[1] < 0x1000) 0x1000 else reg_entry[1];
 
-            if (reg_size < region.size) {
-                log.err("device '{s}' has config region size for dt_index '{}' that is too small (0x{x} bytes)", .{ device.name, region.dt_index, reg_size });
-                return error.InvalidConfig;
-            }
+        if (reg_size < region.size) {
+            log.err("device '{s}' has config region size for dt_index '{}' that is too small (0x{x} bytes)", .{ device.name, region.dt_index, reg_size });
+            return error.InvalidConfig;
+        }
 
-            if (region.size & ((1 << 12) - 1) != 0) {
-                log.err("device '{s}' has config region size not aligned to page size for dt_index '{}'", .{ device.name, region.dt_index });
-                return error.InvalidConfig;
-            }
+        if (region.size & ((1 << 12) - 1) != 0) {
+            log.err("device '{s}' has config region size not aligned to page size for dt_index '{}'", .{ device.name, region.dt_index });
+            return error.InvalidConfig;
+        }
 
-            if (reg_size & ((1 << 12) - 1) != 0) {
-                log.err("device '{s}' has DTB region size not aligned to page size for dt_index '{}'", .{ device.name, region.dt_index });
-                return error.InvalidConfig;
-            }
+        if (reg_size & ((1 << 12) - 1) != 0) {
+            log.err("device '{s}' has DTB region size not aligned to page size for dt_index '{}'", .{ device.name, region.dt_index });
+            return error.InvalidConfig;
+        }
 
-            const device_paddr = DeviceTree.regToPaddr(device, reg_paddr);
+        const device_paddr = DeviceTree.regToPaddr(device, reg_paddr);
 
-            // TODO: hack when we have multiple virtIO devices. Need to come up with
-            // a proper solution.
-            var device_mr: ?Mr = null;
-            for (sdf.mrs.items) |mr| {
-                if (mr.paddr) |mr_paddr| {
-                    if (mr_paddr == device_paddr) {
-                        device_mr = mr;
-                    }
+        // TODO: hack when we have multiple virtIO devices. Need to come up with
+        // a proper solution.
+        var device_mr: ?Mr = null;
+        for (sdf.mrs.items) |mr| {
+            if (mr.paddr) |mr_paddr| {
+                if (mr_paddr == device_paddr) {
+                    device_mr = mr;
                 }
             }
-
-            if (device_mr == null) {
-                const mr_name = std.fmt.allocPrint(sdf.allocator, "{s}_{s}", .{ driver.name, region.name }) catch @panic("OOM");
-                device_mr = Mr.physical(sdf.allocator, sdf, mr_name, region.size, .{ .paddr = device_paddr });
-                sdf.addMemoryRegion(device_mr.?);
-            }
-
-            const perms = Map.Permissions.fromString(region.perms);
-            const vaddr = pd.getMapVaddr(&device_mr.?);
-            // Never map MMIO device regions as cached
-            const map = Map.create(device_mr.?, vaddr, perms, false, .{ .setvar_vaddr = region.setvar_vaddr });
-            pd.addMap(map);
         }
+
+        if (device_mr == null) {
+            const mr_name = std.fmt.allocPrint(sdf.allocator, "{s}_{s}", .{ driver.name, region.name }) catch @panic("OOM");
+            device_mr = Mr.physical(sdf.allocator, sdf, mr_name, region.size, .{ .paddr = device_paddr });
+            sdf.addMemoryRegion(device_mr.?);
+        }
+
+        const perms = Map.Permissions.fromString(region.perms);
+        const vaddr = pd.getMapVaddr(&device_mr.?);
+        // Never map MMIO device regions as cached
+        const map = Map.create(device_mr.?, vaddr, perms, false, .{ .setvar_vaddr = region.setvar_vaddr });
+        pd.addMap(map);
     }
 
     // For all driver IRQs, find the corresponding entry in the device tree and

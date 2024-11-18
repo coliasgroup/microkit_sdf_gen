@@ -4,6 +4,7 @@ const test_device_trees = .{
     "qemu_virt_aarch64",
     "odroidc4",
     "star64",
+    "maaxboard",
 };
 
 pub fn build(b: *std.Build) !void {
