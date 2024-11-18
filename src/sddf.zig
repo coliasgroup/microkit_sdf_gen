@@ -201,12 +201,6 @@ pub const Config = struct {
         }
     };
 
-    pub const Component = struct {
-        name: []const u8,
-        type: []const u8,
-        // resources: Resources,
-    };
-
     pub const DeviceClass = struct {
         class: Class,
         resources: Resources,

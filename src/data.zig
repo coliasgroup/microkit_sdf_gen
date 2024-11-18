@@ -258,30 +258,3 @@ pub fn jsonify(s: anytype, path: []const u8, options: std.json.StringifyOptions)
 
     try std.json.stringify(s, options, writer);
 }
-
-pub fn main() !void {
-    const clients = [_]Resources.Block.Virt.Client{.{
-        .req_queue = 0x7000,
-        .resp_queue = 0x8000,
-        .storage_info = 0x9000,
-        .data_vaddr = 0x10000,
-        .data_paddr = 0x11000,
-        .queue_capacity = 0x12000,
-        .data_size = 0x1000000000,
-        .partition = 0,
-    }} ** 62;
-    const virt_metadata: Resources.Block.Virt = .{
-        .num_clients = 1,
-        .driver = .{
-            .storage_info = 0x1000,
-            .req_queue = 0x2000,
-            .resp_queue = 0x3000,
-            .data_vaddr = 0x4000,
-            .data_paddr = 0x5000,
-            .data_size = 0x6000,
-        },
-        .clients = clients,
-    };
-
-    try serialize(virt_metadata, "virt.data");
-}
