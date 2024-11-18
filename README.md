@@ -1,13 +1,13 @@
 # Higher-level tooling for constructing seL4 Microkit systems
 
-> [!WARNING]
-> this project is experimental, we are using it internally to get it into a
-> usable state for the public. For development this work exists in a separate repository,
-> but that may change once it has matured (e.g by being apart of the official Microkit
-> repository.
-
 This repository currently holds various programs to help with automating the
 process of creating seL4 Microkit systems.
+
+> [!IMPORTANT]
+> This project is experimental, we are using it internally to get it into a
+> usable state for the public. For development this work exists in a separate repository,
+> but that may change once it has matured (e.g by being apart of the official Microkit
+> repository).
 
 ## Problem
 
