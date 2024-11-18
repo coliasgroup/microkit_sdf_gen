@@ -131,10 +131,10 @@ Now you should be able to import and use the bindings:
 #### Publishing Python packages
 
 Binary releases of the Python package (known as 'wheels' in the Python universe) are published to
-[PyPI](https://pypi.org/).
+[PyPI](https://pypi.org/project/pysdfgen/).
 
 Unlike most Python packages, ours is a bit more complicated because:
-1. We are publishing a binary C extension to Python
+1. We are publishing a binary C extension to Python.
 2. We are building the binary extension via Zig and not a regular C compiler.
 
 These have some consequences, mainly that the regular `setup.py` process for
