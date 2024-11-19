@@ -15,7 +15,7 @@ int main(int argc, char *argv[]) {
     char *sddf = argv[1];
     sdfgen_sddf_init(sddf);
 
-    void *sdf = sdfgen_create(0xa0000000);
+    void *sdf = sdfgen_create(0xa0000000, AARCH64);
     void *i2c_reactor_client = sdfgen_pd_create("i2c_reactor_client", "reactor_client.elf");
     void *i2c_virt = sdfgen_pd_create("i2c_virt", "i2c_virt.elf");
     void *i2c_reactor_driver = sdfgen_pd_create("i2c_reactor_driver", "reactor_driver.elf");

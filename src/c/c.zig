@@ -11,6 +11,7 @@ const lionsos = modsdf.lionsos;
 const SystemDescription = modsdf.sdf.SystemDescription;
 const Pd = SystemDescription.ProtectionDomain;
 const Channel = SystemDescription.Channel;
+const Arch = SystemDescription.Arch;
 
 // TODO: do proper error logging
 // TODO: handle passing options to sDDF systems
@@ -18,9 +19,9 @@ const Channel = SystemDescription.Channel;
 
 // TODO: handle deallocation
 // TODO: handle architecture
-export fn sdfgen_create(paddr_top: u64) *anyopaque {
+export fn sdfgen_create(arch: Arch, paddr_top: u64) *anyopaque {
     const sdf = allocator.create(SystemDescription) catch @panic("OOM");
-    sdf.* = SystemDescription.create(allocator, .aarch64, paddr_top);
+    sdf.* = SystemDescription.create(allocator, arch, paddr_top);
 
     return sdf;
 }
@@ -143,6 +144,26 @@ export fn sdfgen_sddf_timer_add_client(system: *align(8) anyopaque, client: *ali
 export fn sdfgen_sddf_timer_connect(system: *align(8) anyopaque) bool {
     const timer: *sddf.TimerSystem = @ptrCast(system);
     timer.connect() catch return false;
+
+    return true;
+}
+
+export fn sdfgen_sddf_serial(c_sdf: *align(8) anyopaque, c_device: ?*align(8) anyopaque, driver: *align(8) anyopaque, virt_tx: *align(8) anyopaque, virt_rx: ?*align(8) anyopaque) *anyopaque {
+    const sdf: *SystemDescription = @ptrCast(c_sdf);
+    const serial = allocator.create(sddf.SerialSystem) catch @panic("OOM");
+    serial.* = sddf.SerialSystem.init(allocator, sdf, @ptrCast(c_device), @ptrCast(driver), @ptrCast(virt_tx), .{ .virt_rx = @ptrCast(virt_rx) });
+
+    return serial;
+}
+
+export fn sdfgen_sddf_serial_add_client(system: *align(8) anyopaque, client: *align(8) anyopaque) void {
+    const serial: *sddf.SerialSystem = @ptrCast(system);
+    serial.addClient(@ptrCast(client));
+}
+
+export fn sdfgen_sddf_serial_connect(system: *align(8) anyopaque) bool {
+    const serial: *sddf.SerialSystem = @ptrCast(system);
+    serial.connect() catch return false;
 
     return true;
 }

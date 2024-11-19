@@ -493,6 +493,7 @@ pub const SystemDescription = struct {
                     next_vaddr = map.vaddr + map.mr.size;
                     // TODO: fix this
                     const page_size = MemoryRegion.PageSize.optimal(.aarch64, mr.size).toInt(.aarch64);
+                    // TODO: Use builtins like @rem
                     const diff = next_vaddr % page_size;
                     if (diff != 0) {
                         // In the case the next virtual address is not page aligned, we need

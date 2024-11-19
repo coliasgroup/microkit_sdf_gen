@@ -3,8 +3,18 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+// TODO: not sure about this since it needs be kept in sync with sdf.zig
+typedef enum {
+    AARCH32,
+    AARCH64,
+    RISCV32,
+    RISCV64,
+    X86,
+    X86_64,
+} sdfgen_arch_t;
+
 /* High-level system functions */
-void *sdfgen_create(uint64_t paddr_top);
+void *sdfgen_create(sdfgen_arch_t arch, uint64_t paddr_top);
 void sdfgen_deinit(void *sdf);
 void *sdfgen_to_xml(void *sdf);
 
@@ -31,6 +41,10 @@ void *sdfgen_sddf_init(char *path);
 void *sdfgen_sddf_timer(void *sdf, void *device, void *driver);
 void sdfgen_sddf_timer_add_client(void *system, void *client);
 bool sdfgen_sddf_timer_connect(void *system);
+
+void *sdfgen_sddf_serial(void *sdf, void *device, void *driver, void *virt_tx, void *virt_rx);
+void sdfgen_sddf_serial_add_client(void *system, void *client);
+bool sdfgen_sddf_serial_connect(void *system);
 
 void *sdfgen_sddf_i2c(void *sdf, void *device, void *driver, void *virt);
 void sdfgen_sddf_i2c_add_client(void *system, void *client);

@@ -889,7 +889,6 @@ pub const SerialSystem = struct {
     virt_rx: ?*Pd,
     virt_tx: *Pd,
     clients: std.ArrayList(*Pd),
-    rx: bool,
 
     driver_config: ConfigResources.Serial.Driver,
     virt_rx_config: ConfigResources.Serial.VirtRx,
@@ -900,7 +899,7 @@ pub const SerialSystem = struct {
         driver_data_size: usize = 0x10000,
         client_data_size: usize = 0x10000,
         queue_size: usize = 0x1000,
-        rx: bool = true,
+        virt_rx: ?*Pd = null,
     };
 
     const Region = enum {
@@ -908,21 +907,17 @@ pub const SerialSystem = struct {
         queue,
     };
 
-    pub fn init(allocator: Allocator, sdf: *SystemDescription, device: *dtb.Node, driver: *Pd, virt_tx: *Pd, virt_rx: ?*Pd, options: Options) !SerialSystem {
-        if (options.rx and virt_rx == null) {
-            return error.SerialMissingVirtRx;
-        }
+    pub fn init(allocator: Allocator, sdf: *SystemDescription, device: *dtb.Node, driver: *Pd, virt_tx: *Pd, options: Options) SerialSystem {
         return .{
             .allocator = allocator,
             .sdf = sdf,
             .driver_data_size = options.driver_data_size,
             .client_data_size = options.client_data_size,
             .queue_size = options.queue_size,
-            .rx = options.rx,
             .clients = std.ArrayList(*Pd).init(allocator),
             .driver = driver,
             .device = device,
-            .virt_rx = virt_rx,
+            .virt_rx = options.virt_rx,
             .virt_tx = virt_tx,
 
             .driver_config = std.mem.zeroes(ConfigResources.Serial.Driver),
@@ -935,6 +930,10 @@ pub const SerialSystem = struct {
     pub fn addClient(system: *SerialSystem, client: *Pd) void {
         system.clients.append(client) catch @panic("Could not add client to SerialSystem");
         system.client_configs.append(std.mem.zeroes(ConfigResources.Serial.Client)) catch @panic("Could not add client to SerialSystem");
+    }
+
+    fn hasRx(system: *SerialSystem) bool {
+        return system.virt_rx != null;
     }
 
     fn rxConnectDriver(system: *SerialSystem) void {
@@ -1106,7 +1105,7 @@ pub const SerialSystem = struct {
         sdf.addChannel(ch_driver_virt_tx);
         system.driver_config.tx_id = @truncate(ch_driver_virt_tx.pd_a_id);
         system.virt_tx_config.driver_id = @truncate(ch_driver_virt_tx.pd_b_id);
-        if (system.rx) {
+        if (system.hasRx()) {
             const ch_driver_virt_rx = Channel.create(system.driver, system.virt_rx.?, .{});
             sdf.addChannel(ch_driver_virt_rx);
             system.driver_config.rx_id = @truncate(ch_driver_virt_rx.pd_a_id);
@@ -1119,21 +1118,21 @@ pub const SerialSystem = struct {
             system.virt_tx_config.clients[i].id = @truncate(ch_virt_tx_client.pd_a_id);
             system.client_configs.items[i].tx_id = @truncate(ch_virt_tx_client.pd_b_id);
 
-            if (system.rx) {
+            if (system.hasRx()) {
                 const ch_virt_rx_client = Channel.create(system.virt_rx.?, client, .{});
                 sdf.addChannel(ch_virt_rx_client);
                 system.virt_rx_config.clients[i].id = @truncate(ch_virt_rx_client.pd_a_id);
                 system.client_configs.items[i].tx_id = @truncate(ch_virt_rx_client.pd_b_id);
             }
         }
-        if (system.rx) {
+        if (system.hasRx()) {
             system.virt_rx_config.num_clients = system.clients.items.len;
             system.rxConnectDriver();
         }
         system.virt_tx_config.num_clients = system.clients.items.len;
         system.txConnectDriver();
         for (system.clients.items, 0..) |client, i| {
-            if (system.rx) {
+            if (system.hasRx()) {
                 system.rxConnectClient(client, &system.client_configs.items[i], i);
             }
             system.txConnectClient(client, &system.client_configs.items[i], i);

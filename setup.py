@@ -8,7 +8,7 @@ sdfgen = Extension("sdfgen", sources=["module.c"])
 setup(
     name="sdfgen",
     version="0.0.4",
-    url="https://github.com/Ivan-Velickovic/microkit_sdf_gen",
+    url="https://github.com/au-ts/microkit_sdf_gen",
     description="Automating the creation of Microkit System Description Files (SDF)",
     ext_modules=[sdfgen],
     cmdclass={"build_ext": ZigBuilder},
