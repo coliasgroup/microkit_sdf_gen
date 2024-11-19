@@ -7,7 +7,7 @@ const mod_vmm = mod_sdf.vmm;
 const sddf = mod_sdf.sddf;
 const lionsos = mod_sdf.lionsos;
 const dtb = mod_sdf.dtb;
-const data = @import("../src/data.zig"); // TODO: fix
+const data = mod_sdf.data;
 const ArrayList = std.ArrayList;
 const Allocator = std.mem.Allocator;
 
