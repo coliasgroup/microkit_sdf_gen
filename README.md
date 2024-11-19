@@ -102,6 +102,26 @@ Zig with the Python C API to create modules, types, functions etc for the Python
 I opted with the C API to minimise friction. There are minor things like macros that are not
 usable within Zig hence making writing the module in C slightly easier.
 
+#### Building the package
+
+To build a usable Python package run the following:
+```sh
+python3 -m venv venv
+./venv/bin/python3 -m pip install .
+```
+
+Now you should be able to import and use the bindings:
+```sh
+./venv/bin/python3
+>>> import sdfgen
+>>> help(sdfgen)
+```
+
+#### Building the bindings
+
+If you only want to build the `pysdfgen` bindings as a library but not as a Python package for
+importing, you can do so with the following command:
+
 To build just the bindings, without the package, you can run the command below.
 
 ```sh
@@ -114,19 +134,6 @@ on what your OS is and where your package manager put them.
 You can find the include directories using `python3-config --includes`. However, be careful that
 the `python3-config` version is using the same Python as the one used to make the virtual environment.
 If you have multiple versions of Python on your machine, this can be an easy mistake to make.
-
-Finally, to build the package, you can run:
-```sh
-python3 -m venv venv
-./venv/bin/python3 -m pip install .
-```
-
-Now you should be able to import and use the bindings:
-```sh
-./venv/bin/python3
->>> import sdfgen
->>> help(sdfgen)
-```
 
 #### Publishing Python packages
 
