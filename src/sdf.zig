@@ -456,16 +456,18 @@ pub const SystemDescription = struct {
             pd.maps.append(map) catch @panic("Could not add Map to ProtectionDomain");
         }
 
-        pub fn addInterrupt(pd: *ProtectionDomain, irq: Interrupt) !void {
+        pub fn addInterrupt(pd: *ProtectionDomain, irq: Interrupt) !usize {
             // If the IRQ ID is already set, then we check that we can allocate it with
             // the PD.
             if (irq.id) |id| {
                 _ = try pd.allocateId(id);
                 try pd.irqs.append(irq);
+                return id;
             } else {
                 var irq_with_id = irq;
                 irq_with_id.id = try pd.allocateId(null);
                 try pd.irqs.append(irq_with_id);
+                return irq_with_id.id.?;
             }
         }
 

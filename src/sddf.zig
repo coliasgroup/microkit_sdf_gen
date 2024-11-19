@@ -36,6 +36,27 @@ var classes: std.ArrayList(Config.DeviceClass) = undefined;
 
 const CONFIG_FILENAME = "config.json";
 
+const DeviceMaxRegions = 64;
+const DeviceMaxIrqs = 64;
+
+const DeviceRegionResource = struct {
+    dt_index: u64,
+    vaddr: u64,
+    size: u64,
+};
+
+const DeviceIrqResource = struct {
+    dt_index: u64,
+    id: u8,
+};
+
+const DeviceResources = struct {
+    num_regions: u64,
+    num_irqs: u64,
+    regions: [DeviceMaxRegions]DeviceRegionResource,
+    irqs: [DeviceMaxIrqs]DeviceIrqResource,
+};
+
 /// Whether or not we have probed sDDF
 // TODO: should probably just happen upon `init` of sDDF, then
 // we pass around sddf everywhere?
@@ -173,7 +194,7 @@ pub const Config = struct {
         name: []const u8,
         /// Permissions to the region of memory once mapped in
         perms: []const u8,
-        setvar_vaddr: ?[]const u8,
+        setvar_vaddr: ?[]const u8 = null,
         size: usize,
         // Index into 'reg' property of the device tree
         dt_index: usize,
@@ -182,7 +203,7 @@ pub const Config = struct {
     /// The actual IRQ number that gets registered with seL4
     /// is something we can determine from the device tree.
     const Irq = struct {
-        channel_id: usize,
+        channel_id: ?usize = null,
         /// Index into the 'interrupts' property of the Device Tree
         dt_index: usize,
     };
@@ -457,6 +478,7 @@ pub const TimerSystem = struct {
     driver: *Pd,
     /// Device Tree node for the timer device
     device: *dtb.Node,
+    device_res: DeviceResources,
     /// Client PDs serviced by the timer driver
     clients: std.ArrayList(*Pd),
     client_configs: std.ArrayList(ConfigResources.Timer.Client),
@@ -471,6 +493,7 @@ pub const TimerSystem = struct {
             .sdf = sdf,
             .driver = driver,
             .device = device,
+            .device_res = std.mem.zeroes(DeviceResources),
             .clients = std.ArrayList(*Pd).init(allocator),
             .client_configs = std.ArrayList(ConfigResources.Timer.Client).init(allocator),
         };
@@ -489,7 +512,7 @@ pub const TimerSystem = struct {
         // The driver must be passive and it must be able to receive protected procedure calls
         assert(system.driver.passive);
 
-        try createDriver(system.sdf, system.driver, system.device, .timer);
+        try createDriver(system.sdf, system.driver, system.device, .timer, &system.device_res);
         for (system.clients.items, 0..) |client, i| {
             const ch = Channel.create(system.driver, client, .{
                 // Client needs to be able to PPC into driver
@@ -505,6 +528,11 @@ pub const TimerSystem = struct {
     pub fn serialiseConfig(system: *TimerSystem, prefix: []const u8) !void {
         const allocator = system.allocator;
 
+        const device_res_data_name = std.fmt.allocPrint(system.allocator, "{s}_device_resources.data", .{ system.driver.name }) catch @panic("OOM");
+        const device_res_json_name = std.fmt.allocPrint(system.allocator, "{s}_device_resources.json", .{ system.driver.name }) catch @panic("OOM");
+        try data.serialize(system.device_res, try std.fs.path.join(system.allocator, &.{ prefix, device_res_data_name }));
+        try data.jsonify(system.device_res, try std.fs.path.join(system.allocator, &.{ prefix, device_res_json_name }), .{ .whitespace = .indent_4 });
+
         for (system.clients.items, 0..) |client, i| {
             const data_name = std.fmt.allocPrint(system.allocator, "timer_client_{s}.data", .{client.name}) catch @panic("OOM");
             const json_name = std.fmt.allocPrint(system.allocator, "timer_client_{s}.json", .{client.name}) catch @panic("OOM");
@@ -519,6 +547,7 @@ pub const I2cSystem = struct {
     sdf: *SystemDescription,
     driver: *Pd,
     device: ?*dtb.Node,
+    device_res: DeviceResources,
     virt: *Pd,
     clients: std.ArrayList(*Pd),
     region_req_size: usize,
@@ -541,6 +570,7 @@ pub const I2cSystem = struct {
             .clients = std.ArrayList(*Pd).init(allocator),
             .driver = driver,
             .device = device,
+            .device_res = std.mem.zeroes(DeviceResources),
             .virt = virt,
             .region_req_size = options.region_req_size,
             .region_resp_size = options.region_resp_size,
@@ -641,7 +671,7 @@ pub const I2cSystem = struct {
 
         // 1. Create the device resources for the driver
         if (system.device) |device| {
-            try createDriver(sdf, system.driver, device, .i2c);
+            try createDriver(sdf, system.driver, device, .i2c, &system.device_res);
         }
         // 2. Connect the driver to the virtualiser
         system.connectDriver();
@@ -679,6 +709,7 @@ pub const BlockSystem = struct {
     sdf: *SystemDescription,
     driver: *Pd,
     device: *dtb.Node,
+    device_res: DeviceResources,
     virt: *Pd,
     clients: std.ArrayList(*Pd),
     client_partitions: std.ArrayList(u32),
@@ -707,6 +738,7 @@ pub const BlockSystem = struct {
             .client_partitions = std.ArrayList(u32).init(allocator),
             .driver = driver,
             .device = device,
+            .device_res = std.mem.zeroes(DeviceResources),
             .virt = virt,
             // TODO: make configurable
             .queue_mr_size = 0x200_000,
@@ -848,7 +880,7 @@ pub const BlockSystem = struct {
         const sdf = system.sdf;
 
         // 1. Create the device resources for the driver
-        try createDriver(sdf, system.driver, system.device, .blk);
+        try createDriver(sdf, system.driver, system.device, .blk, &system.device_res);
         // 2. Connect the driver to the virtualiser
         system.connectDriver();
         // 3. Connect each client to the virtualiser
@@ -886,6 +918,7 @@ pub const SerialSystem = struct {
     queue_size: usize,
     driver: *Pd,
     device: *dtb.Node,
+    device_res: DeviceResources,
     virt_rx: ?*Pd,
     virt_tx: *Pd,
     clients: std.ArrayList(*Pd),
@@ -912,6 +945,7 @@ pub const SerialSystem = struct {
             .clients = std.ArrayList(*Pd).init(allocator),
             .driver = driver,
             .device = device,
+            .device_res = std.mem.zeroes(DeviceResources),
             .virt_rx = options.virt_rx,
             .virt_tx = virt_tx,
 
@@ -1070,7 +1104,7 @@ pub const SerialSystem = struct {
 
         // 1. Create all the channels
         // 1.1 Create channels between driver and virtualisers
-        try createDriver(sdf, system.driver, system.device, .serial);
+        try createDriver(sdf, system.driver, system.device, .serial, &system.device_res);
         const ch_driver_virt_tx = Channel.create(system.driver, system.virt_tx, .{});
         sdf.addChannel(ch_driver_virt_tx);
         system.driver_config.tx_id = @truncate(ch_driver_virt_tx.pd_a_id);
@@ -1112,6 +1146,11 @@ pub const SerialSystem = struct {
     pub fn serialiseConfig(system: *SerialSystem, prefix: []const u8) !void {
         const allocator = system.allocator;
 
+        const device_res_data_name = std.fmt.allocPrint(system.allocator, "{s}_device_resources.data", .{ system.driver.name }) catch @panic("OOM");
+        const device_res_json_name = std.fmt.allocPrint(system.allocator, "{s}_device_resources.json", .{ system.driver.name }) catch @panic("OOM");
+        try data.serialize(system.device_res, try std.fs.path.join(system.allocator, &.{ prefix, device_res_data_name }));
+        try data.jsonify(system.device_res, try std.fs.path.join(system.allocator, &.{ prefix, device_res_json_name }), .{ .whitespace = .indent_4 });
+
         try data.serialize(system.driver_config, try fs.path.join(allocator, &.{ prefix, "serial_driver.data" }));
         try data.jsonify(system.driver_config, try fs.path.join(allocator, &.{ prefix, "serial_driver.json"}), .{ .whitespace = .indent_4 });
 
@@ -1141,6 +1180,7 @@ pub const NetworkSystem = struct {
     sdf: *SystemDescription,
     driver: *Pd,
     device: *dtb.Node,
+    device_res: DeviceResources,
     virt_rx: *Pd,
     virt_tx: *Pd,
     copiers: std.ArrayList(*Pd),
@@ -1164,6 +1204,7 @@ pub const NetworkSystem = struct {
             .copiers = std.ArrayList(*Pd).init(allocator),
             .driver = driver,
             .device = device,
+            .device_res = std.mem.zeroes(DeviceResources),
             .virt_rx = virt_rx,
             .virt_tx = virt_tx,
 
@@ -1407,7 +1448,7 @@ pub const NetworkSystem = struct {
     pub fn connect(system: *NetworkSystem) !void {
         const allocator = system.allocator;
         var sdf = system.sdf;
-        try createDriver(sdf, system.driver, system.device, .network);
+        try createDriver(sdf, system.driver, system.device, .network, &system.device_res);
 
         // TODO: The driver needs the HW ring buffer memory region as well. In the future
         // we should make this configurable but right no we'll just add it here
@@ -1458,6 +1499,11 @@ pub const NetworkSystem = struct {
     pub fn serialiseConfig(system: *NetworkSystem, prefix: []const u8) !void {
         const allocator = system.allocator;
 
+        const device_res_data_name = std.fmt.allocPrint(system.allocator, "{s}_device_resources.data", .{ system.driver.name }) catch @panic("OOM");
+        const device_res_json_name = std.fmt.allocPrint(system.allocator, "{s}_device_resources.json", .{ system.driver.name }) catch @panic("OOM");
+        try data.serialize(system.device_res, try std.fs.path.join(system.allocator, &.{ prefix, device_res_data_name }));
+        try data.jsonify(system.device_res, try std.fs.path.join(system.allocator, &.{ prefix, device_res_json_name }), .{ .whitespace = .indent_4 });
+
         try data.serialize(system.driver_config, try fs.path.join(allocator, &.{ prefix, "net_driver.data" }));
         try data.jsonify(system.driver_config, try fs.path.join(allocator, &.{ prefix, "net_driver.json"}), .{ .whitespace = .indent_4 });
 
@@ -1507,7 +1553,7 @@ fn findDriver(compatibles: []const []const u8, class: Config.DeviceClass.Class) 
 
 /// Given the DTB node for the device and the SDF program image, we can figure
 /// all the resources that need to be added to the system description.
-pub fn createDriver(sdf: *SystemDescription, pd: *Pd, device: *dtb.Node, class: Config.DeviceClass.Class) !void {
+pub fn createDriver(sdf: *SystemDescription, pd: *Pd, device: *dtb.Node, class: Config.DeviceClass.Class, device_res: *DeviceResources) !void {
     if (!probed) return error.CalledBeforeProbe;
     // First thing to do is find the driver configuration for the device given.
     // The way we do that is by searching for the compatible string described in the DTB node.
@@ -1597,6 +1643,12 @@ pub fn createDriver(sdf: *SystemDescription, pd: *Pd, device: *dtb.Node, class: 
         // Never map MMIO device regions as cached
         const map = Map.create(device_mr.?, vaddr, perms, false, .{ .setvar_vaddr = region.setvar_vaddr });
         pd.addMap(map);
+        device_res.regions[device_res.num_regions] = .{
+            .dt_index = region.dt_index,
+            .vaddr = map.vaddr,
+            .size = region.size,
+        };
+        device_res.num_regions += 1;
     }
 
     // For all driver IRQs, find the corresponding entry in the device tree and
@@ -1625,6 +1677,12 @@ pub fn createDriver(sdf: *SystemDescription, pd: *Pd, device: *dtb.Node, class: 
             else => @panic("device driver IRQ handling is unimplemented for given arch"),
         };
 
-        try pd.addInterrupt(irq);
+        const irq_channel = try pd.addInterrupt(irq);
+
+        device_res.irqs[device_res.num_irqs] = .{
+            .dt_index = driver_irq.dt_index,
+            .id = @truncate(irq_channel),
+        };
+        device_res.num_irqs += 1;
     }
 }
