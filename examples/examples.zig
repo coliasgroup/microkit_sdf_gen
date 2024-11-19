@@ -500,7 +500,7 @@ fn echo_server(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !
         .odroidc4 => blob.child("soc").?.child("bus@ffd00000").?.child("watchdog@f0d0").?,
         .qemu_virt_aarch64 => blob.child("timer").?,
         .star64 => blob.child("soc").?.child("timer@13050000").?,
-        .maaxboard => @panic("unsupported platform"),
+        .maaxboard => blob.child("soc@0").?.child("bus@30000000").?.child("timer@302d0000").?,
     };
     var timer_driver = Pd.create(allocator, "timer_driver", "timer_driver.elf", .{});
     var timer_system = sddf.TimerSystem.init(allocator, sdf, timer_node, &timer_driver);
@@ -522,7 +522,8 @@ fn echo_server(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !
     const eth_node = switch (board) {
         .odroidc4 => blob.child("soc").?.child("ethernet@ff3f0000").?,
         .qemu_virt_aarch64 => blob.child("virtio_mmio@a003e00").?,
-        .star64, .maaxboard => @panic("unsupported platform"),
+        .maaxboard => blob.child("soc@0").?.child("bus@30800000").?.child("ethernet@30be0000").?,
+        .star64 => @panic("unsupported platform"),
     };
     var eth_driver = Pd.create(allocator, "eth_driver", "eth_driver.elf", .{});
     eth_driver.budget = 100;
