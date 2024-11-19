@@ -24,7 +24,7 @@ jobs:
         env:
           CIBW_BUILD: 'cp39-* cp310-* cp311-* cp312-* cp313-*'
           CIBW_ARCHS_LINUX: 'x86_64'
-          CIBW_ENVIRONMENT: 'PATH=$PATH:/host/opt/hostedtoolcache/zig/0.14.0-dev.2253/x64/'
+          CIBW_ENVIRONMENT: 'PATH=$PATH:/host/opt/hostedtoolcache/zig/*/x64/'
           CIBW_REPAIR_WHEEL_COMMAND_MACOS: ""
         with:
           output-dir: wheelhouse
