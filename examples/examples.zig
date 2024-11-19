@@ -307,7 +307,7 @@ fn timer(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !void {
         .odroidc4 => blob.child("soc").?.child("bus@ffd00000").?.child("watchdog@f0d0").?,
         .qemu_virt_aarch64 => blob.child("timer").?,
         .star64 => blob.child("soc").?.child("timer@13050000").?,
-        .maaxboard => @panic("unsupported platform"),
+        .maaxboard => blob.child("soc@0").?.child("bus@30000000").?.child("timer@302d0000").?,
     };
 
     var timer_driver = Pd.create(allocator, "timer_driver", "timer_driver.elf", .{});
