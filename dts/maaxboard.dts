@@ -516,6 +516,12 @@
 				phandle = <0x10>;
 			};
 
+			timer@302d0000 {
+				compatible = "fsl,imx8mq-gpt";
+				reg = <0x302d0000 0x10000>;
+				interrupts = <0x00 0x37 0x04>;
+			};
+
 			lcdif@30320000 {
 				compatible = "fsl,imx8mq-lcdif\0fsl,imx28-lcdif";
 				reg = <0x30320000 0x10000>;
