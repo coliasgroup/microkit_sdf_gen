@@ -107,6 +107,7 @@ pub fn probe(allocator: Allocator, path: []const u8) !void {
 
     const device_classes = comptime std.meta.fields(Config.DeviceClass.Class);
     inline for (device_classes) |device_class| {
+        var checked_compatibles = std.ArrayList([]const u8).init(allocator);
         // Search for all the drivers. For each device class we need
         // to iterate through each directory and find the config file
         // TODO: handle this gracefully
@@ -132,17 +133,32 @@ pub fn probe(allocator: Allocator, path: []const u8) !void {
                 };
                 defer config_file.close();
                 const config_size = (try config_file.stat()).size;
-                const config = try config_file.reader().readAllAlloc(allocator, config_size);
+                const config_bytes = try config_file.reader().readAllAlloc(allocator, config_size);
                 // TODO; free config? we'd have to dupe the json data when populating our data structures
-                assert(config.len == config_size);
+                assert(config_bytes.len == config_size);
                 // TODO: we have no information if the parsing fails. We need to do some error output if
                 // it the input is malformed.
                 // TODO: should probably free the memory at some point
                 // We are using an ArenaAllocator so calling parseFromSliceLeaky instead of parseFromSlice
                 // is recommended.
-                const json = try std.json.parseFromSliceLeaky(Config.Driver.Json, allocator, config, .{});
+                const json = std.json.parseFromSliceLeaky(Config.Driver.Json, allocator, config_bytes, .{}) catch |e| {
+                    std.log.err("Failed to parse JSON configuration '{s}/{s}/{s}' with error '{}'", .{ path, driver_dir, config_path, e });
+                    return error.JsonParse;
+                };
 
-                try drivers.append(Config.Driver.fromJson(json, device_class.name));
+                const config = Config.Driver.fromJson(json, device_class.name);
+                try drivers.append(config);
+
+                // Check there are no duplicate compatible strings for the same device class
+                for (config.compatible) |compatible| {
+                    for (checked_compatibles.items) |checked_compatible| {
+                        if (std.mem.eql(u8, checked_compatible, compatible)) {
+                            std.log.err("Found duplicate driver compatible: '{s}' for driver: '{s}'\n", .{ compatible, config.name });
+                            return error.DuplicateDriver;
+                        }
+                    }
+                    try checked_compatibles.append(compatible);
+                }
             }
         }
     }
