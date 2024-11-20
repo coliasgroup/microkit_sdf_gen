@@ -36,25 +36,29 @@ var classes: std.ArrayList(Config.DeviceClass) = undefined;
 
 const CONFIG_FILENAME = "config.json";
 
-const DeviceMaxRegions = 64;
-const DeviceMaxIrqs = 64;
+// TODO: apply this more widely
+const DeviceTreeIndex = u8;
 
-const DeviceRegionResource = struct {
-    dt_index: u64,
-    vaddr: u64,
-    size: u64,
-};
+/// Resources to be injected into the driver, need to match with code definition.
+const DeviceResources = extern struct {
+    const MaxRegions = 64;
+    const MaxIrqs = 64;
 
-const DeviceIrqResource = struct {
-    dt_index: u64,
-    id: u8,
-};
+    const Region = extern struct {
+        vaddr: u64,
+        size: u64,
+        dt_index: DeviceTreeIndex,
+    };
 
-const DeviceResources = struct {
-    num_regions: u64,
-    num_irqs: u64,
-    regions: [DeviceMaxRegions]DeviceRegionResource,
-    irqs: [DeviceMaxIrqs]DeviceIrqResource,
+    const Irq = extern struct {
+        dt_index: DeviceTreeIndex,
+        id: u8,
+    };
+
+    num_regions: u8,
+    num_irqs: u8,
+    regions: [MaxRegions]Region,
+    irqs: [MaxIrqs]Irq,
 };
 
 /// Whether or not we have probed sDDF
@@ -197,7 +201,7 @@ pub const Config = struct {
         setvar_vaddr: ?[]const u8 = null,
         size: usize,
         // Index into 'reg' property of the device tree
-        dt_index: usize,
+        dt_index: DeviceTreeIndex,
     };
 
     /// The actual IRQ number that gets registered with seL4
@@ -205,7 +209,7 @@ pub const Config = struct {
     const Irq = struct {
         channel_id: ?usize = null,
         /// Index into the 'interrupts' property of the Device Tree
-        dt_index: usize,
+        dt_index: DeviceTreeIndex,
     };
 
     /// In the case of drivers there is some extra information we want
@@ -1681,7 +1685,7 @@ pub fn createDriver(sdf: *SystemDescription, pd: *Pd, device: *dtb.Node, class: 
 
         device_res.irqs[device_res.num_irqs] = .{
             .dt_index = driver_irq.dt_index,
-            .id = @truncate(irq_channel),
+            .id = @intCast(irq_channel),
         };
         device_res.num_irqs += 1;
     }
