@@ -311,6 +311,7 @@ fn timer(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !void {
     };
 
     var timer_driver = Pd.create(allocator, "timer_driver", "timer_driver.elf", .{});
+    timer_driver.priority = 254;
     sdf.addProtectionDomain(&timer_driver);
 
     var client = Pd.create(allocator, "client", "client.elf", .{});
