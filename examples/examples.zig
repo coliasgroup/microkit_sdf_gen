@@ -322,6 +322,8 @@ fn timer(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !void {
 
     try timer_system.connect();
 
+    try timer_system.serialiseConfig(data_output);
+
     try sdf.print();
 }
 
