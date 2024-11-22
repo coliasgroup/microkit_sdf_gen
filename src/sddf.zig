@@ -1190,11 +1190,15 @@ pub const NetworkSystem = struct {
     const BUFFER_SIZE = 4096;
 
     pub const Options = struct {
-        queue_capacity: usize = 512,
+        rx_buffers: usize = 512,
     };
 
     pub const ClientOptions = struct {
-        rx_buffers: usize = 512,
+        tx_buffers: usize = 512,
+        mac_addr: [6]u8,
+    };
+
+    pub const ClientInfo = struct {
         tx_buffers: usize = 512,
         mac_addr: [6]u8,
     };
@@ -1215,9 +1219,9 @@ pub const NetworkSystem = struct {
     copy_configs: std.ArrayList(ConfigResources.Net.Copy),
     client_configs: std.ArrayList(ConfigResources.Net.Client),
 
-    queue_capacity: usize,
-    queue_region_size: usize,
-    data_region_size: usize,
+    rx_buffers: usize,
+
+    client_info: std.ArrayList(ClientInfo),
 
     pub fn init(allocator: Allocator, sdf: *SystemDescription, device: *dtb.Node, driver: *Pd, virt_rx: *Pd, virt_tx: *Pd, options: Options) NetworkSystem {
         return .{
@@ -1237,9 +1241,8 @@ pub const NetworkSystem = struct {
             .copy_configs = std.ArrayList(ConfigResources.Net.Copy).init(allocator),
             .client_configs = std.ArrayList(ConfigResources.Net.Client).init(allocator),
 
-            .queue_capacity = options.queue_capacity,
-            .data_region_size = round_to_page(options.queue_capacity * BUFFER_SIZE),
-            .queue_region_size = round_to_page(8 + options.queue_capacity * 16),
+            .client_info = std.ArrayList(ClientInfo).init(allocator),
+            .rx_buffers = options.rx_buffers,
         };
     }
 
@@ -1253,12 +1256,22 @@ pub const NetworkSystem = struct {
 
         system.client_configs.items[client_idx].mac_addr = options.mac_addr;
         system.virt_rx_config.clients[client_idx].mac_addr = options.mac_addr;
+
+        system.client_info.append(.{
+            .tx_buffers = options.tx_buffers,
+            .mac_addr = options.mac_addr,
+        }) catch @panic("Could not add client with copier to NetworkSystem");
+    }
+
+    fn queueMrSize(n_buffers: usize) usize {
+        return round_to_page(8 + 16 * n_buffers);
     }
 
     fn rxConnectDriver(system: *NetworkSystem) Mr {
         const allocator = system.allocator;
 
-        const rx_dma_mr = Mr.physical(allocator, system.sdf, "net_rx_dma", system.data_region_size, .{});
+        const rx_dma_mr_size = round_to_page(system.rx_buffers * BUFFER_SIZE);
+        const rx_dma_mr = Mr.physical(allocator, system.sdf, "net_rx_dma", rx_dma_mr_size, .{});
         system.sdf.addMemoryRegion(rx_dma_mr);
 
         const rx_dma_virt_vaddr = system.virt_rx.getMapVaddr(&rx_dma_mr);
@@ -1267,17 +1280,19 @@ pub const NetworkSystem = struct {
         system.virt_rx_config.buffer_data_vaddr = rx_dma_virt_vaddr;
         system.virt_rx_config.buffer_data_paddr = rx_dma_mr.paddr.?;
 
-        const virt_rx_metadata_mr_size = round_to_page(system.queue_capacity * 4);
+        const virt_rx_metadata_mr_size = round_to_page(system.rx_buffers * 4);
         const virt_rx_metadata_mr = Mr.create(allocator, "net_virt_rx_metadata", virt_rx_metadata_mr_size, .{});
         system.sdf.addMemoryRegion(virt_rx_metadata_mr);
         const virt_rx_metadata_map = Map.create(virt_rx_metadata_mr, system.virt_rx.getMapVaddr(&virt_rx_metadata_mr), .rw, true, .{});
         system.virt_rx.addMap(virt_rx_metadata_map);
         system.virt_rx_config.buffer_metadata = virt_rx_metadata_map.vaddr;
 
-        system.driver_config.rx_capacity = system.queue_capacity;
-        system.virt_rx_config.capacity_drv = system.queue_capacity;
+        system.driver_config.rx_capacity = system.rx_buffers;
+        system.virt_rx_config.capacity_drv = system.rx_buffers;
 
-        const free_mr = Mr.create(allocator, "net_driver_virt_rx_free", system.queue_region_size, .{});
+        const queue_mr_size = queueMrSize(system.rx_buffers);
+
+        const free_mr = Mr.create(allocator, "net_driver_virt_rx_free", queue_mr_size, .{});
         system.sdf.addMemoryRegion(free_mr);
 
         const free_driver_vaddr = system.driver.getMapVaddr(&free_mr);
@@ -1290,7 +1305,7 @@ pub const NetworkSystem = struct {
         system.virt_rx.addMap(free_virt_map);
         system.virt_rx_config.free_drv = free_virt_map.vaddr;
 
-        const active_mr = Mr.create(allocator, "net_driver_virt_rx_active", system.queue_region_size, .{});
+        const active_mr = Mr.create(allocator, "net_driver_virt_rx_active", queue_mr_size, .{});
         system.sdf.addMemoryRegion(active_mr);
 
         const active_driver_vaddr = system.driver.getMapVaddr(&active_mr);
@@ -1309,8 +1324,11 @@ pub const NetworkSystem = struct {
     fn txConnectDriver(system: *NetworkSystem) void {
         const allocator = system.allocator;
 
-        const queue_capacity = system.queue_capacity * system.clients.items.len;
-        const queue_region_size = system.queue_region_size * system.clients.items.len;
+        var queue_capacity: usize = 0;
+        for (system.client_info.items) |client_info| {
+            queue_capacity += client_info.tx_buffers;
+        }
+        const queue_region_size = queueMrSize(queue_capacity);
 
         system.driver_config.tx_capacity = queue_capacity;
         system.virt_tx_config.capacity_drv = queue_capacity;
@@ -1346,17 +1364,18 @@ pub const NetworkSystem = struct {
         var client_config = &system.client_configs.items[client_idx];
         var copier_config = &system.copy_configs.items[client_idx];
 
-        system.virt_rx_config.clients[client_idx].capacity = system.queue_capacity;
-        copier_config.virt_capacity = system.queue_capacity;
-        copier_config.cli_capacity = system.queue_capacity;
-        client_config.rx_capacity = system.queue_capacity;
+        system.virt_rx_config.clients[client_idx].capacity = system.rx_buffers;
+        copier_config.virt_capacity = system.rx_buffers;
+        copier_config.cli_capacity = system.rx_buffers;
+        client_config.rx_capacity = system.rx_buffers;
 
         const rx_dma_copier_map = Map.create(rx_dma, copier.getMapVaddr(&rx_dma), .r, true, .{});
         copier.addMap(rx_dma_copier_map);
         copier_config.virt_data = rx_dma_copier_map.vaddr;
 
+        const client_data_mr_size = round_to_page(system.rx_buffers * BUFFER_SIZE);
         const client_data_mr_name = std.fmt.allocPrint(system.allocator, "net_rx_data_{s}", .{client.name}) catch @panic("OOM");
-        const client_data_mr = Mr.create(allocator, client_data_mr_name, system.data_region_size, .{});
+        const client_data_mr = Mr.create(allocator, client_data_mr_name, client_data_mr_size, .{});
         system.sdf.addMemoryRegion(client_data_mr);
 
         const client_data_client_map = Map.create(client_data_mr, client.getMapVaddr(&client_data_mr), .rw, true, .{});
@@ -1367,8 +1386,10 @@ pub const NetworkSystem = struct {
         copier.addMap(client_data_copier_map);
         copier_config.cli_data = client_data_copier_map.vaddr;
 
+        const queue_mr_size = queueMrSize(system.rx_buffers);
+
         const copier_free_mr_name = std.fmt.allocPrint(system.allocator, "net_rx_free_{s}", .{ copier.name }) catch @panic("OOM");
-        const copier_free_mr = Mr.create(allocator, copier_free_mr_name, system.queue_region_size, .{});
+        const copier_free_mr = Mr.create(allocator, copier_free_mr_name, queue_mr_size, .{});
         system.sdf.addMemoryRegion(copier_free_mr);
 
         const copier_free_virt_map = Map.create(copier_free_mr, system.virt_rx.getMapVaddr(&copier_free_mr), .rw, true, .{});
@@ -1380,7 +1401,7 @@ pub const NetworkSystem = struct {
         copier_config.virt_free = copier_free_copier_map.vaddr;
 
         const copier_active_mr_name = std.fmt.allocPrint(system.allocator, "net_rx_active_{s}", .{ copier.name }) catch @panic("OOM");
-        const copier_active_mr = Mr.create(allocator, copier_active_mr_name, system.queue_region_size, .{});
+        const copier_active_mr = Mr.create(allocator, copier_active_mr_name, queue_mr_size, .{});
         system.sdf.addMemoryRegion(copier_active_mr);
 
         const copier_active_virt_map = Map.create(copier_active_mr, system.virt_rx.getMapVaddr(&copier_active_mr), .rw, true, .{});
@@ -1392,7 +1413,7 @@ pub const NetworkSystem = struct {
         copier_config.virt_active = copier_active_copier_map.vaddr;
 
         const client_free_mr_name = std.fmt.allocPrint(system.allocator, "net_rx_free_{s}", .{ client.name }) catch @panic("OOM");
-        const client_free_mr = Mr.create(allocator, client_free_mr_name, system.queue_region_size, .{});
+        const client_free_mr = Mr.create(allocator, client_free_mr_name, queue_mr_size, .{});
         system.sdf.addMemoryRegion(client_free_mr);
 
         const client_free_copier_map = Map.create(client_free_mr, copier.getMapVaddr(&client_free_mr), .rw, true, .{});
@@ -1404,7 +1425,7 @@ pub const NetworkSystem = struct {
         client_config.rx_free = client_free_client_map.vaddr;
 
         const client_active_mr_name = std.fmt.allocPrint(system.allocator, "net_rx_active_{s}", .{ client.name }) catch @panic("OOM");
-        const client_active_mr = Mr.create(allocator, client_active_mr_name, system.queue_region_size, .{});
+        const client_active_mr = Mr.create(allocator, client_active_mr_name, queue_mr_size, .{});
         system.sdf.addMemoryRegion(client_active_mr);
 
         const client_active_copier_map = Map.create(client_active_mr, copier.getMapVaddr(&client_active_mr), .rw, true, .{});
@@ -1419,14 +1440,16 @@ pub const NetworkSystem = struct {
     fn clientTxConnect(system: *NetworkSystem, client_id: usize) void {
         const allocator = system.allocator;
 
+        const client_info = &system.client_info.items[client_id];
         var client = system.clients.items[client_id];
         var client_config = &system.client_configs.items[client_id];
 
-        system.virt_tx_config.clients[client_id].capacity = system.queue_capacity;
-        client_config.tx_capacity = system.queue_capacity;
+        system.virt_tx_config.clients[client_id].capacity = client_info.tx_buffers;
+        client_config.tx_capacity = client_info.tx_buffers;
 
+        const data_mr_size = round_to_page(client_info.tx_buffers * BUFFER_SIZE);
         const data_mr_name = std.fmt.allocPrint(system.allocator, "net_tx_data_{s}", .{client.name}) catch @panic("OOM");
-        const data_mr = Mr.physical(allocator, system.sdf, data_mr_name, system.data_region_size, .{});
+        const data_mr = Mr.physical(allocator, system.sdf, data_mr_name, data_mr_size, .{});
         system.sdf.addMemoryRegion(data_mr);
 
         const data_virt_map = Map.create(data_mr, system.virt_tx.getMapVaddr(&data_mr), .rw, true, .{});
@@ -1438,8 +1461,10 @@ pub const NetworkSystem = struct {
         client.addMap(data_client_map);
         client_config.tx_buffer_data_region = data_client_map.vaddr;
 
+        const queue_mr_size = queueMrSize(client_info.tx_buffers);
+
         const free_mr_name = std.fmt.allocPrint(system.allocator, "net_tx_free_{s}", .{ client.name }) catch @panic("OOM");
-        const free_mr = Mr.create(allocator, free_mr_name, system.queue_region_size, .{});
+        const free_mr = Mr.create(allocator, free_mr_name, queue_mr_size, .{});
         system.sdf.addMemoryRegion(free_mr);
 
         const free_virt_map = Map.create(free_mr, system.virt_tx.getMapVaddr(&free_mr), .rw, true, .{});
@@ -1451,7 +1476,7 @@ pub const NetworkSystem = struct {
         client_config.tx_free = free_client_map.vaddr;
 
         const active_mr_name = std.fmt.allocPrint(system.allocator, "net_tx_active_{s}", .{ client.name }) catch @panic("OOM");
-        const active_mr = Mr.create(allocator, active_mr_name, system.queue_region_size, .{});
+        const active_mr = Mr.create(allocator, active_mr_name, queue_mr_size, .{});
         system.sdf.addMemoryRegion(active_mr);
 
         const active_virt_map = Map.create(active_mr, system.virt_tx.getMapVaddr(&active_mr), .rw, true, .{});
