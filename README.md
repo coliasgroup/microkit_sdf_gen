@@ -145,10 +145,10 @@ Unlike most Python packages, ours is a bit more complicated because:
 2. We are building the binary extension via Zig and not a regular C compiler.
 
 These have some consequences, mainly that the regular `setup.py` process for
-building C extension modules does not work, hence we have a custom `builder.py`
-script.
+building C extension modules does not work, hence we have a custom `build_extension`
+function.
 
-The `builder.py` script calls out to `zig build python` using the correct includes
+`build_extension` calls out to `zig build python` using the correct includes
 and output library name/path that the caller of `setup.py` wanted to use.
 
 An alternative to this could have been to build the C bindings, `csdfgen` as a separate library
