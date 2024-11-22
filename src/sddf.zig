@@ -1205,14 +1205,15 @@ pub const NetworkSystem = struct {
 
     allocator: Allocator,
     sdf: *SystemDescription,
-    driver: *Pd,
     device: *dtb.Node,
-    device_res: DeviceResources,
+
+    driver: *Pd,
     virt_rx: *Pd,
     virt_tx: *Pd,
     copiers: std.ArrayList(*Pd),
     clients: std.ArrayList(*Pd),
 
+    device_res: DeviceResources,
     driver_config: ConfigResources.Net.Driver,
     virt_rx_config: ConfigResources.Net.VirtRx,
     virt_tx_config: ConfigResources.Net.VirtTx,
@@ -1220,7 +1221,6 @@ pub const NetworkSystem = struct {
     client_configs: std.ArrayList(ConfigResources.Net.Client),
 
     rx_buffers: usize,
-
     client_info: std.ArrayList(ClientInfo),
 
     pub fn init(allocator: Allocator, sdf: *SystemDescription, device: *dtb.Node, driver: *Pd, virt_rx: *Pd, virt_tx: *Pd, options: Options) NetworkSystem {
