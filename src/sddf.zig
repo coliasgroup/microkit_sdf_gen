@@ -1173,8 +1173,6 @@ pub const SerialSystem = struct {
     }
 };
 
-// TODO: connect functions look disgusting because I'm doing weird looping stuff with the
-// Region enum
 pub const NetworkSystem = struct {
     pub const Options = struct {
         queue_capacity: usize = 512,
