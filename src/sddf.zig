@@ -1193,6 +1193,12 @@ pub const NetworkSystem = struct {
         queue_capacity: usize = 512,
     };
 
+    pub const ClientOptions = struct {
+        rx_buffers: usize = 512,
+        tx_buffers: usize = 512,
+        mac_addr: [6]u8,
+    };
+
     allocator: Allocator,
     sdf: *SystemDescription,
     driver: *Pd,
@@ -1237,7 +1243,7 @@ pub const NetworkSystem = struct {
         };
     }
 
-    pub fn addClientWithCopier(system: *NetworkSystem, client: *Pd, copier: *Pd, mac_addr: [6]u8) void {
+    pub fn addClientWithCopier(system: *NetworkSystem, client: *Pd, copier: *Pd, options: ClientOptions) void {
         const client_idx = system.clients.items.len;
 
         system.clients.append(client) catch @panic("Could not add client with copier to NetworkSystem");
@@ -1245,8 +1251,8 @@ pub const NetworkSystem = struct {
         system.client_configs.append(std.mem.zeroes(ConfigResources.Net.Client)) catch @panic("Could not add client with copier to NetworkSystem");
         system.copy_configs.append(std.mem.zeroes(ConfigResources.Net.Copy)) catch @panic("Could not add client with copier to NetworkSystem");
 
-        system.client_configs.items[client_idx].mac_addr = mac_addr;
-        system.virt_rx_config.clients[client_idx].mac_addr = mac_addr;
+        system.client_configs.items[client_idx].mac_addr = options.mac_addr;
+        system.virt_rx_config.clients[client_idx].mac_addr = options.mac_addr;
     }
 
     fn rxConnectDriver(system: *NetworkSystem) Mr {

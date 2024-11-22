@@ -220,7 +220,7 @@ export fn sdfgen_sddf_net(c_sdf: *align(8) anyopaque, c_device: *align(8) anyopa
 export fn sdfgen_sddf_net_add_client_with_copier(system: *align(8) anyopaque, client: *align(8) anyopaque, copier: *align(8) anyopaque, mac_addr: *[6]u8) void {
     const net: *sddf.NetworkSystem = @ptrCast(system);
     // TODO: consider the safety of doing mac_addr.*
-    net.addClientWithCopier(@ptrCast(client), @ptrCast(copier), mac_addr.*);
+    net.addClientWithCopier(@ptrCast(client), @ptrCast(copier), .{ .mac_addr = mac_addr.* });
 }
 
 export fn sdfgen_sddf_net_connect(system: *align(8) anyopaque) bool {
