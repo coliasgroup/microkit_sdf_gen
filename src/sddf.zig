@@ -192,6 +192,19 @@ pub fn probe(allocator: Allocator, path: []const u8) !void {
     probed = true;
 }
 
+fn round_up(n: usize, d: usize) usize {
+    var result = d * (n / d);
+    if (n % d != 0) {
+        result += d;
+    }
+    return result;
+}
+
+fn round_to_page(n: usize) usize {
+    const page_size = 4096;
+    return round_up(n, page_size);
+}
+
 pub const Config = struct {
     const Region = struct {
         /// Name of the region
@@ -1174,6 +1187,8 @@ pub const SerialSystem = struct {
 };
 
 pub const NetworkSystem = struct {
+    const BUFFER_SIZE = 4096;
+
     pub const Options = struct {
         queue_capacity: usize = 512,
     };
@@ -1217,9 +1232,8 @@ pub const NetworkSystem = struct {
             .client_configs = std.ArrayList(ConfigResources.Net.Client).init(allocator),
 
             .queue_capacity = options.queue_capacity,
-            // TODO: fix data_region_size calculation
-            .data_region_size = options.queue_capacity * 4096,
-            .queue_region_size = 0x200_000,
+            .data_region_size = round_to_page(options.queue_capacity * BUFFER_SIZE),
+            .queue_region_size = round_to_page(8 + options.queue_capacity * 16),
         };
     }
 
@@ -1247,12 +1261,8 @@ pub const NetworkSystem = struct {
         system.virt_rx_config.buffer_data_vaddr = rx_dma_virt_vaddr;
         system.virt_rx_config.buffer_data_paddr = rx_dma_mr.paddr.?;
 
-        const virt_rx_metadata_mr_size_bytes = system.queue_capacity * 4;
-        var virt_rx_metadata_mr_size_pages = virt_rx_metadata_mr_size_bytes / 0x1000;
-        if (virt_rx_metadata_mr_size_bytes % 0x1000 != 0) {
-            virt_rx_metadata_mr_size_pages += 1;
-        }
-        const virt_rx_metadata_mr = Mr.create(allocator, "net_virt_rx_metadata", virt_rx_metadata_mr_size_pages * 0x1000, .{});
+        const virt_rx_metadata_mr_size = round_to_page(system.queue_capacity * 4);
+        const virt_rx_metadata_mr = Mr.create(allocator, "net_virt_rx_metadata", virt_rx_metadata_mr_size, .{});
         system.sdf.addMemoryRegion(virt_rx_metadata_mr);
         const virt_rx_metadata_map = Map.create(virt_rx_metadata_mr, system.virt_rx.getMapVaddr(&virt_rx_metadata_mr), .rw, true, .{});
         system.virt_rx.addMap(virt_rx_metadata_map);
