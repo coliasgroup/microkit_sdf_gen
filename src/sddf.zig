@@ -1671,7 +1671,7 @@ pub fn createDriver(sdf: *SystemDescription, pd: *Pd, device: *dtb.Node, class: 
         }
 
         if (device_mr == null) {
-            const mr_name = std.fmt.allocPrint(sdf.allocator, "{s}_{s}", .{ driver.name, region.name }) catch @panic("OOM");
+            const mr_name = std.fmt.allocPrint(sdf.allocator, "{s}/{s}/{s}", .{ device.name, driver.name, region.name }) catch @panic("OOM");
             device_mr = Mr.physical(sdf.allocator, sdf, mr_name, region.size, .{ .paddr = device_paddr });
             sdf.addMemoryRegion(device_mr.?);
         }
