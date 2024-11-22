@@ -1274,10 +1274,9 @@ pub const NetworkSystem = struct {
         const rx_dma_mr = Mr.physical(allocator, system.sdf, "net_rx_dma", rx_dma_mr_size, .{});
         system.sdf.addMemoryRegion(rx_dma_mr);
 
-        const rx_dma_virt_vaddr = system.virt_rx.getMapVaddr(&rx_dma_mr);
-        const rx_dma_virt_map = Map.create(rx_dma_mr, rx_dma_virt_vaddr, .r, true, .{});
+        const rx_dma_virt_map = Map.create(rx_dma_mr, system.virt_rx.getMapVaddr(&rx_dma_mr), .r, true, .{});
         system.virt_rx.addMap(rx_dma_virt_map);
-        system.virt_rx_config.buffer_data_vaddr = rx_dma_virt_vaddr;
+        system.virt_rx_config.buffer_data_vaddr = rx_dma_virt_map.vaddr;
         system.virt_rx_config.buffer_data_paddr = rx_dma_mr.paddr.?;
 
         const virt_rx_metadata_mr_size = round_to_page(system.rx_buffers * 4);
@@ -1295,28 +1294,24 @@ pub const NetworkSystem = struct {
         const free_mr = Mr.create(allocator, "net_driver_virt_rx_free", queue_mr_size, .{});
         system.sdf.addMemoryRegion(free_mr);
 
-        const free_driver_vaddr = system.driver.getMapVaddr(&free_mr);
-        const free_driver_map = Map.create(free_mr, free_driver_vaddr, .rw, true, .{});
+        const free_driver_map = Map.create(free_mr, system.driver.getMapVaddr(&free_mr), .rw, true, .{});
         system.driver.addMap(free_driver_map);
-        system.driver_config.rx_free = free_driver_vaddr;
+        system.driver_config.rx_free = free_driver_map.vaddr;
 
-        const free_virt_vaddr = system.virt_rx.getMapVaddr(&free_mr);
-        const free_virt_map = Map.create(free_mr, free_virt_vaddr, .rw, true, .{});
+        const free_virt_map = Map.create(free_mr, system.virt_rx.getMapVaddr(&free_mr), .rw, true, .{});
         system.virt_rx.addMap(free_virt_map);
         system.virt_rx_config.free_drv = free_virt_map.vaddr;
 
         const active_mr = Mr.create(allocator, "net_driver_virt_rx_active", queue_mr_size, .{});
         system.sdf.addMemoryRegion(active_mr);
 
-        const active_driver_vaddr = system.driver.getMapVaddr(&active_mr);
-        const active_driver_map = Map.create(active_mr, active_driver_vaddr, .rw, true, .{});
+        const active_driver_map = Map.create(active_mr, system.driver.getMapVaddr(&active_mr), .rw, true, .{});
         system.driver.addMap(active_driver_map);
-        system.driver_config.rx_active = active_driver_vaddr;
+        system.driver_config.rx_active = active_driver_map.vaddr;
 
-        const active_virt_vaddr = system.virt_rx.getMapVaddr(&active_mr);
-        const active_virt_map = Map.create(active_mr, active_virt_vaddr, .rw, true, .{});
+        const active_virt_map = Map.create(active_mr, system.virt_rx.getMapVaddr(&active_mr), .rw, true, .{});
         system.virt_rx.addMap(active_virt_map);
-        system.virt_rx_config.active_drv = active_virt_vaddr;
+        system.virt_rx_config.active_drv = active_virt_map.vaddr;
 
         return rx_dma_mr;
     }
