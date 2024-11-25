@@ -1647,7 +1647,7 @@ pub fn createDriver(sdf: *SystemDescription, pd: *Pd, device: *dtb.Node, class: 
         assert(reg_entry.len == 2);
         const reg_paddr = reg_entry[0];
         // In case the device region is less than a page
-        const reg_size: usize = @intCast(if (reg_entry[1] < 0x1000) 0x1000 else reg_entry[1]);
+        const reg_size = round_to_page(@intCast(reg_entry[1]));
 
         const region_size = if (region.size != null) region.size.? else reg_size;
 
