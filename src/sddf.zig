@@ -212,7 +212,7 @@ pub const Config = struct {
         /// Permissions to the region of memory once mapped in
         perms: []const u8,
         setvar_vaddr: ?[]const u8 = null,
-        size: usize,
+        size: ?usize = null,
         // Index into 'reg' property of the device tree
         dt_index: DeviceTreeIndex,
     };
@@ -1647,14 +1647,16 @@ pub fn createDriver(sdf: *SystemDescription, pd: *Pd, device: *dtb.Node, class: 
         assert(reg_entry.len == 2);
         const reg_paddr = reg_entry[0];
         // In case the device region is less than a page
-        const reg_size = if (reg_entry[1] < 0x1000) 0x1000 else reg_entry[1];
+        const reg_size: usize = @intCast(if (reg_entry[1] < 0x1000) 0x1000 else reg_entry[1]);
 
-        if (reg_size < region.size) {
+        const region_size = if (region.size != null) region.size.? else reg_size;
+
+        if (reg_size < region_size) {
             log.err("device '{s}' has config region size for dt_index '{}' that is too small (0x{x} bytes)", .{ device.name, region.dt_index, reg_size });
             return error.InvalidConfig;
         }
 
-        if (region.size & ((1 << 12) - 1) != 0) {
+        if (region_size & ((1 << 12) - 1) != 0) {
             log.err("device '{s}' has config region size not aligned to page size for dt_index '{}'", .{ device.name, region.dt_index });
             return error.InvalidConfig;
         }
@@ -1679,7 +1681,7 @@ pub fn createDriver(sdf: *SystemDescription, pd: *Pd, device: *dtb.Node, class: 
 
         if (device_mr == null) {
             const mr_name = std.fmt.allocPrint(sdf.allocator, "{s}/{s}/{s}", .{ device.name, driver.name, region.name }) catch @panic("OOM");
-            device_mr = Mr.physical(sdf.allocator, sdf, mr_name, region.size, .{ .paddr = device_paddr });
+            device_mr = Mr.physical(sdf.allocator, sdf, mr_name, region_size, .{ .paddr = device_paddr });
             sdf.addMemoryRegion(device_mr.?);
         }
 
@@ -1691,7 +1693,7 @@ pub fn createDriver(sdf: *SystemDescription, pd: *Pd, device: *dtb.Node, class: 
         device_res.regions[device_res.num_regions] = .{
             .dt_index = region.dt_index,
             .vaddr = map.vaddr,
-            .size = region.size,
+            .size = region_size,
         };
         device_res.num_regions += 1;
     }
