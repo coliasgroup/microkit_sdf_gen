@@ -1,19 +1,46 @@
 const std = @import("std");
+const sdf = @import("sdf.zig");
 
 // TODO: apply this more widely
 pub const DeviceTreeIndex = u8;
 
 pub const Resources = struct {
+    /// Provides information to a component about a memory region that is mapped into its address space
+    pub const Region = extern struct {
+        pub fn create(vaddr: usize, size: usize) Region {
+            return .{
+                .vaddr = vaddr,
+                .paddr = 0, // null
+                .size = size,
+            };
+        }
+
+        pub fn createWithPaddr(vaddr: u64, paddr: u64, size: usize) Region {
+            return .{
+                .vaddr = vaddr,
+                .paddr = paddr,
+                .size = size,
+            };
+        }
+
+        pub fn createFromMap(map: sdf.SystemDescription.Map) Region {
+            return create(map.vaddr, map.mr.size);
+        }
+
+        pub fn createFromMapWithPaddr(map: sdf.SystemDescription.Map) !Region {
+            return createWithPaddr(map.vaddr, map.mr.paddr.?, map.mr.size);
+        }
+
+        vaddr: u64,
+        /// paddr can be left null if it is not needed
+        paddr: u64,
+        size: u64,
+    };
+
     /// Resources to be injected into the driver, need to match with code definition.
     pub const Device = extern struct {
         pub const MaxRegions = 64;
         pub const MaxIrqs = 64;
-
-        pub const Region = extern struct {
-            vaddr: u64,
-            paddr: u64,
-            size: u64,
-        };
 
         pub const Irq = extern struct {
             id: u8,
@@ -182,94 +209,56 @@ pub const Resources = struct {
     pub const Net = struct {
         pub const MAX_NUM_CLIENTS = 61;
 
+        pub const Connection = extern struct {
+            free_queue: Region,
+            active_queue: Region,
+            num_buffers: u16,
+            id: u8,
+        };
+
         pub const Driver = extern struct {
-            hw_ring_buffer_vaddr: u64,
-            hw_ring_buffer_paddr: u64,
-
-            rx_free: u64,
-            rx_active: u64,
-            rx_capacity: u64,
-
-            tx_free: u64,
-            tx_active: u64,
-            tx_capacity: u64,
-
-            rx_id: u8,
-            tx_id: u8,
+            virt_rx: Connection,
+            virt_tx: Connection,
         };
 
         pub const VirtRx = extern struct {
             pub const VirtRxClient = extern struct {
-                free: u64,
-                active: u64,
-                capacity: u64,
+                conn: Connection,
                 mac_addr: [6]u8,
-                id: u8,
             };
 
-            free_drv: u64,
-            active_drv: u64,
-            capacity_drv: u64,
-
-            buffer_data_paddr: u64,
-            buffer_data_vaddr: u64,
-
-            buffer_metadata: u64,
-
-            driver_id: u8,
-
-            num_clients: u8,
+            driver: Connection,
+            data_region: Region,
+            buffer_metadata: Region,
             clients: [MAX_NUM_CLIENTS]VirtRxClient,
+            num_clients: u8,
         };
 
         pub const VirtTx = extern struct {
             pub const VirtTxClient = extern struct {
-                free: u64,
-                active: u64,
-                capacity: u64,
-                buffer_data_region_vaddr: u64,
-                buffer_data_region_paddr: u64,
-                id: u8,
+                conn: Connection,
+                data: Region,
             };
 
-            free_drv: u64,
-            active_drv: u64,
-            capacity_drv: u64,
-            drv_id: u8,
-            num_clients: u8,
+            driver: Connection,
             clients: [MAX_NUM_CLIENTS]VirtTxClient,
+            num_clients: u8,
         };
 
         pub const Copy = extern struct {
-            virt_free: u64,
-            virt_active: u64,
-            virt_capacity: u64,
+            virt_rx: Connection,
+            device_data: Region,
 
-            cli_free: u64,
-            cli_active: u64,
-            cli_capacity: u64,
-
-            virt_data: u64,
-            cli_data: u64,
-
-            virt_id: u8,
-            cli_id: u8,
+            client: Connection,
+            client_data: Region,
         };
 
         pub const Client = extern struct {
-            rx_free: u64,
-            rx_active: u64,
-            rx_capacity: u64,
+            rx: Connection,
+            rx_data: Region,
 
-            tx_free: u64,
-            tx_active: u64,
-            tx_capacity: u64,
-
-            rx_buffer_data_region: u64,
-            tx_buffer_data_region: u64,
-
-            rx_ch: u8,
-            tx_ch: u8,
+            tx: Connection,
+            tx_data: Region,
 
             mac_addr: [6]u8,
         };
