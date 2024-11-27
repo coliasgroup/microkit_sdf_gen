@@ -1,9 +1,33 @@
 const std = @import("std");
 
+// TODO: apply this more widely
+pub const DeviceTreeIndex = u8;
+
 /// For block sub-system:
 /// Three regions for each client:
 /// request, response, configuration
 pub const Resources = struct {
+    /// Resources to be injected into the driver, need to match with code definition.
+    pub const Device = extern struct {
+        pub const MaxRegions = 64;
+        pub const MaxIrqs = 64;
+
+        pub const Region = extern struct {
+            vaddr: u64,
+            paddr: u64,
+            size: u64,
+        };
+
+        pub const Irq = extern struct {
+            id: u8,
+        };
+
+        num_regions: u8,
+        num_irqs: u8,
+        regions: [MaxRegions]Region,
+        irqs: [MaxIrqs]Irq,
+    };
+
     pub const Block = struct {
         pub const Client = extern struct {
             storage_info: u64,

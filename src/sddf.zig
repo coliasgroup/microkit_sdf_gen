@@ -17,6 +17,7 @@ const Interrupt = SystemDescription.Interrupt;
 const Channel = SystemDescription.Channel;
 const SetVar = SystemDescription.SetVar;
 
+const DeviceTreeIndex = data.DeviceTreeIndex;
 const ConfigResources = data.Resources;
 
 ///
@@ -35,30 +36,6 @@ var drivers: std.ArrayList(Config.Driver) = undefined;
 var classes: std.ArrayList(Config.DeviceClass) = undefined;
 
 const CONFIG_FILENAME = "config.json";
-
-// TODO: apply this more widely
-const DeviceTreeIndex = u8;
-
-/// Resources to be injected into the driver, need to match with code definition.
-const DeviceResources = extern struct {
-    const MaxRegions = 64;
-    const MaxIrqs = 64;
-
-    const Region = extern struct {
-        vaddr: u64,
-        paddr: u64,
-        size: u64,
-    };
-
-    const Irq = extern struct {
-        id: u8,
-    };
-
-    num_regions: u8,
-    num_irqs: u8,
-    regions: [MaxRegions]Region,
-    irqs: [MaxIrqs]Irq,
-};
 
 /// Whether or not we have probed sDDF
 // TODO: should probably just happen upon `init` of sDDF, then
@@ -495,7 +472,7 @@ pub const TimerSystem = struct {
     driver: *Pd,
     /// Device Tree node for the timer device
     device: *dtb.Node,
-    device_res: DeviceResources,
+    device_res: ConfigResources.Device,
     /// Client PDs serviced by the timer driver
     clients: std.ArrayList(*Pd),
     client_configs: std.ArrayList(ConfigResources.Timer.Client),
@@ -510,7 +487,7 @@ pub const TimerSystem = struct {
             .sdf = sdf,
             .driver = driver,
             .device = device,
-            .device_res = std.mem.zeroes(DeviceResources),
+            .device_res = std.mem.zeroes(ConfigResources.Device),
             .clients = std.ArrayList(*Pd).init(allocator),
             .client_configs = std.ArrayList(ConfigResources.Timer.Client).init(allocator),
         };
@@ -564,7 +541,7 @@ pub const I2cSystem = struct {
     sdf: *SystemDescription,
     driver: *Pd,
     device: ?*dtb.Node,
-    device_res: DeviceResources,
+    device_res: ConfigResources.Device,
     virt: *Pd,
     clients: std.ArrayList(*Pd),
     region_req_size: usize,
@@ -587,7 +564,7 @@ pub const I2cSystem = struct {
             .clients = std.ArrayList(*Pd).init(allocator),
             .driver = driver,
             .device = device,
-            .device_res = std.mem.zeroes(DeviceResources),
+            .device_res = std.mem.zeroes(ConfigResources.Device),
             .virt = virt,
             .region_req_size = options.region_req_size,
             .region_resp_size = options.region_resp_size,
@@ -726,7 +703,7 @@ pub const BlockSystem = struct {
     sdf: *SystemDescription,
     driver: *Pd,
     device: *dtb.Node,
-    device_res: DeviceResources,
+    device_res: ConfigResources.Device,
     virt: *Pd,
     clients: std.ArrayList(*Pd),
     client_partitions: std.ArrayList(u32),
@@ -755,7 +732,7 @@ pub const BlockSystem = struct {
             .client_partitions = std.ArrayList(u32).init(allocator),
             .driver = driver,
             .device = device,
-            .device_res = std.mem.zeroes(DeviceResources),
+            .device_res = std.mem.zeroes(ConfigResources.Device),
             .virt = virt,
             // TODO: make configurable
             .queue_mr_size = 0x200_000,
@@ -935,7 +912,7 @@ pub const SerialSystem = struct {
     queue_size: usize,
     driver: *Pd,
     device: *dtb.Node,
-    device_res: DeviceResources,
+    device_res: ConfigResources.Device,
     virt_rx: ?*Pd,
     virt_tx: *Pd,
     clients: std.ArrayList(*Pd),
@@ -962,7 +939,7 @@ pub const SerialSystem = struct {
             .clients = std.ArrayList(*Pd).init(allocator),
             .driver = driver,
             .device = device,
-            .device_res = std.mem.zeroes(DeviceResources),
+            .device_res = std.mem.zeroes(ConfigResources.Device),
             .virt_rx = options.virt_rx,
             .virt_tx = virt_tx,
 
@@ -1214,7 +1191,7 @@ pub const NetworkSystem = struct {
     copiers: std.ArrayList(*Pd),
     clients: std.ArrayList(*Pd),
 
-    device_res: DeviceResources,
+    device_res: ConfigResources.Device,
     driver_config: ConfigResources.Net.Driver,
     virt_rx_config: ConfigResources.Net.VirtRx,
     virt_tx_config: ConfigResources.Net.VirtTx,
@@ -1232,7 +1209,7 @@ pub const NetworkSystem = struct {
             .copiers = std.ArrayList(*Pd).init(allocator),
             .driver = driver,
             .device = device,
-            .device_res = std.mem.zeroes(DeviceResources),
+            .device_res = std.mem.zeroes(ConfigResources.Device),
             .virt_rx = virt_rx,
             .virt_tx = virt_tx,
 
@@ -1590,7 +1567,7 @@ fn findDriver(compatibles: []const []const u8, class: Config.DeviceClass.Class) 
 
 /// Given the DTB node for the device and the SDF program image, we can figure
 /// all the resources that need to be added to the system description.
-pub fn createDriver(sdf: *SystemDescription, pd: *Pd, device: *dtb.Node, class: Config.DeviceClass.Class, device_res: *DeviceResources) !void {
+pub fn createDriver(sdf: *SystemDescription, pd: *Pd, device: *dtb.Node, class: Config.DeviceClass.Class, device_res: *ConfigResources.Device) !void {
     if (!probed) return error.CalledBeforeProbe;
     // First thing to do is find the driver configuration for the device given.
     // The way we do that is by searching for the compatible string described in the DTB node.
