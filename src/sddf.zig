@@ -1164,7 +1164,7 @@ pub const SerialSystem = struct {
 };
 
 pub const NetworkSystem = struct {
-    const BUFFER_SIZE = 4096;
+    const BUFFER_SIZE = 2048;
 
     pub const Options = struct {
         rx_buffers: usize = 512,
