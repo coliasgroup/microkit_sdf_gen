@@ -585,7 +585,7 @@ fn echo_server(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !
     };
     bench_config.num_children = bench_children.len;
     for (bench_children, 0..) |child, i| {
-        bench_config.children[i].child_id = @truncate(try bench.addChild(child));
+        bench_config.children[i].child_id = @intCast(try bench.addChild(child));
         @memcpy(bench_config.children[i].name[0..child.name.len], child.name);
     }
 
@@ -625,12 +625,12 @@ fn echo_server(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !
     sdf.addChannel(bench_start_channel);
     sdf.addChannel(bench_stop_channel);
     sdf.addChannel(bench_init_channel);
-    bench_config.start_channel = @truncate(bench_start_channel.pd_a_id);
-    bench_config.stop_channel = @truncate(bench_stop_channel.pd_a_id);
-    bench_config.init_channel = @truncate(bench_init_channel.pd_a_id);
-    bench_client_config.start_channel = @truncate(bench_start_channel.pd_b_id);
-    bench_client_config.stop_channel = @truncate(bench_stop_channel.pd_b_id);
-    idle_config.init_channel = @truncate(bench_init_channel.pd_b_id);
+    bench_config.start_channel = @intCast(bench_start_channel.pd_a_id);
+    bench_config.stop_channel = @intCast(bench_stop_channel.pd_a_id);
+    bench_config.init_channel = @intCast(bench_init_channel.pd_a_id);
+    bench_client_config.start_channel = @intCast(bench_start_channel.pd_b_id);
+    bench_client_config.stop_channel = @intCast(bench_stop_channel.pd_b_id);
+    idle_config.init_channel = @intCast(bench_init_channel.pd_b_id);
 
     try data.serialize(bench_config, try std.fs.path.join(allocator, &.{ data_output, "benchmark_config.data" }));
     try data.jsonify(bench_config, try std.fs.path.join(allocator, &.{ data_output, "benchmark_config.json" }), .{ .whitespace = .indent_4 });

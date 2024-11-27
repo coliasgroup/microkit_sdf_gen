@@ -538,7 +538,7 @@ pub const TimerSystem = struct {
                 .pd_b_notify = false,
             });
             system.sdf.addChannel(ch);
-            system.client_configs.items[i].driver_id = @truncate(ch.pd_b_id);
+            system.client_configs.items[i].driver_id = @intCast(ch.pd_b_id);
         }
     }
 
@@ -1124,26 +1124,26 @@ pub const SerialSystem = struct {
         try createDriver(sdf, system.driver, system.device, .serial, &system.device_res);
         const ch_driver_virt_tx = Channel.create(system.driver, system.virt_tx, .{});
         sdf.addChannel(ch_driver_virt_tx);
-        system.driver_config.tx_id = @truncate(ch_driver_virt_tx.pd_a_id);
-        system.virt_tx_config.driver_id = @truncate(ch_driver_virt_tx.pd_b_id);
+        system.driver_config.tx_id = @intCast(ch_driver_virt_tx.pd_a_id);
+        system.virt_tx_config.driver_id = @intCast(ch_driver_virt_tx.pd_b_id);
         if (system.hasRx()) {
             const ch_driver_virt_rx = Channel.create(system.driver, system.virt_rx.?, .{});
             sdf.addChannel(ch_driver_virt_rx);
-            system.driver_config.rx_id = @truncate(ch_driver_virt_rx.pd_a_id);
-            system.virt_rx_config.driver_id = @truncate(ch_driver_virt_rx.pd_b_id);
+            system.driver_config.rx_id = @intCast(ch_driver_virt_rx.pd_a_id);
+            system.virt_rx_config.driver_id = @intCast(ch_driver_virt_rx.pd_b_id);
         }
         // 1.2 Create channels between virtualisers and clients
         for (system.clients.items, 0..) |client, i| {
             const ch_virt_tx_client = Channel.create(system.virt_tx, client, .{});
             sdf.addChannel(ch_virt_tx_client);
-            system.virt_tx_config.clients[i].id = @truncate(ch_virt_tx_client.pd_a_id);
-            system.client_configs.items[i].tx_id = @truncate(ch_virt_tx_client.pd_b_id);
+            system.virt_tx_config.clients[i].id = @intCast(ch_virt_tx_client.pd_a_id);
+            system.client_configs.items[i].tx_id = @intCast(ch_virt_tx_client.pd_b_id);
 
             if (system.hasRx()) {
                 const ch_virt_rx_client = Channel.create(system.virt_rx.?, client, .{});
                 sdf.addChannel(ch_virt_rx_client);
-                system.virt_rx_config.clients[i].id = @truncate(ch_virt_rx_client.pd_a_id);
-                system.client_configs.items[i].tx_id = @truncate(ch_virt_rx_client.pd_b_id);
+                system.virt_rx_config.clients[i].id = @intCast(ch_virt_rx_client.pd_a_id);
+                system.client_configs.items[i].tx_id = @intCast(ch_virt_rx_client.pd_b_id);
             }
         }
         if (system.hasRx()) {
@@ -1509,35 +1509,35 @@ pub const NetworkSystem = struct {
 
         const drv_virt_tx_channel = Channel.create(system.driver, system.virt_tx, .{});
         sdf.addChannel(drv_virt_tx_channel);
-        system.driver_config.tx_id = @truncate(drv_virt_tx_channel.pd_a_id);
-        system.virt_tx_config.drv_id = @truncate(drv_virt_tx_channel.pd_b_id);
+        system.driver_config.tx_id = @intCast(drv_virt_tx_channel.pd_a_id);
+        system.virt_tx_config.drv_id = @intCast(drv_virt_tx_channel.pd_b_id);
 
         const drv_virt_rx_channel = Channel.create(system.driver, system.virt_rx, .{});
         sdf.addChannel(drv_virt_rx_channel);
-        system.driver_config.rx_id = @truncate(drv_virt_rx_channel.pd_a_id);
-        system.virt_rx_config.driver_id = @truncate(drv_virt_rx_channel.pd_b_id);
+        system.driver_config.rx_id = @intCast(drv_virt_rx_channel.pd_a_id);
+        system.virt_rx_config.driver_id = @intCast(drv_virt_rx_channel.pd_b_id);
 
         const rx_dma_mr = system.rxConnectDriver();
         system.txConnectDriver();
 
-        system.virt_tx_config.num_clients = @truncate(system.clients.items.len);
-        system.virt_rx_config.num_clients = @truncate(system.clients.items.len);
+        system.virt_tx_config.num_clients = @intCast(system.clients.items.len);
+        system.virt_rx_config.num_clients = @intCast(system.clients.items.len);
         for (system.clients.items, 0..) |client, i| {
             // TODO: we have an assumption that all copiers are RX copiers
             const virt_rx_copier_channel = Channel.create(system.virt_rx, system.copiers.items[i], .{});
             sdf.addChannel(virt_rx_copier_channel);
-            system.virt_rx_config.clients[i].id = @truncate(virt_rx_copier_channel.pd_a_id);
-            system.copy_configs.items[i].virt_id = @truncate(virt_rx_copier_channel.pd_b_id);
+            system.virt_rx_config.clients[i].id = @intCast(virt_rx_copier_channel.pd_a_id);
+            system.copy_configs.items[i].virt_id = @intCast(virt_rx_copier_channel.pd_b_id);
 
             const copier_client_channel = Channel.create(system.copiers.items[i], client, .{});
             sdf.addChannel(copier_client_channel);
-            system.copy_configs.items[i].cli_id = @truncate(copier_client_channel.pd_a_id);
-            system.client_configs.items[i].rx_ch = @truncate(copier_client_channel.pd_b_id);
+            system.copy_configs.items[i].cli_id = @intCast(copier_client_channel.pd_a_id);
+            system.client_configs.items[i].rx_ch = @intCast(copier_client_channel.pd_b_id);
 
             const virt_tx_client_channel = Channel.create(system.virt_tx, client, .{});
             sdf.addChannel(virt_tx_client_channel);
-            system.virt_tx_config.clients[i].id = @truncate(virt_tx_client_channel.pd_a_id);
-            system.client_configs.items[i].tx_ch = @truncate(virt_tx_client_channel.pd_b_id);
+            system.virt_tx_config.clients[i].id = @intCast(virt_tx_client_channel.pd_a_id);
+            system.client_configs.items[i].tx_ch = @intCast(virt_tx_client_channel.pd_b_id);
 
             system.clientRxConnect(rx_dma_mr, i);
             system.clientTxConnect(i);
