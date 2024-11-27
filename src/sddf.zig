@@ -1200,7 +1200,6 @@ pub const NetworkSystem = struct {
 
     pub const ClientInfo = struct {
         tx_buffers: usize = 512,
-        mac_addr: [6]u8,
     };
 
     allocator: Allocator,
