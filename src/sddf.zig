@@ -1258,7 +1258,6 @@ pub const NetworkSystem = struct {
 
         system.client_info.append(.{
             .tx_buffers = options.tx_buffers,
-            .mac_addr = options.mac_addr,
         }) catch @panic("Could not add client with copier to NetworkSystem");
     }
 
