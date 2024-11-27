@@ -1245,264 +1245,121 @@ pub const NetworkSystem = struct {
         return round_to_page(8 + 16 * n_buffers);
     }
 
+    fn mapMr(mr: Mr, pd: *Pd, resource: *ConfigResources.Region) void {
+        const map = Map.create(mr, pd.getMapVaddr(&mr), .rw, true, .{});
+        pd.addMap(map);
+        resource.* = ConfigResources.Region.createFromMap(map);
+    }
+
+    fn mapMrWithPaddr(mr: Mr, pd: *Pd, resource: *ConfigResources.Region) void {
+        assert(mr.paddr != null);
+        const map = Map.create(mr, pd.getMapVaddr(&mr), .rw, true, .{});
+        pd.addMap(map);
+        resource.* = try ConfigResources.Region.createFromMapWithPaddr(map);
+    }
+
+    fn createConnection(system: *NetworkSystem, server: *Pd, client: *Pd, server_conn: *ConfigResources.Net.Connection, client_conn: *ConfigResources.Net.Connection, num_buffers: u64) void {
+        const queue_mr_size = queueMrSize(num_buffers);
+
+        server_conn.num_buffers = @intCast(num_buffers);
+        client_conn.num_buffers = @intCast(num_buffers);
+
+        const free_mr_name = std.fmt.allocPrint(system.allocator, "{s}/net/queue/{s}/{s}/free", .{system.device.name, server.name, client.name}) catch @panic("OOM");
+        const free_mr = Mr.create(system.allocator, free_mr_name, queue_mr_size, .{});
+        system.sdf.addMemoryRegion(free_mr);
+
+        mapMr(free_mr, server, &server_conn.free_queue);
+        mapMr(free_mr, client, &client_conn.free_queue);
+
+        const active_mr_name = std.fmt.allocPrint(system.allocator, "{s}/net/queue/{s}/{s}/active", .{system.device.name, server.name, client.name}) catch @panic("OOM");
+        const active_mr = Mr.create(system.allocator, active_mr_name, queue_mr_size, .{});
+        system.sdf.addMemoryRegion(active_mr);
+
+        mapMr(active_mr, server, &server_conn.active_queue);
+        mapMr(active_mr, client, &client_conn.active_queue);
+
+        const channel = Channel.create(server, client, .{});
+        system.sdf.addChannel(channel);
+        server_conn.id = @intCast(channel.pd_a_id);
+        client_conn.id = @intCast(channel.pd_b_id);
+    }
+
     fn rxConnectDriver(system: *NetworkSystem) Mr {
-        const allocator = system.allocator;
+        system.createConnection(system.driver, system.virt_rx, &system.driver_config.virt_rx, &system.virt_rx_config.driver, system.rx_buffers);
 
         const rx_dma_mr_name = std.fmt.allocPrint(system.allocator, "{s}/net/rx/data/device", .{system.device.name}) catch @panic("OOM");
         const rx_dma_mr_size = round_to_page(system.rx_buffers * BUFFER_SIZE);
-        const rx_dma_mr = Mr.physical(allocator, system.sdf, rx_dma_mr_name, rx_dma_mr_size, .{});
+        const rx_dma_mr = Mr.physical(system.allocator, system.sdf, rx_dma_mr_name, rx_dma_mr_size, .{});
         system.sdf.addMemoryRegion(rx_dma_mr);
-
-        const rx_dma_virt_map = Map.create(rx_dma_mr, system.virt_rx.getMapVaddr(&rx_dma_mr), .r, true, .{});
-        system.virt_rx.addMap(rx_dma_virt_map);
-        system.virt_rx_config.data_region = try ConfigResources.Region.createFromMapWithPaddr(rx_dma_virt_map);
+        mapMrWithPaddr(rx_dma_mr, system.virt_rx, &system.virt_rx_config.data_region);
 
         const virt_rx_metadata_mr_name = std.fmt.allocPrint(system.allocator, "{s}/net/rx/virt_metadata", .{system.device.name}) catch @panic("OOM");
         const virt_rx_metadata_mr_size = round_to_page(system.rx_buffers * 4);
-        const virt_rx_metadata_mr = Mr.create(allocator, virt_rx_metadata_mr_name, virt_rx_metadata_mr_size, .{});
+        const virt_rx_metadata_mr = Mr.create(system.allocator, virt_rx_metadata_mr_name, virt_rx_metadata_mr_size, .{});
         system.sdf.addMemoryRegion(virt_rx_metadata_mr);
-        const virt_rx_metadata_map = Map.create(virt_rx_metadata_mr, system.virt_rx.getMapVaddr(&virt_rx_metadata_mr), .rw, true, .{});
-        system.virt_rx.addMap(virt_rx_metadata_map);
-        system.virt_rx_config.buffer_metadata = ConfigResources.Region.createFromMap(virt_rx_metadata_map);
-
-        system.driver_config.virt_rx.num_buffers = @intCast(system.rx_buffers);
-        system.virt_rx_config.driver.num_buffers = @intCast(system.rx_buffers);
-
-        const queue_mr_size = queueMrSize(system.rx_buffers);
-
-        const free_mr_name = std.fmt.allocPrint(system.allocator, "{s}/net/rx/queue/driver_virt/free", .{system.device.name}) catch @panic("OOM");
-        const free_mr = Mr.create(allocator, free_mr_name, queue_mr_size, .{});
-        system.sdf.addMemoryRegion(free_mr);
-
-        const free_driver_map = Map.create(free_mr, system.driver.getMapVaddr(&free_mr), .rw, true, .{});
-        system.driver.addMap(free_driver_map);
-        system.driver_config.virt_rx.free_queue = ConfigResources.Region.createFromMap(free_driver_map);
-
-        const free_virt_map = Map.create(free_mr, system.virt_rx.getMapVaddr(&free_mr), .rw, true, .{});
-        system.virt_rx.addMap(free_virt_map);
-        system.virt_rx_config.driver.free_queue = ConfigResources.Region.createFromMap(free_virt_map);
-
-        const active_mr_name = std.fmt.allocPrint(system.allocator, "{s}/net/rx/queue/driver_virt/active", .{system.device.name}) catch @panic("OOM");
-        const active_mr = Mr.create(allocator, active_mr_name, queue_mr_size, .{});
-        system.sdf.addMemoryRegion(active_mr);
-
-        const active_driver_map = Map.create(active_mr, system.driver.getMapVaddr(&active_mr), .rw, true, .{});
-        system.driver.addMap(active_driver_map);
-        system.driver_config.virt_rx.active_queue = ConfigResources.Region.createFromMap(active_driver_map);
-
-        const active_virt_map = Map.create(active_mr, system.virt_rx.getMapVaddr(&active_mr), .rw, true, .{});
-        system.virt_rx.addMap(active_virt_map);
-        system.virt_rx_config.driver.active_queue = ConfigResources.Region.createFromMap(active_virt_map);
+        mapMr(virt_rx_metadata_mr, system.virt_rx, &system.virt_rx_config.buffer_metadata);
 
         return rx_dma_mr;
     }
 
     fn txConnectDriver(system: *NetworkSystem) void {
-        const allocator = system.allocator;
-
         var num_buffers: usize = 0;
         for (system.client_info.items) |client_info| {
             num_buffers += client_info.tx_buffers;
         }
-        const queue_region_size = queueMrSize(num_buffers);
 
-        system.driver_config.virt_tx.num_buffers = @intCast(num_buffers);
-        system.virt_tx_config.driver.num_buffers = @intCast(num_buffers);
-
-        const free_mr_name = std.fmt.allocPrint(system.allocator, "{s}/net/tx/queue/driver_virt/free", .{system.device.name}) catch @panic("OOM");
-        const free_mr = Mr.create(allocator, free_mr_name, queue_region_size, .{});
-        system.sdf.addMemoryRegion(free_mr);
-
-        const free_driver_map = Map.create(free_mr, system.driver.getMapVaddr(&free_mr), .rw, true, .{});
-        system.driver.addMap(free_driver_map);
-        system.driver_config.virt_tx.free_queue = ConfigResources.Region.createFromMap(free_driver_map);
-
-        const free_virt_map = Map.create(free_mr, system.virt_tx.getMapVaddr(&free_mr), .rw, true, .{});
-        system.virt_tx.addMap(free_virt_map);
-        system.virt_tx_config.driver.free_queue = ConfigResources.Region.createFromMap(free_virt_map);
-
-        const active_mr_name = std.fmt.allocPrint(system.allocator, "{s}/net/tx/queue/driver_virt/active", .{system.device.name}) catch @panic("OOM");
-        const active_mr = Mr.create(allocator, active_mr_name, queue_region_size, .{});
-        system.sdf.addMemoryRegion(active_mr);
-
-        const active_driver_map = Map.create(active_mr, system.driver.getMapVaddr(&active_mr), .rw, true, .{});
-        system.driver.addMap(active_driver_map);
-        system.driver_config.virt_tx.active_queue = ConfigResources.Region.createFromMap(active_driver_map);
-
-        const active_virt_map = Map.create(active_mr, system.virt_tx.getMapVaddr(&active_mr), .rw, true, .{});
-        system.virt_tx.addMap(active_virt_map);
-        system.virt_tx_config.driver.active_queue = ConfigResources.Region.createFromMap(active_virt_map);
+        system.createConnection(system.driver, system.virt_tx, &system.driver_config.virt_tx, &system.virt_tx_config.driver, num_buffers);
     }
 
     fn clientRxConnect(system: *NetworkSystem, rx_dma: Mr, client_idx: usize) void {
-        const allocator = system.allocator;
-
         const client_info = system.client_info.items[client_idx];
-        var client = system.clients.items[client_idx];
-        var copier = system.copiers.items[client_idx];
+        const client = system.clients.items[client_idx];
+        const copier = system.copiers.items[client_idx];
         var client_config = &system.client_configs.items[client_idx];
         var copier_config = &system.copy_configs.items[client_idx];
+        var virt_client_config = &system.virt_rx_config.clients[client_idx];
 
-        system.virt_rx_config.clients[client_idx].conn.num_buffers = @intCast(system.rx_buffers);
-        copier_config.virt_rx.num_buffers = @intCast(system.rx_buffers);
-        copier_config.client.num_buffers = @intCast(client_info.rx_buffers);
-        client_config.rx.num_buffers = @intCast(client_info.rx_buffers);
+        system.createConnection(system.virt_rx, copier, &virt_client_config.conn, &copier_config.virt_rx, system.rx_buffers);
+        system.createConnection(copier, client, &copier_config.client, &client_config.rx, client_info.rx_buffers);
 
-        const rx_dma_copier_map = Map.create(rx_dma, copier.getMapVaddr(&rx_dma), .r, true, .{});
-        copier.addMap(rx_dma_copier_map);
-        copier_config.device_data = ConfigResources.Region.createFromMap(rx_dma_copier_map);
+        mapMr(rx_dma, copier, &copier_config.device_data);
 
         const client_data_mr_size = round_to_page(system.rx_buffers * BUFFER_SIZE);
         const client_data_mr_name = std.fmt.allocPrint(system.allocator, "{s}/net/rx/data/client/{s}", .{system.device.name, client.name}) catch @panic("OOM");
-        const client_data_mr = Mr.create(allocator, client_data_mr_name, client_data_mr_size, .{});
+        const client_data_mr = Mr.create(system.allocator, client_data_mr_name, client_data_mr_size, .{});
         system.sdf.addMemoryRegion(client_data_mr);
 
-        const client_data_client_map = Map.create(client_data_mr, client.getMapVaddr(&client_data_mr), .rw, true, .{});
-        client.addMap(client_data_client_map);
-        client_config.rx_data = ConfigResources.Region.createFromMap(client_data_client_map);
-
-        const client_data_copier_map = Map.create(client_data_mr, copier.getMapVaddr(&client_data_mr), .rw, true, .{});
-        copier.addMap(client_data_copier_map);
-        copier_config.client_data = ConfigResources.Region.createFromMap(client_data_copier_map);
-
-        const virt_copier_queue_mr_size = queueMrSize(system.rx_buffers);
-        const copier_client_queue_mr_size = queueMrSize(client_info.rx_buffers);
-
-        const copier_free_mr_name = std.fmt.allocPrint(system.allocator, "{s}/net/rx/queue/virt_copier/{s}/free", .{ system.device.name, client.name }) catch @panic("OOM");
-        const copier_free_mr = Mr.create(allocator, copier_free_mr_name, virt_copier_queue_mr_size, .{});
-        system.sdf.addMemoryRegion(copier_free_mr);
-
-        const copier_free_virt_map = Map.create(copier_free_mr, system.virt_rx.getMapVaddr(&copier_free_mr), .rw, true, .{});
-        system.virt_rx.addMap(copier_free_virt_map);
-        system.virt_rx_config.clients[client_idx].conn.free_queue = ConfigResources.Region.createFromMap(copier_free_virt_map);
-
-        const copier_free_copier_map = Map.create(copier_free_mr, copier.getMapVaddr(&copier_free_mr), .rw, true, .{});
-        copier.addMap(copier_free_copier_map);
-        copier_config.virt_rx.free_queue = ConfigResources.Region.createFromMap(copier_free_copier_map);
-
-        const copier_active_mr_name = std.fmt.allocPrint(system.allocator, "{s}/net/rx/queue/virt_copier/{s}/active", .{ system.device.name, client.name }) catch @panic("OOM");
-        const copier_active_mr = Mr.create(allocator, copier_active_mr_name, virt_copier_queue_mr_size, .{});
-        system.sdf.addMemoryRegion(copier_active_mr);
-
-        const copier_active_virt_map = Map.create(copier_active_mr, system.virt_rx.getMapVaddr(&copier_active_mr), .rw, true, .{});
-        system.virt_rx.addMap(copier_active_virt_map);
-        system.virt_rx_config.clients[client_idx].conn.active_queue = ConfigResources.Region.createFromMap(copier_active_virt_map);
-
-        const copier_active_copier_map = Map.create(copier_active_mr, copier.getMapVaddr(&copier_active_mr), .rw, true, .{});
-        copier.addMap(copier_active_copier_map);
-        copier_config.virt_rx.active_queue = ConfigResources.Region.createFromMap(copier_active_copier_map);
-
-        const client_free_mr_name = std.fmt.allocPrint(system.allocator, "{s}/net/rx/queue/copier_client/{s}/free", .{ system.device.name, client.name }) catch @panic("OOM");
-        const client_free_mr = Mr.create(allocator, client_free_mr_name, copier_client_queue_mr_size, .{});
-        system.sdf.addMemoryRegion(client_free_mr);
-
-        const client_free_copier_map = Map.create(client_free_mr, copier.getMapVaddr(&client_free_mr), .rw, true, .{});
-        copier.addMap(client_free_copier_map);
-        copier_config.client.free_queue = ConfigResources.Region.createFromMap(client_free_copier_map);
-
-        const client_free_client_map = Map.create(client_free_mr, client.getMapVaddr(&client_free_mr), .rw, true, .{});
-        client.addMap(client_free_client_map);
-        client_config.rx.free_queue = ConfigResources.Region.createFromMap(client_free_client_map);
-
-        const client_active_mr_name = std.fmt.allocPrint(system.allocator, "{s}/net/rx/queue/copier_client/{s}/active", .{ system.device.name, client.name }) catch @panic("OOM");
-        const client_active_mr = Mr.create(allocator, client_active_mr_name, copier_client_queue_mr_size, .{});
-        system.sdf.addMemoryRegion(client_active_mr);
-
-        const client_active_copier_map = Map.create(client_active_mr, copier.getMapVaddr(&client_active_mr), .rw, true, .{});
-        copier.addMap(client_active_copier_map);
-        copier_config.client.active_queue = ConfigResources.Region.createFromMap(client_active_copier_map);
-
-        const client_active_client_map = Map.create(client_active_mr, client.getMapVaddr(&client_active_mr), .rw, true, .{});
-        client.addMap(client_active_client_map);
-        client_config.rx.active_queue = ConfigResources.Region.createFromMap(client_active_client_map);
+        mapMr(client_data_mr, client, &client_config.rx_data);
+        mapMr(client_data_mr, copier, &copier_config.client_data);
     }
 
     fn clientTxConnect(system: *NetworkSystem, client_id: usize) void {
-        const allocator = system.allocator;
-
         const client_info = &system.client_info.items[client_id];
-        var client = system.clients.items[client_id];
+        const client = system.clients.items[client_id];
         var client_config = &system.client_configs.items[client_id];
+        const virt_client_config = &system.virt_tx_config.clients[client_id];
 
-        system.virt_tx_config.clients[client_id].conn.num_buffers = @intCast(client_info.tx_buffers);
-        client_config.tx.num_buffers = @intCast(client_info.tx_buffers);
+        system.createConnection(system.virt_tx, client, &virt_client_config.conn, &client_config.tx, client_info.tx_buffers);
 
         const data_mr_size = round_to_page(client_info.tx_buffers * BUFFER_SIZE);
         const data_mr_name = std.fmt.allocPrint(system.allocator, "{s}/net/tx/data/client/{s}", .{system.device.name, client.name}) catch @panic("OOM");
-        const data_mr = Mr.physical(allocator, system.sdf, data_mr_name, data_mr_size, .{});
+        const data_mr = Mr.physical(system.allocator, system.sdf, data_mr_name, data_mr_size, .{});
         system.sdf.addMemoryRegion(data_mr);
 
-        const data_virt_map = Map.create(data_mr, system.virt_tx.getMapVaddr(&data_mr), .rw, true, .{});
-        system.virt_tx.addMap(data_virt_map);
-        system.virt_tx_config.clients[client_id].data_region = try ConfigResources.Region.createFromMapWithPaddr(data_virt_map);
-
-        const data_client_map = Map.create(data_mr, client.getMapVaddr(&data_mr), .rw, true, .{});
-        client.addMap(data_client_map);
-        client_config.tx_data = ConfigResources.Region.createFromMap(data_client_map);
-
-        const queue_mr_size = queueMrSize(client_info.tx_buffers);
-
-        const free_mr_name = std.fmt.allocPrint(system.allocator, "{s}/net/tx/queue/virt_client/{s}/free", .{ system.device.name, client.name }) catch @panic("OOM");
-        const free_mr = Mr.create(allocator, free_mr_name, queue_mr_size, .{});
-        system.sdf.addMemoryRegion(free_mr);
-
-        const free_virt_map = Map.create(free_mr, system.virt_tx.getMapVaddr(&free_mr), .rw, true, .{});
-        system.virt_tx.addMap(free_virt_map);
-        system.virt_tx_config.clients[client_id].conn.free_queue = ConfigResources.Region.createFromMap(free_virt_map);
-
-        const free_client_map = Map.create(free_mr, client.getMapVaddr(&free_mr), .rw, true, .{});
-        client.addMap(free_client_map);
-        client_config.tx.free_queue = ConfigResources.Region.createFromMap(free_client_map);
-
-        const active_mr_name = std.fmt.allocPrint(system.allocator, "{s}/net/tx/queue/virt_client/{s}/active", .{ system.device.name, client.name }) catch @panic("OOM");
-        const active_mr = Mr.create(allocator, active_mr_name, queue_mr_size, .{});
-        system.sdf.addMemoryRegion(active_mr);
-
-        const active_virt_map = Map.create(active_mr, system.virt_tx.getMapVaddr(&active_mr), .rw, true, .{});
-        system.virt_tx.addMap(active_virt_map);
-        system.virt_tx_config.clients[client_id].conn.active_queue = ConfigResources.Region.createFromMap(active_virt_map);
-
-        const active_client_map = Map.create(active_mr, client.getMapVaddr(&active_mr), .rw, true, .{});
-        client.addMap(active_client_map);
-        client_config.tx.active_queue = ConfigResources.Region.createFromMap(active_client_map);
+        mapMrWithPaddr(data_mr, system.virt_tx, &virt_client_config.data);
+        mapMr(data_mr, client, &client_config.tx_data);
     }
 
     pub fn connect(system: *NetworkSystem) !void {
-        var sdf = system.sdf;
-        try createDriver(sdf, system.driver, system.device, .network, &system.device_res);
-
-        const drv_virt_tx_channel = Channel.create(system.driver, system.virt_tx, .{});
-        sdf.addChannel(drv_virt_tx_channel);
-        system.driver_config.virt_tx.id = @intCast(drv_virt_tx_channel.pd_a_id);
-        system.virt_tx_config.driver.id = @intCast(drv_virt_tx_channel.pd_b_id);
-
-        const drv_virt_rx_channel = Channel.create(system.driver, system.virt_rx, .{});
-        sdf.addChannel(drv_virt_rx_channel);
-        system.driver_config.virt_rx.id = @intCast(drv_virt_rx_channel.pd_a_id);
-        system.virt_rx_config.driver.id = @intCast(drv_virt_rx_channel.pd_b_id);
+        try createDriver(system.sdf, system.driver, system.device, .network, &system.device_res);
 
         const rx_dma_mr = system.rxConnectDriver();
         system.txConnectDriver();
 
         system.virt_tx_config.num_clients = @intCast(system.clients.items.len);
         system.virt_rx_config.num_clients = @intCast(system.clients.items.len);
-        for (system.clients.items, 0..) |client, i| {
+        for (system.clients.items, 0..) |_, i| {
             // TODO: we have an assumption that all copiers are RX copiers
-            const virt_rx_copier_channel = Channel.create(system.virt_rx, system.copiers.items[i], .{});
-            sdf.addChannel(virt_rx_copier_channel);
-            system.virt_rx_config.clients[i].conn.id = @intCast(virt_rx_copier_channel.pd_a_id);
-            system.copy_configs.items[i].virt_rx.id = @intCast(virt_rx_copier_channel.pd_b_id);
-
-            const copier_client_channel = Channel.create(system.copiers.items[i], client, .{});
-            sdf.addChannel(copier_client_channel);
-            system.copy_configs.items[i].client.id = @intCast(copier_client_channel.pd_a_id);
-            system.client_configs.items[i].rx.id = @intCast(copier_client_channel.pd_b_id);
-
-            const virt_tx_client_channel = Channel.create(system.virt_tx, client, .{});
-            sdf.addChannel(virt_tx_client_channel);
-            system.virt_tx_config.clients[i].conn.id = @intCast(virt_tx_client_channel.pd_a_id);
-            system.client_configs.items[i].tx.id = @intCast(virt_tx_client_channel.pd_b_id);
-
             system.clientRxConnect(rx_dma_mr, i);
             system.clientTxConnect(i);
         }
