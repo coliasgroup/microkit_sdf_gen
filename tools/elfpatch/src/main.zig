@@ -4,10 +4,18 @@ const Allocator = std.mem.Allocator;
 const Elf = struct {
     const Segment = struct {
         vaddr: u64,
+        len: u64,
+        data: []u8,
+    };
+
+    const SymbolInfo = struct {
+        symbol: std.elf.Elf64_Sym,
+        duplicate: bool,
     };
 
     allocator: Allocator,
     segments: std.ArrayList(Segment),
+    symbols: std.StringHashMap(SymbolInfo),
     bytes: []const u8,
 
     const MAGIC: []const u8 = "\x7fELF";
@@ -24,7 +32,24 @@ const Elf = struct {
         return init(allocator, bytes);
     }
 
-    pub fn init(allocator: Allocator, bytes: []const u8) !Elf {
+    pub fn write_symbol(elf: *Elf, name: []const u8, data: []const u8) void {
+        // TODO, do not .?
+        const symbol = elf.symbols.get(name).?;
+        std.debug.assert(!symbol.duplicate);
+        const vaddr = symbol.symbol.st_value;
+        const size = symbol.symbol.st_size;
+        for (elf.segments.items) |segment| {
+            if (vaddr >= segment.vaddr and vaddr + size <= segment.vaddr + segment.len) {
+                const offset = vaddr - segment.vaddr;
+                std.debug.assert(data.len <= size);
+                @memcpy(segment.data[offset..offset + data.len], data);
+            }
+        }
+
+        std.log.err("No symbol found for '{s}'", .{ name });
+    }
+
+    pub fn init(allocator: Allocator, bytes: []u8) !Elf {
         const magic = bytes[0..4];
 
         if (!std.mem.eql(u8, magic, MAGIC)) {
@@ -43,12 +68,14 @@ const Elf = struct {
         const hdr = try std.elf.Header.parse(@alignCast(bytes[0..@sizeOf(std.elf.Elf64_Ehdr)]));
 
         std.debug.assert(hdr.is_64);
+        std.debug.print("{any}\n", .{ hdr });
 
         var segments = try std.ArrayList(Segment).initCapacity(allocator, hdr.phnum);
         for (0..hdr.phnum) |i| {
+            std.debug.print("hdr.phoff {}\n", .{ hdr.phoff });
             const phent_start = hdr.phoff + (i * hdr.phentsize);
             const phent_end = phent_start + (hdr.phentsize);
-            const phent_bytes = &bytes[phent_start..phent_end];
+            const phent_bytes = bytes[phent_start..phent_end];
 
             const phent = std.mem.bytesAsValue(std.elf.Elf64_Phdr, phent_bytes);
 
@@ -56,9 +83,16 @@ const Elf = struct {
                 continue;
             }
 
+            const segment_start = phent.p_offset;
+            const segment_end = phent.p_offset + phent.p_filesz;
+
             segments.appendAssumeCapacity(.{
                 .vaddr = phent.p_vaddr,
+                .len = phent.p_filesz,
+                .data = bytes[segment_start..segment_end],
             });
+
+            std.debug.print("segment({}), vaddr: {x}\n", .{ i, phent.p_vaddr });
 
             // const phent = unsafe { bytes_to_struct::<ElfProgramHeader64>(phent_bytes) };
 
@@ -84,17 +118,81 @@ const Elf = struct {
             // try segments.(segment)
         }
 
+        var shents = try std.ArrayList(*align(1) const std.elf.Elf64_Shdr).initCapacity(allocator, hdr.shnum);
+        var maybe_symtab_shent: ?std.elf.Elf64_Shdr = null;
+        var has_shstrtab_shent = false;
+        for (0..hdr.shnum) |i| {
+            const shent_start = hdr.shoff + (i * hdr.shentsize);
+            const shent_end = shent_start + hdr.shentsize;
+
+            const shent_bytes = bytes[shent_start..shent_end];
+
+            const shent = std.mem.bytesAsValue(std.elf.Elf64_Shdr, shent_bytes);
+            switch (shent.sh_type) {
+                2 => maybe_symtab_shent = shent.*,
+                3 => has_shstrtab_shent = true,
+                else => {}
+            }
+
+            shents.appendAssumeCapacity(shent);
+        }
+
+        // TODO: copied from Microkit ELF parsing, do we need this?
+        if (!has_shstrtab_shent) {
+            return error.MissingStringTableSection;
+        }
+
+        if (maybe_symtab_shent == null) {
+            return error.MissingSymbolTableSection;
+        }
+
+        const symtab_shent = maybe_symtab_shent.?;
+
+        // Reading the symbol table
+        const symtab_start = symtab_shent.sh_offset;
+        const symtab_end = symtab_start + symtab_shent.sh_size;
+        const symtab = bytes[symtab_start..symtab_end];
+
+        const symtab_str_shent = shents.items[symtab_shent.sh_link];
+        const symtab_str_start = symtab_str_shent.sh_offset;
+        const symtab_str_end = symtab_str_start + symtab_str_shent.sh_size;
+        const symtab_str = bytes[symtab_str_start..symtab_str_end];
+
+        const elf_symbol_size = @sizeOf(std.elf.Elf64_Sym);
+        var symbols = std.StringHashMap(SymbolInfo).init(allocator);
+        var offset: usize = 0;
+        while (offset < symtab.len) {
+            const sym_bytes = symtab[offset..offset + elf_symbol_size];
+            const sym = std.mem.bytesAsValue(std.elf.Elf64_Sym, sym_bytes);
+            const string_full = symtab_str[sym.st_name..];
+            // Do not include null-terminator
+            const string = string_full[0..std.mem.indexOf(u8, string_full, &.{ 0 }).?];
+
+            const symbol = SymbolInfo{
+                // TODO: copying the symbol
+                .symbol = sym.*,
+                .duplicate = symbols.contains(string),
+            };
+
+            std.debug.print("symbol {s}\n", .{ string });
+
+            try symbols.put(string, symbol);
+            offset += elf_symbol_size;
+        }
+
         // TODO: do we need toOwnedSlice?
         return .{
             .allocator = allocator,
             .segments = segments,
             .bytes = bytes,
+            .symbols = symbols,
         };
     }
 
-    pub fn deinit(elf: Elf) void {
+    pub fn deinit(elf: *Elf) void {
         elf.allocator.free(elf.bytes);
         elf.segments.deinit();
+        elf.symbols.deinit();
     }
 };
 
@@ -108,6 +206,7 @@ const usage_text =
     \\Patches a global ELF symbol with a given value
     \\
     \\ TODO
+    \\
 ;
 
 const Args = struct {
@@ -184,9 +283,11 @@ pub fn main() !void {
 
     const args = try Args.parse(allocator, process_args);
 
-    const elf = Elf.from_path(allocator, args.elf) catch |err| {
+    var elf = Elf.from_path(allocator, args.elf) catch |err| {
         try stderr.writeAll(fmt(allocator, "could not parse ELF: {any}\n", .{ err }));
         std.process.exit(1);
     };
     defer elf.deinit();
+
+    elf.write_symbol("hello", &std.mem.toBytes(32));
 }
