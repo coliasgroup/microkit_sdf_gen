@@ -1290,7 +1290,7 @@ pub const NetworkSystem = struct {
         system.sdf.addMemoryRegion(rx_dma_mr);
         const rx_dma_virt_map = Map.create(rx_dma_mr, system.virt_rx.getMapVaddr(&rx_dma_mr), .rw, true, .{});
         system.virt_rx.addMap(rx_dma_virt_map);
-        system.virt_rx_config.data_region = try ConfigResources.Region.createFromMapWithPaddr(rx_dma_virt_map);
+        system.virt_rx_config.data_region = ConfigResources.Device.Region.createFromMap(rx_dma_virt_map);
 
         const virt_rx_metadata_mr_name = std.fmt.allocPrint(system.allocator, "{s}/net/rx/virt_metadata", .{system.device.name}) catch @panic("OOM");
         const virt_rx_metadata_mr_size = round_to_page(system.rx_buffers * 4);
@@ -1356,7 +1356,7 @@ pub const NetworkSystem = struct {
 
         const data_mr_virt_map = Map.create(data_mr, system.virt_tx.getMapVaddr(&data_mr), .rw, true, .{});
         system.virt_tx.addMap(data_mr_virt_map);
-        virt_client_config.data = try ConfigResources.Region.createFromMapWithPaddr(data_mr_virt_map);
+        virt_client_config.data = ConfigResources.Device.Region.createFromMap(data_mr_virt_map);
 
         const data_mr_client_map = Map.create(data_mr, client.getMapVaddr(&data_mr), .rw, true, .{});
         client.addMap(data_mr_client_map);
@@ -1529,11 +1529,7 @@ pub fn createDriver(sdf: *SystemDescription, pd: *Pd, device: *dtb.Node, class: 
         const cached = if (region_resource.cached != null) region_resource.cached.? else false;
         const map = Map.create(mr.?, pd.getMapVaddr(&mr.?), perms, cached, .{ .setvar_vaddr = region_resource.setvar_vaddr });
         pd.addMap(map);
-        device_res.regions[device_res.num_regions] = .{
-            .vaddr = map.vaddr,
-            .paddr = mr.?.paddr.?,
-            .size = mr.?.size,
-        };
+        device_res.regions[device_res.num_regions] = ConfigResources.Device.Region.createFromMap(map);
         device_res.num_regions += 1;
     }
 

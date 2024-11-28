@@ -10,15 +10,6 @@ pub const Resources = struct {
         pub fn create(vaddr: usize, size: usize) Region {
             return .{
                 .vaddr = vaddr,
-                .paddr = 0, // null
-                .size = size,
-            };
-        }
-
-        pub fn createWithPaddr(vaddr: u64, paddr: u64, size: usize) Region {
-            return .{
-                .vaddr = vaddr,
-                .paddr = paddr,
                 .size = size,
             };
         }
@@ -27,13 +18,7 @@ pub const Resources = struct {
             return create(map.vaddr, map.mr.size);
         }
 
-        pub fn createFromMapWithPaddr(map: sdf.SystemDescription.Map) !Region {
-            return createWithPaddr(map.vaddr, map.mr.paddr.?, map.mr.size);
-        }
-
         vaddr: u64,
-        /// paddr can be left null if it is not needed
-        paddr: u64,
         size: u64,
     };
 
@@ -42,13 +27,30 @@ pub const Resources = struct {
         pub const MaxRegions = 64;
         pub const MaxIrqs = 64;
 
+        pub const Region = extern struct {
+            region: Resources.Region,
+            io_addr: u64,
+
+            pub fn create(vaddr: usize, size: usize, io_addr: u64) Device.Region {
+                return .{
+                    .region = Resources.Region.create(vaddr, size),
+                    .io_addr = io_addr,
+                };
+            }
+
+            pub fn createFromMap(map: sdf.SystemDescription.Map) Device.Region {
+                std.debug.assert(map.mr.paddr != null);
+                return create(map.vaddr, map.mr.size, map.mr.paddr.?);
+            }
+        };
+
         pub const Irq = extern struct {
             id: u8,
         };
 
         num_regions: u8,
         num_irqs: u8,
-        regions: [MaxRegions]Region,
+        regions: [MaxRegions]Device.Region,
         irqs: [MaxIrqs]Irq,
     };
 
@@ -228,7 +230,7 @@ pub const Resources = struct {
             };
 
             driver: Connection,
-            data_region: Region,
+            data_region: Device.Region,
             buffer_metadata: Region,
             clients: [MAX_NUM_CLIENTS]VirtRxClient,
             num_clients: u8,
@@ -237,7 +239,7 @@ pub const Resources = struct {
         pub const VirtTx = extern struct {
             pub const VirtTxClient = extern struct {
                 conn: Connection,
-                data: Region,
+                data: Device.Region,
             };
 
             driver: Connection,
