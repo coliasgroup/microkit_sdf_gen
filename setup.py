@@ -1,9 +1,9 @@
 import os
 from setuptools.command.build_ext import build_ext
-from setuptools import setup, Extension
+from setuptools import setup, Extension, find_packages
 from pathlib import Path
 
-sdfgen = Extension("sdfgen", sources=["module.c"])
+# sdfgen = Extension("sdfgen", sources=["module.c"])
 
 
 class ZigBuilder(build_ext):
@@ -30,12 +30,16 @@ class ZigBuilder(build_ext):
 
 setup(
     name="sdfgen",
-    version="0.0.4",
+    version="0.1.0",
     url="https://github.com/au-ts/microkit_sdf_gen",
     description="Automating the creation of Microkit System Description Files (SDF)",
-    ext_modules=[sdfgen],
-    cmdclass={"build_ext": ZigBuilder},
+    packages=["sdfgen"],
+    package_dir={
+        "sdfgen": "./python"
+    },
+    # ext_modules=[sdfgen],
+    # cmdclass={"build_ext": ZigBuilder},
     long_description=(Path(__file__).parent / "README.md").read_text(encoding="utf-8"),
     long_description_content_type="text/markdown",
-    py_modules=["builder"],
+    # py_modules=["builder"],
 )
