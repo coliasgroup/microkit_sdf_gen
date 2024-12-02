@@ -276,10 +276,10 @@ pub const Resources = struct {
 };
 
 pub fn serialize(s: anytype, path: []const u8) !void {
-    const bytes = std.mem.toBytes(s);
+    const bytes = std.mem.asBytes(&s);
     const serialize_file = try std.fs.cwd().createFile(path, .{});
     defer serialize_file.close();
-    try serialize_file.writeAll(&bytes);
+    try serialize_file.writeAll(bytes);
 }
 
 pub fn jsonify(s: anytype, path: []const u8, options: std.json.StringifyOptions) !void {
