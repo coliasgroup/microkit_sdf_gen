@@ -1110,7 +1110,7 @@ pub const SerialSystem = struct {
         if (system.hasRx()) {
             const ch_driver_virt_rx = Channel.create(system.driver, system.virt_rx.?, .{});
             sdf.addChannel(ch_driver_virt_rx);
-            system.driver_config.rx_id = ch_driver_virt_rx.pd_a_id);
+            system.driver_config.rx_id = ch_driver_virt_rx.pd_a_id;
             system.virt_rx_config.driver_id = ch_driver_virt_rx.pd_b_id;
         }
         // 1.2 Create channels between virtualisers and clients

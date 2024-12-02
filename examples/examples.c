@@ -29,9 +29,9 @@ int main(int argc, char *argv[]) {
     sdfgen_pd_set_priority(i2c_virt, 199);
     sdfgen_pd_set_priority(i2c_reactor_client, 198);
 
-    sdfgen_pd_add(sdf, i2c_reactor_client);
-    sdfgen_pd_add(sdf, i2c_virt);
-    sdfgen_pd_add(sdf, i2c_reactor_driver);
+    sdfgen_add_pd(sdf, i2c_reactor_client);
+    sdfgen_add_pd(sdf, i2c_virt);
+    sdfgen_add_pd(sdf, i2c_reactor_driver);
 
     char *xml = sdfgen_to_xml(sdf);
     printf("%s", xml);
