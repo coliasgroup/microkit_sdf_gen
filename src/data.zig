@@ -110,35 +110,25 @@ pub const Resources = struct {
     pub const Serial = struct {
         pub const MAX_NUM_CLIENTS = 61;
 
+        pub const Connection = extern struct {
+            queue: Region,
+            data: Region,
+            id: u8,
+        };
+
         pub const Driver = extern struct {
-            rx_queue_addr: u64,
-            tx_queue_addr: u64,
-            rx_data_addr: u64,
-            tx_data_addr: u64,
-            rx_capacity: u64,
-            tx_capacity: u64,
+            rx: Connection,
+            tx: Connection,
             default_baud: u64,
             rx_enabled: u8,
-            rx_id: u8,
-            tx_id: u8,
         };
 
         pub const VirtRx = extern struct {
-            pub const VirtRxClient = extern struct {
-                queue_addr: u64,
-                data_addr: u64,
-                capacity: u64,
-                id: u8,
-            };
-
-            queue_drv: u64,
-            data_drv: u64,
-            capacity_drv: u64,
+            driver: Connection,
+            clients: [MAX_NUM_CLIENTS]Connection,
+            num_clients: u8,
             switch_char: u8,
             terminate_num_char: u8,
-            num_clients: u64,
-            driver_id: u8,
-            clients: [MAX_NUM_CLIENTS]VirtRxClient,
         };
 
         pub const VirtTx = extern struct {
@@ -146,34 +136,22 @@ pub const Resources = struct {
             pub const MAX_BEGIN_STR_LEN = 128;
 
             pub const VirtTxClient = extern struct {
+                conn: Connection,
                 name: [MAX_NAME_LEN]u8,
-                queue_addr: u64,
-                data_addr: u64,
-                capacity: u64,
-                id: u8,
             };
 
-            queue_addr_drv: u64,
-            data_addr_drv: u64,
-            capacity_drv: u64,
+            driver: Connection,
+            clients: [MAX_NUM_CLIENTS]VirtTxClient,
+            num_clients: u8,
             begin_str: [MAX_BEGIN_STR_LEN]u8,
-            begin_str_len: u64,
+            begin_str_len: u8,
             enable_colour: u8,
             enable_rx: u8,
-            num_clients: u64,
-            driver_id: u8,
-            clients: [MAX_NUM_CLIENTS]VirtTxClient,
         };
 
         pub const Client = extern struct {
-            rx_queue_addr: u64,
-            rx_data_addr: u64,
-            rx_capacity: u64,
-            tx_queue_addr: u64,
-            tx_data_addr: u64,
-            tx_capacity: u64,
-            rx_id: u8,
-            tx_id: u8,
+            rx: Connection,
+            tx: Connection,
         };
     };
 
