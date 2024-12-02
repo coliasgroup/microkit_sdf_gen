@@ -714,12 +714,14 @@ pub const SystemDescription = struct {
 
         // Given that this is library code, it is better for us to provide a zero-terminated
         // array of bytes for consumption by langauges like C.
-        _ = try writer.write("</system>\n" ++ "\x00");
+        _ = try writer.write("</system>" ++ "\x00");
 
         return sdf.xml_data.items[0 .. sdf.xml_data.items.len - 1 :0];
     }
 
     pub fn print(sdf: *SystemDescription) !void {
-        try std.io.getStdOut().writer().writeAll(try sdf.toXml());
+        const stdout = std.io.getStdOut().writer();
+        try stdout.writeAll(try sdf.toXml());
+        try stdout.writeAll("\n");
     }
 };
