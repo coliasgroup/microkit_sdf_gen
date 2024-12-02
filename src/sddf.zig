@@ -515,7 +515,7 @@ pub const TimerSystem = struct {
                 .pd_b_notify = false,
             });
             system.sdf.addChannel(ch);
-            system.client_configs.items[i].driver_id = @intCast(ch.pd_b_id);
+            system.client_configs.items[i].driver_id = ch.pd_b_id;
         }
     }
 
@@ -950,6 +950,10 @@ pub const SerialSystem = struct {
         };
     }
 
+    pub fn deinit(_: *SerialSystem) void {
+        // TODO
+    }
+
     pub fn addClient(system: *SerialSystem, client: *Pd) void {
         system.clients.append(client) catch @panic("Could not add client to SerialSystem");
         system.client_configs.append(std.mem.zeroes(ConfigResources.Serial.Client)) catch @panic("Could not add client to SerialSystem");
@@ -1201,7 +1205,7 @@ pub const NetworkSystem = struct {
     rx_buffers: usize,
     client_info: std.ArrayList(ClientInfo),
 
-    pub fn init(allocator: Allocator, sdf: *SystemDescription, device: *dtb.Node, driver: *Pd, virt_rx: *Pd, virt_tx: *Pd, options: Options) NetworkSystem {
+    pub fn init(allocator: Allocator, sdf: *SystemDescription, device: *dtb.Node, driver: *Pd, virt_tx: *Pd, virt_rx: *Pd, options: Options) NetworkSystem {
         return .{
             .allocator = allocator,
             .sdf = sdf,
@@ -1232,8 +1236,10 @@ pub const NetworkSystem = struct {
         system.client_configs.append(std.mem.zeroes(ConfigResources.Net.Client)) catch @panic("Could not add client with copier to NetworkSystem");
         system.copy_configs.append(std.mem.zeroes(ConfigResources.Net.Copy)) catch @panic("Could not add client with copier to NetworkSystem");
 
-        system.client_configs.items[client_idx].mac_addr = options.mac_addr;
-        system.virt_rx_config.clients[client_idx].mac_addr = options.mac_addr;
+        // Copy the user-provided MAC address so we don't have to rely on them keeping the memory around
+        // until the system has been connected.
+        @memcpy(&system.client_configs.items[client_idx].mac_addr, &options.mac_addr);
+        @memcpy(&system.virt_rx_config.clients[client_idx].mac_addr, &options.mac_addr);
 
         system.client_info.append(.{
             .rx_buffers = options.rx_buffers,
@@ -1381,10 +1387,10 @@ pub const NetworkSystem = struct {
     pub fn serialiseConfig(system: *NetworkSystem, prefix: []const u8) !void {
         const allocator = system.allocator;
 
-        const device_res_data_name = std.fmt.allocPrint(system.allocator, "{s}_device_resources.data", .{ system.driver.name }) catch @panic("OOM");
-        const device_res_json_name = std.fmt.allocPrint(system.allocator, "{s}_device_resources.json", .{ system.driver.name }) catch @panic("OOM");
-        try data.serialize(system.device_res, try std.fs.path.join(system.allocator, &.{ prefix, device_res_data_name }));
-        try data.jsonify(system.device_res, try std.fs.path.join(system.allocator, &.{ prefix, device_res_json_name }), .{ .whitespace = .indent_4 });
+        const device_res_data_name = std.fmt.allocPrint(allocator, "{s}_device_resources.data", .{ system.driver.name }) catch @panic("OOM");
+        try data.serialize(system.device_res, try std.fs.path.join(allocator, &.{ prefix, device_res_data_name }));
+        const device_res_json_name = std.fmt.allocPrint(allocator, "{s}_device_resources.json", .{ system.driver.name }) catch @panic("OOM");
+        try data.jsonify(system.device_res, try std.fs.path.join(allocator, &.{ prefix, device_res_json_name }), .{ .whitespace = .indent_4 });
 
         try data.serialize(system.driver_config, try fs.path.join(allocator, &.{ prefix, "net_driver.data" }));
         try data.jsonify(system.driver_config, try fs.path.join(allocator, &.{ prefix, "net_driver.json"}), .{ .whitespace = .indent_4 });
@@ -1396,16 +1402,16 @@ pub const NetworkSystem = struct {
         try data.jsonify(system.virt_tx_config, try fs.path.join(allocator, &.{ prefix, "net_virt_tx.json" }), .{ .whitespace = .indent_4 });
 
         for (system.copiers.items, 0..) |copier, i| {
-            const data_name = std.fmt.allocPrint(system.allocator, "{s}.data", .{copier.name}) catch @panic("OOM");
-            const json_name = std.fmt.allocPrint(system.allocator, "{s}.json", .{copier.name}) catch @panic("OOM");
+            const data_name = std.fmt.allocPrint(allocator, "{s}.data", .{copier.name}) catch @panic("OOM");
             try data.serialize(system.copy_configs.items[i], try fs.path.join(allocator, &.{ prefix, data_name }));
+            const json_name = std.fmt.allocPrint(allocator, "{s}.json", .{copier.name}) catch @panic("OOM");
             try data.jsonify(system.copy_configs.items[i], try fs.path.join(allocator, &.{ prefix, json_name }), .{ .whitespace = .indent_4 });
         }
 
         for (system.clients.items, 0..) |client, i| {
-            const data_name = std.fmt.allocPrint(system.allocator, "net_client_{s}.data", .{client.name}) catch @panic("OOM");
-            const json_name = std.fmt.allocPrint(system.allocator, "net_client_{s}.json", .{client.name}) catch @panic("OOM");
+            const data_name = std.fmt.allocPrint(allocator, "net_client_{s}.data", .{client.name}) catch @panic("OOM");
             try data.serialize(system.client_configs.items[i], try fs.path.join(allocator, &.{ prefix, data_name }));
+            const json_name = std.fmt.allocPrint(allocator, "net_client_{s}.json", .{client.name}) catch @panic("OOM");
             try data.jsonify(system.client_configs.items[i], try fs.path.join(allocator, &.{ prefix, json_name }), .{ .whitespace = .indent_4 });
         }
     }
