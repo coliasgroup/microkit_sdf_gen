@@ -114,13 +114,12 @@ class DeviceTree:
     class Node:
         # TODO: does having a node increase the ref count for the
         # device tree
-        def __init__(self, device_tree, node: str):
+        def __init__(self, device_tree: DeviceTree, node: str):
             c_node = c_char_p(node.encode("utf-8"))
             self._obj = libsdfgen.sdfgen_dtb_node(device_tree._obj, c_node)
-            assert self._obj is not None
 
             if self._obj is None:
-                return None
+                raise Exception(f"could not find DTB node '{node}'")
 
 
     def node(self, name: str):

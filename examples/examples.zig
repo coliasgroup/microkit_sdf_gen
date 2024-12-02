@@ -585,7 +585,7 @@ fn echo_server(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !
     };
     bench_config.num_children = bench_children.len;
     for (bench_children, 0..) |child, i| {
-        bench_config.children[i].child_id = try bench.addChild(child);
+        bench_config.children[i].child_id = try bench.addChild(child, .{});
         @memcpy(bench_config.children[i].name[0..child.name.len], child.name);
     }
 
