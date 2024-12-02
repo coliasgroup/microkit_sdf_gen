@@ -1283,8 +1283,8 @@ pub const NetworkSystem = struct {
 
         const channel = Channel.create(server, client, .{});
         system.sdf.addChannel(channel);
-        server_conn.id = @intCast(channel.pd_a_id);
-        client_conn.id = @intCast(channel.pd_b_id);
+        server_conn.id = channel.pd_a_id;
+        client_conn.id = channel.pd_b_id;
     }
 
     fn rxConnectDriver(system: *NetworkSystem) Mr {
@@ -1568,7 +1568,7 @@ pub fn createDriver(sdf: *SystemDescription, pd: *Pd, device: *dtb.Node, class: 
         const irq_channel = try pd.addInterrupt(irq);
 
         device_res.irqs[device_res.num_irqs] = .{
-            .id = @intCast(irq_channel),
+            .id = irq_channel,
         };
         device_res.num_irqs += 1;
     }
