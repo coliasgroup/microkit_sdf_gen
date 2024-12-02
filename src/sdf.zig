@@ -345,6 +345,7 @@ pub const SystemDescription = struct {
     };
 
     pub const ProtectionDomain = struct {
+        allocator: Allocator,
         name: []const u8,
         /// Program ELF
         program_image: ?[]const u8,
@@ -367,14 +368,14 @@ pub const SystemDescription = struct {
         /// Whether or not ARM SMC is available
         arm_smc: bool,
         /// If this PD is a child of another PD, this ID identifies it to its parent PD
-        child_id: ?usize,
+        child_id: ?u8,
 
         setvars: ArrayList(SetVar),
 
         // Matches Microkit implementation
-        const MAX_IDS = 62;
-        const MAX_IRQS = MAX_IDS;
-        const MAX_CHILD_PDS = MAX_IDS;
+        const MAX_IDS: u8 = 62;
+        const MAX_IRQS: u8 = MAX_IDS;
+        const MAX_CHILD_PDS: u8 = MAX_IDS;
 
         const Options = struct {
             passive: bool = false,
@@ -389,9 +390,12 @@ pub const SystemDescription = struct {
             const budget = if (options.budget) |budget| budget else 100;
             const period = if (options.period) |period| period else budget;
 
+            const program_image_dupe = if (program_image) |p| allocator.dupe(u8, p) catch @panic("Could not dupe PD program_image") else null;
+
             return ProtectionDomain{
-                .name = name,
-                .program_image = program_image,
+                .allocator = allocator,
+                .name = allocator.dupe(u8, name) catch @panic("Could not dupe PD name"),
+                .program_image = program_image_dupe,
                 .maps = ArrayList(Map).init(allocator),
                 .child_pds = ArrayList(*ProtectionDomain).initCapacity(allocator, MAX_CHILD_PDS) catch @panic("Could not allocate child_pds"),
                 .irqs = ArrayList(Interrupt).initCapacity(allocator, MAX_IRQS) catch @panic("Could not allocate irqs"),
@@ -409,11 +413,15 @@ pub const SystemDescription = struct {
         }
 
         pub fn destroy(pd: *ProtectionDomain) void {
+            pd.allocator.free(pd.name);
+            if (pd.program_image) |program_image| {
+                pd.allocator.free(program_image);
+            }
             pd.maps.deinit();
-            pd.child_pds.deinit();
             for (pd.child_pds.items) |child_pd| {
                 child_pd.destroy();
             }
+            pd.child_pds.deinit();
             if (pd.vm) |vm| {
                 vm.destroy();
             }
@@ -426,7 +434,7 @@ pub const SystemDescription = struct {
         /// do not matter.
         /// This function is used to allocate an ID for use by one of those
         /// resources ensuring there are no clashes or duplicates.
-        pub fn allocateId(pd: *ProtectionDomain, id: ?usize) !usize {
+        pub fn allocateId(pd: *ProtectionDomain, id: ?u8) !u8 {
             if (id) |chosen_id| {
                 if (pd.ids.isSet(chosen_id)) {
                     log.err("attempting to allocate id '{}' in PD '{s}'", .{ chosen_id, pd.name });
@@ -439,7 +447,7 @@ pub const SystemDescription = struct {
                 for (0..MAX_IDS) |i| {
                     if (!pd.ids.isSet(i)) {
                         pd.ids.setValue(i, true);
-                        return i;
+                        return @intCast(i);
                     }
                 }
 
@@ -475,13 +483,19 @@ pub const SystemDescription = struct {
             pd.setvars.append(setvar) catch @panic("Could not add SetVar to ProtectionDomain");
         }
 
-        pub fn addChild(pd: *ProtectionDomain, child: *ProtectionDomain) !usize {
-            try pd.child_pds.append(child);
-            child.child_id = try pd.allocateId(null);
+        const ChildOptions = struct {
+            id: ?u8 = null,
+        };
+
+        pub fn addChild(pd: *ProtectionDomain, child: *ProtectionDomain, options: ChildOptions) !u8 {
+            pd.child_pds.append(child) catch @panic("TODO");
+            child.child_id = try pd.allocateId(options.id);
+
             return child.child_id.?;
         }
 
         // TODO: get rid of this extra arg?
+        // tODO: should be u64 not usize
         pub fn getMapVaddr(pd: *ProtectionDomain, mr: *const MemoryRegion) usize {
             // TODO: should make sure we don't have a way of giving an invalid vaddr back (e.g on 32-bit systems this is more of a concern)
 
@@ -566,8 +580,8 @@ pub const SystemDescription = struct {
     pub const Channel = struct {
         pd_a: *ProtectionDomain,
         pd_b: *ProtectionDomain,
-        pd_a_id: usize,
-        pd_b_id: usize,
+        pd_a_id: u8,
+        pd_b_id: u8,
         pd_a_notify: bool,
         pd_b_notify: bool,
         pp: ?End,
@@ -578,8 +592,8 @@ pub const SystemDescription = struct {
             pd_a_notify: bool = true,
             pd_b_notify: bool = true,
             pp: ?End = null,
-            pd_a_id: ?usize = null,
-            pd_b_id: ?usize = null,
+            pd_a_id: ?u8 = null,
+            pd_b_id: ?u8 = null,
         };
 
         pub fn create(pd_a: *ProtectionDomain, pd_b: *ProtectionDomain, options: Options) Channel {
@@ -613,7 +627,7 @@ pub const SystemDescription = struct {
     };
 
     pub const Interrupt = struct {
-        id: ?usize = null,
+        id: ?u8 = null,
         /// IRQ number that will be registered with seL4. That means that this
         /// number needs to map onto what seL4 observes (e.g the numbers in the
         /// device tree do not necessarily map onto what seL4 sees on ARM).
@@ -624,7 +638,7 @@ pub const SystemDescription = struct {
 
         pub const Trigger = enum { edge, level };
 
-        pub fn create(irq: usize, trigger: Trigger, id: ?usize) Interrupt {
+        pub fn create(irq: usize, trigger: Trigger, id: ?u8) Interrupt {
             return Interrupt{ .irq = irq, .trigger = trigger, .id = id };
         }
 
