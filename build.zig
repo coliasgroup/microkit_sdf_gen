@@ -87,6 +87,7 @@ pub fn build(b: *std.Build) !void {
     };
     csdfgen.linkLibC();
     csdfgen.installHeader(b.path("src/c/sdfgen.h"), "sdfgen.h");
+    csdfgen.addIncludePath(b.path("src/c"));
     csdfgen.root_module.addImport("sdf", modsdf);
     b.installArtifact(csdfgen);
 

@@ -2,6 +2,7 @@ from __future__ import annotations
 import ctypes
 from ctypes import c_void_p, c_char_p, c_uint8, c_uint32, c_bool, POINTER, byref
 from typing import Optional, Tuple
+from enum import IntEnum
 
 libsdfgen = ctypes.CDLL("/Users/ivanv/ts/microkit_sdf_gen/zig-out/lib/csdfgen")
 
@@ -102,9 +103,9 @@ libsdfgen.sdfgen_sddf_net_connect.argtypes = [c_void_p]
 
 class DeviceTree:
     _obj: c_void_p
-    _bytes: bytearray
+    _bytes: bytes
 
-    def __init__(self, data: bytearray):
+    def __init__(self, data: bytes):
         # Data is stored explicitly so it is not freed in GC.
         # The DTB parser assumes the memory does not go away.
         self._bytes = data
@@ -131,12 +132,24 @@ class DeviceTree:
 class ProtectionDomain:
     _obj: c_void_p
 
-    def __init__(self, name: str, program_image: str, priority=None):
+    def __init__(
+        self,
+        name: str,
+        program_image: str,
+        priority: Optional[int] = None,
+        budget: Optional[int] = None,
+        period: Optional[int] = None,
+        stack_size: Optional[int] = None
+    ) -> None:
         c_name = c_char_p(name.encode("utf-8"))
         c_program_image = c_char_p(program_image.encode("utf-8"))
         self._obj = libsdfgen.sdfgen_pd_create(c_name, c_program_image)
         if priority is not None:
             libsdfgen.sdfgen_pd_set_priority(self._obj, priority)
+        if budget is not None:
+            libsdfgen.sdfgen_pd_set_budget(self._obj, budget)
+        if period is not None:
+            libsdfgen.sdfgen_pd_set_budget(self._obj, period)
 
     def add_child_pd(self, child_pd: ProtectionDomain, child_id=None) -> int:
         c_child_id = byref(c_uint8(child_id)) if child_id else None
@@ -173,8 +186,18 @@ class Channel:
 class SystemDescription:
     _obj: c_void_p
 
-    def __init__(self, arch: int, paddr_top: int) -> None:
-        self._obj = libsdfgen.sdfgen_create(arch, paddr_top)
+    # Important that this aligns with sdfgen_arch_t in the C bindings.
+    class Arch(IntEnum):
+        AARCH32 = 0,
+        AARCH64 = 1,
+        RISCV32 = 2,
+        RISCV64 = 3,
+        X86 = 4,
+        X86_64 = 5,
+
+
+    def __init__(self, arch: Arch, paddr_top: int) -> None:
+        self._obj = libsdfgen.sdfgen_create(arch.value, paddr_top)
 
     def __del__(self):
         libsdfgen.sdfgen_destroy(self._obj)

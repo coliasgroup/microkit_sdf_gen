@@ -37,6 +37,7 @@ setup(
     package_dir={
         "sdfgen": "./python"
     },
+    package_data={"sdfgen": ["py.typed"]},
     # ext_modules=[sdfgen],
     # cmdclass={"build_ext": ZigBuilder},
     long_description=(Path(__file__).parent / "README.md").read_text(encoding="utf-8"),

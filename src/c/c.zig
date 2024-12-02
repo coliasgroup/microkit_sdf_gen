@@ -19,11 +19,19 @@ const Arch = SystemDescription.Arch;
 
 // TODO: do proper error logging
 // TODO: handle passing options to sDDF systems
-// TODO: handle deallocation. For `*_connect` we should probably deallocate the system
 
-// TODO: handle deallocation
-// TODO: handle architecture
-export fn sdfgen_create(arch: Arch, paddr_top: u64) *anyopaque {
+export fn sdfgen_create(c_arch: bindings.sdfgen_arch_t, paddr_top: u64) *anyopaque {
+    const arch: Arch = @enumFromInt(c_arch);
+    // Double check that there is a one-to-one mapping between the architecture for
+    // the C enum and the Zig enum.
+    switch (arch) {
+        .aarch32 => std.debug.assert(c_arch == 0),
+        .aarch64 => std.debug.assert(c_arch == 1),
+        .riscv32 => std.debug.assert(c_arch == 2),
+        .riscv64 => std.debug.assert(c_arch == 3),
+        .x86 => std.debug.assert(c_arch == 4),
+        .x86_64 => std.debug.assert(c_arch == 5),
+    }
     const sdf = allocator.create(SystemDescription) catch @panic("OOM");
     sdf.* = SystemDescription.create(allocator, arch, paddr_top);
 
@@ -40,7 +48,6 @@ export fn sdfgen_add_pd(c_sdf: *align(8) anyopaque, c_pd: *align(8) anyopaque) v
     sdf.addProtectionDomain(@ptrCast(c_pd));
 }
 
-// TODO: handle deallocation
 export fn sdfgen_to_xml(c_sdf: *align(8) anyopaque) [*c]u8 {
     const sdf: *SystemDescription = @ptrCast(c_sdf);
     const xml = sdf.toXml() catch @panic("Cannot convert to XML");
@@ -122,6 +129,21 @@ export fn sdfgen_pd_add_child(c_pd: *align(8) anyopaque, c_child_pd: *align(8) a
 export fn sdfgen_pd_set_priority(c_pd: *align(8) anyopaque, priority: u8) void {
     const pd: *Pd = @ptrCast(c_pd);
     pd.priority = priority;
+}
+
+export fn sdfgen_pd_set_budget(c_pd: *align(8) anyopaque, budget: u8) void {
+    const pd: *Pd = @ptrCast(c_pd);
+    pd.budget = budget;
+}
+
+export fn sdfgen_pd_set_period(c_pd: *align(8) anyopaque, period: u8) void {
+    const pd: *Pd = @ptrCast(c_pd);
+    pd.period = period;
+}
+
+export fn sdfgen_pd_set_stack_size(c_pd: *align(8) anyopaque, stack_size: u32) void {
+    const pd: *Pd = @ptrCast(c_pd);
+    pd.stack_size = stack_size;
 }
 
 export fn sdfgen_sddf_init(path: [*c]u8) bool {

@@ -27,13 +27,14 @@ pub const SystemDescription = struct {
     paddr_top: u64,
 
     /// Supported architectures by seL4
-    pub const Arch = enum(c_int) {
-        aarch32,
-        aarch64,
-        riscv32,
-        riscv64,
-        x86,
-        x86_64,
+    /// Expilictly assign values for better interop with C bindings.
+    pub const Arch = enum(u8) {
+        aarch32 = 0,
+        aarch64 = 1,
+        riscv32 = 2,
+        riscv64 = 3,
+        x86 = 4,
+        x86_64 = 5,
     };
 
     pub const SetVar = struct {
@@ -355,7 +356,7 @@ pub const SystemDescription = struct {
         budget: usize,
         period: usize,
         passive: bool,
-        stack_size: usize,
+        stack_size: u32,
         /// Memory mappings
         maps: ArrayList(Map),
         /// The length of this array is bound by the maximum number of child PDs a PD can have.
@@ -382,7 +383,7 @@ pub const SystemDescription = struct {
             priority: u8 = 100,
             budget: ?usize = null,
             period: ?usize = null,
-            stack_size: usize = 0x1000,
+            stack_size: u32 = 0x1000,
             arm_smc: bool = false,
         };
 
