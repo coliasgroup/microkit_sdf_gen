@@ -1,6 +1,6 @@
 from __future__ import annotations
 import ctypes
-from ctypes import c_void_p, c_char_p, c_uint8, c_uint32, c_bool, POINTER, pointer, byref
+from ctypes import c_void_p, c_char_p, c_uint8, c_uint32, c_bool, POINTER, byref
 from typing import Optional, Tuple
 
 libsdfgen = ctypes.CDLL("/Users/ivanv/ts/microkit_sdf_gen/zig-out/lib/csdfgen")
@@ -89,7 +89,12 @@ libsdfgen.sdfgen_sddf_net_destroy.restype = None
 libsdfgen.sdfgen_sddf_net_destroy.argtypes = [c_void_p]
 
 libsdfgen.sdfgen_sddf_net_add_client_with_copier.restype = None
-libsdfgen.sdfgen_sddf_net_add_client_with_copier.argtypes = [c_void_p, c_void_p, c_void_p, POINTER(c_uint8)]
+libsdfgen.sdfgen_sddf_net_add_client_with_copier.argtypes = [
+    c_void_p,
+    c_void_p,
+    c_void_p,
+    POINTER(c_uint8)
+]
 
 libsdfgen.sdfgen_sddf_net_connect.restype = c_bool
 libsdfgen.sdfgen_sddf_net_connect.argtypes = [c_void_p]
@@ -106,10 +111,8 @@ class DeviceTree:
         self._obj = libsdfgen.sdfgen_dtb_parse_from_bytes(c_char_p(data), len(data))
         assert self._obj is not None
 
-
     def __del__(self):
         libsdfgen.sdfgen_dtb_destroy(self._obj)
-
 
     class Node:
         # TODO: does having a node increase the ref count for the
@@ -121,7 +124,6 @@ class DeviceTree:
             if self._obj is None:
                 raise Exception(f"could not find DTB node '{node}'")
 
-
     def node(self, name: str):
         return DeviceTree.Node(self, name)
 
@@ -130,10 +132,11 @@ class ProtectionDomain:
     _obj: c_void_p
 
     def __init__(self, name: str, program_image: str, priority=None):
-        self._obj = libsdfgen.sdfgen_pd_create(c_char_p(name.encode("utf-8")), c_char_p(program_image.encode("utf-8")))
+        c_name = c_char_p(name.encode("utf-8"))
+        c_program_image = c_char_p(program_image.encode("utf-8"))
+        self._obj = libsdfgen.sdfgen_pd_create(c_name, c_program_image)
         if priority is not None:
             libsdfgen.sdfgen_pd_set_priority(self._obj, priority)
-
 
     def add_child_pd(self, child_pd: ProtectionDomain, child_id=None) -> int:
         c_child_id = byref(c_uint8(child_id)) if child_id else None
@@ -142,6 +145,7 @@ class ProtectionDomain:
         if returned_id is None:
             raise Exception("Could not allocate child PD ID")
 
+        return returned_id
 
     def __del__(self):
         libsdfgen.sdfgen_pd_destroy(self._obj)
@@ -151,9 +155,16 @@ class Channel:
     obj: c_void_p
 
     # TODO: handle options
-    def __init__(self, a: ProtectionDomain, b: ProtectionDomain, pp_a=False, pp_b=False, notify_a=True, notify_b=True):
+    def __init__(
+        self,
+        a: ProtectionDomain,
+        b: ProtectionDomain,
+        pp_a=False,
+        pp_b=False,
+        notify_a=True,
+        notify_b=True
+    ) -> None:
         self._obj = libsdfgen.sdfgen_channel_create(a._obj, b._obj)
-
 
     def __del__(self):
         libsdfgen.sdfgen_channel_destroy(self._obj)
@@ -162,17 +173,14 @@ class Channel:
 class SystemDescription:
     _obj: c_void_p
 
-    def __init__(self, arch: int, paddr_top: int):
+    def __init__(self, arch: int, paddr_top: int) -> None:
         self._obj = libsdfgen.sdfgen_create(arch, paddr_top)
-
 
     def __del__(self):
         libsdfgen.sdfgen_destroy(self._obj)
 
-
     def add_pd(self, pd: ProtectionDomain):
         libsdfgen.sdfgen_add_pd(self._obj, pd._obj)
-
 
     def xml(self):
         return libsdfgen.sdfgen_to_xml(self._obj).decode("utf-8")
@@ -182,16 +190,21 @@ class Sddf:
     def __init__(self, path: str):
         libsdfgen.sdfgen_sddf_init(c_char_p(path.encode("utf-8")))
 
-
     def __del__(self):
         # TODO
         pass
 
-
     class Serial:
         _obj: c_void_p
 
-        def __init__(self, sdf: SystemDescription, device: Optional[DeviceTree.Node], driver: ProtectionDomain, virt_tx: ProtectionDomain, virt_rx: Optional[ProtectionDomain]):
+        def __init__(
+            self,
+            sdf: SystemDescription,
+            device: Optional[DeviceTree.Node],
+            driver: ProtectionDomain,
+            virt_tx: ProtectionDomain,
+            virt_rx: Optional[ProtectionDomain]
+        ) -> None:
             if device is None:
                 device_obj = None
             else:
@@ -202,25 +215,29 @@ class Sddf:
             else:
                 virt_rx_obj = virt_rx._obj
 
-            self._obj = libsdfgen.sdfgen_sddf_serial(sdf._obj, device_obj, driver._obj, virt_tx._obj, virt_rx_obj)
-
+            self._obj = libsdfgen.sdfgen_sddf_serial(
+                sdf._obj, device_obj, driver._obj, virt_tx._obj, virt_rx_obj
+            )
 
         def add_client(self, client: ProtectionDomain):
             libsdfgen.sdfgen_sddf_serial_add_client(self._obj, client._obj)
 
-
         def connect(self) -> bool:
             return libsdfgen.sdfgen_sddf_serial_connect(self._obj)
-
 
         def __del__(self):
             libsdfgen.sdfgen_sddf_serial_destroy(self._obj)
 
-
     class I2c:
         _obj: c_void_p
 
-        def __init__(self, sdf: SystemDescription, device: Optional[DeviceTree.Node], driver: ProtectionDomain, virt: ProtectionDomain):
+        def __init__(
+            self,
+            sdf: SystemDescription,
+            device: Optional[DeviceTree.Node],
+            driver: ProtectionDomain,
+            virt: ProtectionDomain
+        ) -> None:
             if device is None:
                 device_obj = None
             else:
@@ -228,23 +245,25 @@ class Sddf:
 
             self._obj = libsdfgen.sdfgen_sddf_i2c(sdf._obj, device_obj, driver._obj, virt._obj)
 
-
         def add_client(self, client: ProtectionDomain):
             libsdfgen.sdfgen_sddf_i2c_add_client(self._obj, client._obj)
-
 
         def connect(self) -> bool:
             return libsdfgen.sdfgen_sddf_i2c_connect(self._obj)
 
-
         def __del__(self):
             libsdfgen.sdfgen_sddf_i2c_destroy(self._obj)
-
 
     class Block:
         _obj: c_void_p
 
-        def __init__(self, sdf: SystemDescription, device: Optional[DeviceTree.Node], driver: ProtectionDomain, virt: ProtectionDomain):
+        def __init__(
+            self,
+            sdf: SystemDescription,
+            device: Optional[DeviceTree.Node],
+            driver: ProtectionDomain,
+            virt: ProtectionDomain
+        ) -> None:
             if device is None:
                 device_obj = None
             else:
@@ -252,51 +271,64 @@ class Sddf:
 
             self._obj = libsdfgen.sdfgen_sddf_block(sdf._obj, device_obj, driver._obj, virt._obj)
 
-
         def add_client(self, client: ProtectionDomain):
             libsdfgen.sdfgen_sddf_block_add_client(self._obj, client._obj)
-
 
         def connect(self) -> bool:
             return libsdfgen.sdfgen_sddf_block_connect(self._obj)
 
-
         def __del__(self):
             libsdfgen.sdfgen_sddf_block_destroy(self._obj)
-
 
     class Network:
         _obj: c_void_p
 
-        def __init__(self, sdf: SystemDescription, device: Optional[DeviceTree.Node], driver: ProtectionDomain, virt_tx: ProtectionDomain, virt_rx: ProtectionDomain):
+        def __init__(
+            self,
+            sdf: SystemDescription,
+            device: Optional[DeviceTree.Node],
+            driver: ProtectionDomain,
+            virt_tx: ProtectionDomain,
+            virt_rx: ProtectionDomain
+        ) -> None:
             if device is None:
                 device_obj = None
             else:
                 device_obj = device._obj
 
-            self._obj = libsdfgen.sdfgen_sddf_net(sdf._obj, device_obj, driver._obj, virt_tx._obj, virt_rx._obj)
+            self._obj = libsdfgen.sdfgen_sddf_net(
+                sdf._obj, device_obj, driver._obj, virt_tx._obj, virt_rx._obj
+            )
 
-
-        def add_client_with_copier(self, client: ProtectionDomain, copier: ProtectionDomain, mac_addr: Tuple[int, int, int, int, int, int]):
+        def add_client_with_copier(
+            self,
+            client: ProtectionDomain,
+            copier: ProtectionDomain,
+            mac_addr: Tuple[int, int, int, int, int, int]
+        ) -> None:
             if len(mac_addr) != 6:
-                raise Exception("invalid mac address length");
+                raise Exception("invalid mac address length")
 
             c_mac_addr = (ctypes.c_uint8 * len(mac_addr))(*mac_addr)
-            libsdfgen.sdfgen_sddf_net_add_client_with_copier(self._obj, client._obj, copier._obj, c_mac_addr)
-
+            libsdfgen.sdfgen_sddf_net_add_client_with_copier(
+                self._obj, client._obj, copier._obj, c_mac_addr
+            )
 
         def connect(self) -> bool:
             return libsdfgen.sdfgen_sddf_net_connect(self._obj)
 
-
         def __del__(self):
             libsdfgen.sdfgen_sddf_net_destroy(self._obj)
-
 
     class Timer:
         _obj: c_void_p
 
-        def __init__(self, sdf: SystemDescription, device: Optional[DeviceTree.Node], driver: ProtectionDomain):
+        def __init__(
+            self,
+            sdf: SystemDescription,
+            device: Optional[DeviceTree.Node],
+            driver: ProtectionDomain
+        ) -> None:
             if device is None:
                 device_obj = None
             else:
@@ -304,15 +336,11 @@ class Sddf:
 
             self._obj: c_void_p = libsdfgen.sdfgen_sddf_timer(sdf._obj, device_obj, driver._obj)
 
-
         def add_client(self, client: ProtectionDomain):
             libsdfgen.sdfgen_sddf_timer_add_client(self._obj, client._obj)
-
 
         def connect(self) -> bool:
             return libsdfgen.sdfgen_sddf_timer_connect(self._obj)
 
-
         def __del__(self):
             libsdfgen.sdfgen_sddf_timer_destroy(self._obj)
-
