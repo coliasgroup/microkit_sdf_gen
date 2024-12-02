@@ -68,12 +68,23 @@ pub fn build(b: *std.Build) !void {
 
     // TODO: come back this - I want a static library by default but shared when targeting
     // the python bindings
-    const csdfgen = b.addSharedLibrary(.{
-        .name = "csdfgen",
-        .root_source_file = b.path("src/c/c.zig"),
-        .target = target,
-        .optimize = optimize,
-    });
+    const csdfgen = blk: {
+        if (target.result.isMusl()) {
+            break :blk b.addStaticLibrary(.{
+                .name = "csdfgen",
+                .root_source_file = b.path("src/c/c.zig"),
+                .target = target,
+                .optimize = optimize,
+            });
+        } else {
+            break :blk b.addSharedLibrary(.{
+                .name = "csdfgen",
+                .root_source_file = b.path("src/c/c.zig"),
+                .target = target,
+                .optimize = optimize,
+            });
+        }
+    };
     csdfgen.linkLibC();
     csdfgen.installHeader(b.path("src/c/sdfgen.h"), "sdfgen.h");
     csdfgen.root_module.addImport("sdf", modsdf);
