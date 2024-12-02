@@ -5,6 +5,10 @@ const modsdf = @import("sdf");
 // kind of program,
 const allocator = std.heap.c_allocator;
 
+const bindings = @cImport({
+    @cInclude("sdfgen.h");
+});
+
 const dtb = modsdf.dtb;
 const sddf = modsdf.sddf;
 const lionsos = modsdf.lionsos;
@@ -29,6 +33,11 @@ export fn sdfgen_create(arch: Arch, paddr_top: u64) *anyopaque {
 export fn sdfgen_destroy(c_sdf: *align(8) anyopaque) void {
     const sdf: *SystemDescription = @ptrCast(c_sdf);
     sdf.destroy();
+}
+
+export fn sdfgen_add_pd(c_sdf: *align(8) anyopaque, c_pd: *align(8) anyopaque) void {
+    const sdf: *SystemDescription = @ptrCast(c_sdf);
+    sdf.addProtectionDomain(@ptrCast(c_pd));
 }
 
 // TODO: handle deallocation
@@ -89,18 +98,25 @@ export fn sdfgen_dtb_destroy(c_blob: *align(8) anyopaque) void {
     blob.deinit(allocator);
 }
 
-// TODO: handle deallocation
 // TODO: handle options
-export fn sdfgen_pd_create(name: [*c]u8, elf: [*c]u8) *anyopaque {
+export fn sdfgen_pd_create(name: [*c]u8, program_image: [*c]u8) *anyopaque {
     const pd = allocator.create(Pd) catch @panic("OOM");
-    pd.* = Pd.create(allocator, std.mem.span(name), std.mem.span(elf), .{});
+    pd.* = Pd.create(allocator, std.mem.span(name), std.mem.span(program_image), .{});
 
     return pd;
 }
 
-export fn sdfgen_pd_add(c_sdf: *align(8) anyopaque, c_pd: *align(8) anyopaque) void {
-    const sdf: *SystemDescription = @ptrCast(c_sdf);
-    sdf.addProtectionDomain(@ptrCast(c_pd));
+export fn sdfgen_pd_destroy(c_pd: *align(8) anyopaque) void {
+    const pd: *Pd = @ptrCast(c_pd);
+    allocator.destroy(pd);
+}
+
+export fn sdfgen_pd_add_child(c_pd: *align(8) anyopaque, c_child_pd: *align(8) anyopaque, c_child_id: ?*u8) u8 {
+    const pd: *Pd = @ptrCast(c_pd);
+    const child_pd: *Pd = @ptrCast(c_child_pd);
+    const child_id = if (c_child_id) |c| c.* else null;
+
+    return pd.addChild(child_pd, .{ .id = child_id }) catch @panic("TODO");
 }
 
 export fn sdfgen_pd_set_priority(c_pd: *align(8) anyopaque, priority: u8) void {
@@ -122,6 +138,20 @@ export fn sdfgen_channel_create(pd_a: *align(8) anyopaque, pd_b: *align(8) anyop
     return ch;
 }
 
+// export fn sdfgen_channel_set_options(c_ch: *align(8) anyopaque, pp_a: bool, pp_b: bool, notify_a: bool, notify_b: bool) void {
+//     const ch: *Channel = @ptrCast(c_ch);
+//     ch.pp_a = pp_a;
+//     ch.pp_b = pp_b;
+//     ch.notify_a = notify_a;
+//     ch.notify_b = notify_b;
+// }
+
+export fn sdfgen_channel_destroy(c_ch: *align(8) anyopaque) void {
+    const ch: *Channel = @ptrCast(c_ch);
+    allocator.destroy(ch);
+}
+
+// TODO: is this a problem since we're copying instead of passing a pointer?
 export fn sdfgen_channel_add(c_sdf: *align(8) anyopaque, c_ch: *align(8) anyopaque) void {
     const sdf: *SystemDescription = @ptrCast(c_sdf);
     const ch: *Channel = @ptrCast(c_ch);
@@ -134,6 +164,11 @@ export fn sdfgen_sddf_timer(c_sdf: *align(8) anyopaque, c_device: ?*align(8) any
     timer.* = sddf.TimerSystem.init(allocator, sdf, @ptrCast(c_device), @ptrCast(driver));
 
     return timer;
+}
+
+export fn sdfgen_sddf_timer_destroy(system: *align(8) anyopaque) void {
+    const timer: *sddf.TimerSystem = @ptrCast(system);
+    allocator.destroy(timer);
 }
 
 export fn sdfgen_sddf_timer_add_client(system: *align(8) anyopaque, client: *align(8) anyopaque) void {
@@ -156,6 +191,11 @@ export fn sdfgen_sddf_serial(c_sdf: *align(8) anyopaque, c_device: ?*align(8) an
     return serial;
 }
 
+export fn sdfgen_sddf_serial_destroy(system: *align(8) anyopaque) void {
+    const serial: *sddf.SerialSystem = @ptrCast(system);
+    serial.deinit();
+}
+
 export fn sdfgen_sddf_serial_add_client(system: *align(8) anyopaque, client: *align(8) anyopaque) void {
     const serial: *sddf.SerialSystem = @ptrCast(system);
     serial.addClient(@ptrCast(client));
@@ -174,6 +214,11 @@ export fn sdfgen_sddf_i2c(c_sdf: *align(8) anyopaque, c_device: ?*align(8) anyop
     i2c.* = sddf.I2cSystem.init(allocator, sdf, @ptrCast(c_device), @ptrCast(driver), @ptrCast(virt), .{});
 
     return i2c;
+}
+
+export fn sdfgen_sddf_i2c_destroy(system: *align(8) anyopaque) void {
+    const i2c: *sddf.I2cSystem = @ptrCast(system);
+    allocator.destroy(i2c);
 }
 
 export fn sdfgen_sddf_i2c_add_client(system: *align(8) anyopaque, client: *align(8) anyopaque) void {
@@ -196,6 +241,11 @@ export fn sdfgen_sddf_block(c_sdf: *align(8) anyopaque, c_device: *align(8) anyo
     return block;
 }
 
+export fn sdfgen_sddf_block_destroy(system: *align(8) anyopaque) void {
+    const block: *sddf.BlockSystem = @ptrCast(system);
+    allocator.destroy(block);
+}
+
 export fn sdfgen_sddf_block_add_client(system: *align(8) anyopaque, client: *align(8) anyopaque, partition: u32) void {
     const block: *sddf.BlockSystem = @ptrCast(system);
     block.addClient(@ptrCast(client), partition);
@@ -204,15 +254,14 @@ export fn sdfgen_sddf_block_add_client(system: *align(8) anyopaque, client: *ali
 export fn sdfgen_sddf_block_connect(system: *align(8) anyopaque) bool {
     const block: *sddf.BlockSystem = @ptrCast(system);
     block.connect() catch return false;
-    defer allocator.destroy(block);
 
     return true;
 }
 
-export fn sdfgen_sddf_net(c_sdf: *align(8) anyopaque, c_device: *align(8) anyopaque, driver: *align(8) anyopaque, virt_rx: *align(8) anyopaque, virt_tx: *align(8) anyopaque) *anyopaque {
+export fn sdfgen_sddf_net(c_sdf: *align(8) anyopaque, c_device: *align(8) anyopaque, driver: *align(8) anyopaque, virt_tx: *align(8) anyopaque, virt_rx: *align(8) anyopaque) *anyopaque {
     const sdf: *SystemDescription = @ptrCast(c_sdf);
     const net = allocator.create(sddf.NetworkSystem) catch @panic("OOM");
-    net.* = sddf.NetworkSystem.init(allocator, sdf, @ptrCast(c_device), @ptrCast(driver), @ptrCast(virt_rx), @ptrCast(virt_tx), .{});
+    net.* = sddf.NetworkSystem.init(allocator, sdf, @ptrCast(c_device), @ptrCast(driver), @ptrCast(virt_tx), @ptrCast(virt_rx), .{});
 
     return net;
 }
@@ -228,6 +277,11 @@ export fn sdfgen_sddf_net_connect(system: *align(8) anyopaque) bool {
     net.connect() catch return false;
 
     return true;
+}
+
+export fn sdfgen_sddf_net_destroy(system: *align(8) anyopaque) void {
+    const net: *sddf.NetworkSystem = @ptrCast(system);
+    allocator.destroy(net);
 }
 
 export fn sdfgen_lionsos_fs(c_sdf: *align(8) anyopaque, c_fs: *align(8) anyopaque, c_client: *align(8) anyopaque) *anyopaque {
