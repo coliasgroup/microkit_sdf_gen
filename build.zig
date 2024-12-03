@@ -66,9 +66,9 @@ pub fn build(b: *std.Build) !void {
     const modsdf = b.addModule("sdf", .{ .root_source_file = b.path("src/mod.zig") });
     modsdf.addImport("dtb", dtbzig_dep.module("dtb"));
 
-    const c_dynamic = b.option(bool, "c-dynamic", "Build C bindings as dynamic library") orelse true;
+    const c_dynamic = b.option(bool, "c-dynamic", "Build C bindings as dynamic library") orelse false;
     const csdfgen = blk: {
-        if (c_dynamic) {
+        if (!c_dynamic) {
             break :blk b.addStaticLibrary(.{
                 .name = "csdfgen",
                 .root_source_file = b.path("src/c/c.zig"),
