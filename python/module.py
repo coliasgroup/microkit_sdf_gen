@@ -1,10 +1,11 @@
 from __future__ import annotations
 import ctypes
+import importlib.util
 from ctypes import c_void_p, c_char_p, c_uint8, c_uint32, c_bool, POINTER, byref
 from typing import Optional, Tuple
 from enum import IntEnum
 
-libsdfgen = ctypes.CDLL("/Users/ivanv/ts/microkit_sdf_gen/zig-out/lib/csdfgen")
+libsdfgen = ctypes.CDLL(importlib.util.find_spec("csdfgen").origin)
 
 libsdfgen.sdfgen_create.restype = c_void_p
 
@@ -25,6 +26,12 @@ libsdfgen.sdfgen_add_pd.argtypes = [c_void_p, c_void_p]
 
 libsdfgen.sdfgen_pd_set_priority.restype = None
 libsdfgen.sdfgen_pd_set_priority.argtypes = [c_void_p, c_uint8]
+libsdfgen.sdfgen_pd_set_budget.restype = None
+libsdfgen.sdfgen_pd_set_budget.argtypes = [c_void_p, c_uint8]
+libsdfgen.sdfgen_pd_set_period.restype = None
+libsdfgen.sdfgen_pd_set_period.argtypes = [c_void_p, c_uint8]
+libsdfgen.sdfgen_pd_set_stack_size.restype = None
+libsdfgen.sdfgen_pd_set_stack_size.argtypes = [c_void_p, c_uint32]
 
 libsdfgen.sdfgen_to_xml.restype = c_char_p
 libsdfgen.sdfgen_to_xml.argtypes = [c_void_p]
@@ -52,6 +59,8 @@ libsdfgen.sdfgen_sddf_timer_add_client.argtypes = [c_void_p, c_void_p]
 
 libsdfgen.sdfgen_sddf_timer_connect.restype = c_bool
 libsdfgen.sdfgen_sddf_timer_connect.argtypes = [c_void_p]
+libsdfgen.sdfgen_sddf_timer_serialise_config.restype = c_bool
+libsdfgen.sdfgen_sddf_timer_serialise_config.argtypes = [c_void_p, c_char_p]
 
 libsdfgen.sdfgen_sddf_i2c.restype = c_void_p
 libsdfgen.sdfgen_sddf_i2c.argtypes = [c_void_p, c_void_p, c_void_p, c_void_p]
@@ -149,7 +158,9 @@ class ProtectionDomain:
         if budget is not None:
             libsdfgen.sdfgen_pd_set_budget(self._obj, budget)
         if period is not None:
-            libsdfgen.sdfgen_pd_set_budget(self._obj, period)
+            libsdfgen.sdfgen_pd_set_period(self._obj, period)
+        if stack_size is not None:
+            libsdfgen.sdfgen_pd_set_stack_size(self._obj, stack_size)
 
     def add_child_pd(self, child_pd: ProtectionDomain, child_id=None) -> int:
         c_child_id = byref(c_uint8(child_id)) if child_id else None
@@ -332,7 +343,7 @@ class Sddf:
             if len(mac_addr) != 6:
                 raise Exception("invalid mac address length")
 
-            c_mac_addr = (ctypes.c_uint8 * len(mac_addr))(*mac_addr)
+            c_mac_addr = (c_uint8 * len(mac_addr))(*mac_addr)
             libsdfgen.sdfgen_sddf_net_add_client_with_copier(
                 self._obj, client._obj, copier._obj, c_mac_addr
             )
@@ -364,6 +375,10 @@ class Sddf:
 
         def connect(self) -> bool:
             return libsdfgen.sdfgen_sddf_timer_connect(self._obj)
+
+        def serialise_config(self, output: str) -> bool:
+            c_output = c_char_p(output.encode("utf-8"))
+            return libsdfgen.sdfgen_sddf_timer_serialise_config(self._obj, c_output)
 
         def __del__(self):
             libsdfgen.sdfgen_sddf_timer_destroy(self._obj)

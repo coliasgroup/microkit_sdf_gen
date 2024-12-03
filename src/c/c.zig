@@ -205,6 +205,13 @@ export fn sdfgen_sddf_timer_connect(system: *align(8) anyopaque) bool {
     return true;
 }
 
+export fn sdfgen_sddf_timer_serialise_config(system: *align(8) anyopaque, output: [*c]u8) bool {
+    const timer: *sddf.TimerSystem = @ptrCast(system);
+    timer.serialiseConfig(std.mem.span(output)) catch return false;
+
+    return true;
+}
+
 export fn sdfgen_sddf_serial(c_sdf: *align(8) anyopaque, c_device: ?*align(8) anyopaque, driver: *align(8) anyopaque, virt_tx: *align(8) anyopaque, virt_rx: ?*align(8) anyopaque) *anyopaque {
     const sdf: *SystemDescription = @ptrCast(c_sdf);
     const serial = allocator.create(sddf.SerialSystem) catch @panic("OOM");

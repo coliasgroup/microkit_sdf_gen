@@ -116,7 +116,8 @@ pub fn build(b: *std.Build) !void {
     pysdfgen_step.dependOn(&pysdfgen_install.step);
 
     const c_step = b.step("c", "Static library for C bindings");
-    c_step.dependOn(&b.addInstallFileWithDir(csdfgen.getEmittedBin(), .lib, "csdfgen").step);
+    const csdfgen_emit = b.option([]const u8, "csdfgen-emit", "C sdfgen emit") orelse "csdfgen";
+    c_step.dependOn(&b.addInstallFileWithDir(csdfgen.getEmittedBin(), .lib, csdfgen_emit).step);
     c_step.dependOn(&csdfgen.step);
 
     const c_example = b.addExecutable(.{

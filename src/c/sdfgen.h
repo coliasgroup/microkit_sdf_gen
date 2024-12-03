@@ -51,6 +51,7 @@ void *sdfgen_sddf_timer(void *sdf, void *device, void *driver);
 void sdfgen_sddf_timer_destroy(void *system);
 void sdfgen_sddf_timer_add_client(void *system, void *client);
 bool sdfgen_sddf_timer_connect(void *system);
+bool sdfgen_sddf_timer_serialise_config(void *system, char *output);
 
 void *sdfgen_sddf_serial(void *sdf, void *device, void *driver, void *virt_tx, void *virt_rx);
 void sdfgen_sddf_serial_add_client(void *system, void *client);
