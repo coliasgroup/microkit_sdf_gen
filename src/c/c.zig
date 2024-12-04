@@ -295,17 +295,18 @@ export fn sdfgen_sddf_net(c_sdf: *align(8) anyopaque, c_device: *align(8) anyopa
     return net;
 }
 
-export fn sdfgen_sddf_net_add_client_with_copier(system: *align(8) anyopaque, client: *align(8) anyopaque, copier: *align(8) anyopaque, mac_addr: ?*[6]u8) bindings.sdfgen_sddf_error_t {
+export fn sdfgen_sddf_net_add_client_with_copier(system: *align(8) anyopaque, client: *align(8) anyopaque, copier: *align(8) anyopaque, mac_addr: [*c]u8) bindings.sdfgen_sddf_error_t {
     const net: *sddf.NetworkSystem = @ptrCast(system);
     var options: sddf.NetworkSystem.ClientOptions = .{};
     if (mac_addr) |a| {
-        options.mac_addr = a.*;
+        options.mac_addr = std.mem.span(a);
     }
     net.addClientWithCopier(@ptrCast(client), @ptrCast(copier), options) catch |e| {
         switch (e) {
             error.DuplicateMacAddr => return 1,
             error.DuplicateClient => return 2,
             error.DuplicateCopier => return 3,
+            error.InvalidMacAddr => return 4,
         }
     };
 

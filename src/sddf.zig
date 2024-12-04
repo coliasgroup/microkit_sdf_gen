@@ -1069,7 +1069,7 @@ pub const NetworkSystem = struct {
     pub const ClientOptions = struct {
         rx_buffers: usize = 512,
         tx_buffers: usize = 512,
-        mac_addr: ?[6]u8 = null,
+        mac_addr: ?[]const u8 = null,
     };
 
     pub const ClientInfo = struct {
@@ -1121,6 +1121,15 @@ pub const NetworkSystem = struct {
         };
     }
 
+    fn parseMacAddr(mac_str: []const u8) ![6]u8 {
+        var mac_arr = std.mem.zeroes([6]u8);
+        var it = std.mem.splitScalar(u8, mac_str, ':');
+        for (0..6) |i| {
+            mac_arr[i] = try std.fmt.parseInt(u8, it.next().?, 16);
+        }
+        return mac_arr;
+    }
+
     pub fn addClientWithCopier(system: *NetworkSystem, client: *Pd, copier: *Pd, options: ClientOptions) !void {
         const client_idx = system.clients.items.len;
 
@@ -1128,7 +1137,7 @@ pub const NetworkSystem = struct {
         if (options.mac_addr) |a| {
             for (0..client_idx) |i| {
                 if (system.client_info.items[i].mac_addr) |b| {
-                    if (std.mem.eql(u8, &a, &b)) {
+                    if (std.mem.eql(u8, a, &b)) {
                         return error.DuplicateMacAddr;
                     }
                 }
@@ -1152,11 +1161,12 @@ pub const NetworkSystem = struct {
         system.client_configs.append(std.mem.zeroes(ConfigResources.Net.Client)) catch @panic("Could not add client with copier to NetworkSystem");
         system.copy_configs.append(std.mem.zeroes(ConfigResources.Net.Copy)) catch @panic("Could not add client with copier to NetworkSystem");
 
-        system.client_info.append(.{
-            .rx_buffers = options.rx_buffers,
-            .tx_buffers = options.tx_buffers,
-            .mac_addr = options.mac_addr,
-        }) catch @panic("Could not add client with copier to NetworkSystem");
+        system.client_info.append(std.mem.zeroes(ClientInfo)) catch @panic("Could not add client with copier to NetworkSystem");
+        if (options.mac_addr) |mac_addr| {
+            system.client_info.items[client_idx].mac_addr = parseMacAddr(mac_addr) catch return error.InvalidMacAddr;
+        }
+        system.client_info.items[client_idx].rx_buffers = options.rx_buffers;
+        system.client_info.items[client_idx].tx_buffers = options.tx_buffers;
     }
 
     fn queueMrSize(n_buffers: usize) usize {
