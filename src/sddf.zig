@@ -1069,12 +1069,13 @@ pub const NetworkSystem = struct {
     pub const ClientOptions = struct {
         rx_buffers: usize = 512,
         tx_buffers: usize = 512,
-        mac_addr: [6]u8,
+        mac_addr: ?[6]u8 = null,
     };
 
     pub const ClientInfo = struct {
         rx_buffers: usize = 512,
         tx_buffers: usize = 512,
+        mac_addr: ?[6]u8 = null,
     };
 
     allocator: Allocator,
@@ -1124,10 +1125,13 @@ pub const NetworkSystem = struct {
         const client_idx = system.clients.items.len;
 
         // Check that the MAC address isn't present already
-        var i: usize = 0;
-        while (i < client_idx) : (i += 1) {
-            if (std.mem.eql(u8, &options.mac_addr, &system.client_configs.items[i].mac_addr)) {
-                return error.DuplicateMacAddr;
+        if (options.mac_addr) |a| {
+            for (0..client_idx) |i| {
+                if (system.client_info.items[i].mac_addr) |b| {
+                    if (std.mem.eql(u8, &a, &b)) {
+                        return error.DuplicateMacAddr;
+                    }
+                }
             }
         }
         // Check that the client does not already exist
@@ -1148,14 +1152,10 @@ pub const NetworkSystem = struct {
         system.client_configs.append(std.mem.zeroes(ConfigResources.Net.Client)) catch @panic("Could not add client with copier to NetworkSystem");
         system.copy_configs.append(std.mem.zeroes(ConfigResources.Net.Copy)) catch @panic("Could not add client with copier to NetworkSystem");
 
-        // Copy the user-provided MAC address so we don't have to rely on them keeping the memory around
-        // until the system has been connected.
-        @memcpy(&system.client_configs.items[client_idx].mac_addr, &options.mac_addr);
-        @memcpy(&system.virt_rx_config.clients[client_idx].mac_addr, &options.mac_addr);
-
         system.client_info.append(.{
             .rx_buffers = options.rx_buffers,
             .tx_buffers = options.tx_buffers,
+            .mac_addr = options.mac_addr,
         }) catch @panic("Could not add client with copier to NetworkSystem");
     }
 
@@ -1281,11 +1281,36 @@ pub const NetworkSystem = struct {
         client_config.tx_data = ConfigResources.Region.createFromMap(data_mr_client_map);
     }
 
+    pub fn generateMacAddrs(system: *NetworkSystem) void {
+        const rand = std.crypto.random;
+        for (system.clients.items, 0..) |_, i| {
+            if (system.client_info.items[i].mac_addr == null) {
+                var mac_addr: [6]u8 = undefined;
+                while (true) {
+                    rand.bytes(&mac_addr);
+                    var unique = true;
+                    for (0..i) |j| {
+                        const b = system.client_info.items[j].mac_addr.?;
+                        if (std.mem.eql(u8, &mac_addr, &b)) {
+                            unique = false;
+                        }
+                    }
+                    if (unique) {
+                        break;
+                    }
+                }
+                system.client_info.items[i].mac_addr = mac_addr;
+            }
+        }
+    }
+
     pub fn connect(system: *NetworkSystem) !void {
         try createDriver(system.sdf, system.driver, system.device, .network, &system.device_res);
 
         const rx_dma_mr = system.rxConnectDriver();
         system.txConnectDriver();
+
+        system.generateMacAddrs();
 
         system.virt_tx_config.num_clients = @intCast(system.clients.items.len);
         system.virt_rx_config.num_clients = @intCast(system.clients.items.len);
@@ -1293,6 +1318,9 @@ pub const NetworkSystem = struct {
             // TODO: we have an assumption that all copiers are RX copiers
             system.clientRxConnect(rx_dma_mr, i);
             system.clientTxConnect(i);
+
+            system.virt_rx_config.clients[i].mac_addr = system.client_info.items[i].mac_addr.?;
+            system.client_configs.items[i].mac_addr = system.client_info.items[i].mac_addr.?;
         }
     }
 

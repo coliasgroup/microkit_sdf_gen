@@ -413,8 +413,7 @@ fn webserver(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !vo
 
     var eth_system = sddf.NetworkSystem.init(allocator, sdf, eth_node, &eth_driver, &eth_virt_tx, &eth_virt_rx, .{});
     // eth_system.addClientWithCopier(&nfs, &eth_copy_nfs);
-    const mp_mac_addr: [6]u8 = .{ 0x52, 0x54, 0x01, 0x00, 0x00, 0x00 };
-    try eth_system.addClientWithCopier(&micropython, &eth_copy_mp, .{ .mac_addr = mp_mac_addr });
+    try eth_system.addClientWithCopier(&micropython, &eth_copy_mp, .{});
 
     eth_driver.priority = 110;
     eth_driver.budget = 100;
@@ -616,8 +615,7 @@ fn echo_server(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !
     serial_system.addClient(&bench);
     serial_system.addClient(&client0);
 
-    const client0_mac_addr: [6]u8 = .{ 0x52, 0x54, 0x01, 0x00, 0x00, 0x00 };
-    try eth_system.addClientWithCopier(&client0, &eth_copy_client0, .{ .mac_addr = client0_mac_addr });
+    try eth_system.addClientWithCopier(&client0, &eth_copy_client0, .{});
 
     const bench_start_channel = Channel.create(&bench, &client0, .{});
     const bench_stop_channel = Channel.create(&bench, &client0, .{});
