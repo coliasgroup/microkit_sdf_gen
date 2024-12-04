@@ -18,7 +18,7 @@ void *sdfgen_create(sdfgen_arch_t arch, uint64_t paddr_top);
 void sdfgen_deinit(void *sdf);
 void *sdfgen_to_xml(void *sdf);
 
-/* DTB-related functionality */
+/*** DTB-related functionality ***/
 
 // Parse the DTB at a given path
 // Returns NULL if the path cannot be accessed or the bytes cannot be
@@ -45,6 +45,14 @@ void *sdfgen_channel_create(void *pd_a, void *pd_b);
 void sdfgen_channel_destroy(void *ch);
 void *sdfgen_channel_add(void *sdf, void *ch);
 
+/*** sDDF ***/
+
+typedef enum {
+    SDDF_ERROR_NET_DUPLICATE_MAC_ADDR = 1,
+    SDDF_ERROR_NET_DUPLICATE_CLIENT = 2,
+    SDDF_ERROR_NET_DUPLICATE_COPIER = 3,
+} sdfgen_sddf_error_t;
+
 void *sdfgen_sddf_init(char *path);
 
 void *sdfgen_sddf_timer(void *sdf, void *device, void *driver);
@@ -69,8 +77,10 @@ bool sdfgen_sddf_block_connect(void *system);
 
 void *sdfgen_sddf_net(void *sdf, void *device, void *driver, void *virt_rx, void *virt_tx);
 void sdfgen_sddf_net_destroy(void *system);
-void sdfgen_sddf_net_add_client_with_copier(void *system, void *client, void *copier, uint8_t mac_addr[6]);
+sdfgen_sddf_error_t sdfgen_sddf_net_add_client_with_copier(void *system, void *client, void *copier, uint8_t mac_addr[6]);
 bool sdfgen_sddf_net_connect(void *system);
+
+/*** LionsOS ***/
 
 void *sdfgen_lionsos_fs(void *sdf, void *fs, void *client);
 bool sdfgen_lionsos_fs_connect(void *fs_system);

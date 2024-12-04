@@ -98,7 +98,7 @@ libsdfgen.sdfgen_sddf_net.argtypes = [c_void_p, c_void_p, c_void_p, c_void_p, c_
 libsdfgen.sdfgen_sddf_net_destroy.restype = None
 libsdfgen.sdfgen_sddf_net_destroy.argtypes = [c_void_p]
 
-libsdfgen.sdfgen_sddf_net_add_client_with_copier.restype = None
+libsdfgen.sdfgen_sddf_net_add_client_with_copier.restype = c_bool
 libsdfgen.sdfgen_sddf_net_add_client_with_copier.argtypes = [
     c_void_p,
     c_void_p,
@@ -109,12 +109,15 @@ libsdfgen.sdfgen_sddf_net_add_client_with_copier.argtypes = [
 libsdfgen.sdfgen_sddf_net_connect.restype = c_bool
 libsdfgen.sdfgen_sddf_net_connect.argtypes = [c_void_p]
 
-
 class DeviceTree:
     _obj: c_void_p
     _bytes: bytes
 
     def __init__(self, data: bytes):
+        """
+        Parse a Device Tree Blob (.dtb) and use it to get nodes
+        for generating sDDF device classes or other components.
+        """
         # Data is stored explicitly so it is not freed in GC.
         # The DTB parser assumes the memory does not go away.
         self._bytes = data
@@ -134,71 +137,43 @@ class DeviceTree:
             if self._obj is None:
                 raise Exception(f"could not find DTB node '{node}'")
 
-    def node(self, name: str):
+    def node(self, name: str) -> DeviceTree.Node:
+        """
+        Given a parsed DeviceTree, find the specific node based on the node names.
+        Child nodes can be referenced by separating the parent and child node name
+        by '/'.
+
+        Example:
+
+        .. code-block:: python
+
+            dtb = DeviceTree(dtb_bytes)
+            dtb.node("soc/timer@13050000")
+
+        would be used to access the timer device on a Device Tree that looked like:
+
+        .. code-block::
+
+            soc {
+                timer@13050000 {
+                    ...
+                };
+            };
+        """
         return DeviceTree.Node(self, name)
 
 
-class ProtectionDomain:
-    _obj: c_void_p
-
-    def __init__(
-        self,
-        name: str,
-        program_image: str,
-        priority: Optional[int] = None,
-        budget: Optional[int] = None,
-        period: Optional[int] = None,
-        stack_size: Optional[int] = None
-    ) -> None:
-        c_name = c_char_p(name.encode("utf-8"))
-        c_program_image = c_char_p(program_image.encode("utf-8"))
-        self._obj = libsdfgen.sdfgen_pd_create(c_name, c_program_image)
-        if priority is not None:
-            libsdfgen.sdfgen_pd_set_priority(self._obj, priority)
-        if budget is not None:
-            libsdfgen.sdfgen_pd_set_budget(self._obj, budget)
-        if period is not None:
-            libsdfgen.sdfgen_pd_set_period(self._obj, period)
-        if stack_size is not None:
-            libsdfgen.sdfgen_pd_set_stack_size(self._obj, stack_size)
-
-    def add_child_pd(self, child_pd: ProtectionDomain, child_id=None) -> int:
-        c_child_id = byref(c_uint8(child_id)) if child_id else None
-
-        returned_id = libsdfgen.sdfgen_pd_add_child(self._obj, child_pd._obj, c_child_id)
-        if returned_id is None:
-            raise Exception("Could not allocate child PD ID")
-
-        return returned_id
-
-    def __del__(self):
-        libsdfgen.sdfgen_pd_destroy(self._obj)
-
-
-class Channel:
-    obj: c_void_p
-
-    # TODO: handle options
-    def __init__(
-        self,
-        a: ProtectionDomain,
-        b: ProtectionDomain,
-        pp_a=False,
-        pp_b=False,
-        notify_a=True,
-        notify_b=True
-    ) -> None:
-        self._obj = libsdfgen.sdfgen_channel_create(a._obj, b._obj)
-
-    def __del__(self):
-        libsdfgen.sdfgen_channel_destroy(self._obj)
-
-
 class SystemDescription:
+    """
+    Class for describing a Microkit system. Manages all Microkit resources such as
+    Protection Domains, Memory Regions, Channels, etc.
+    """
+
     _obj: c_void_p
 
-    # Important that this aligns with sdfgen_arch_t in the C bindings.
     class Arch(IntEnum):
+        """Target architecture. Used to resolve architecture specific features or attributes."""
+        # Important that this aligns with sdfgen_arch_t in the C bindings.
         AARCH32 = 0,
         AARCH64 = 1,
         RISCV32 = 2,
@@ -206,8 +181,65 @@ class SystemDescription:
         X86 = 4,
         X86_64 = 5,
 
+    class ProtectionDomain:
+        _obj: c_void_p
+
+        def __init__(
+            self,
+            name: str,
+            program_image: str,
+            priority: Optional[int] = None,
+            budget: Optional[int] = None,
+            period: Optional[int] = None,
+            stack_size: Optional[int] = None
+        ) -> None:
+            c_name = c_char_p(name.encode("utf-8"))
+            c_program_image = c_char_p(program_image.encode("utf-8"))
+            self._obj = libsdfgen.sdfgen_pd_create(c_name, c_program_image)
+            if priority is not None:
+                libsdfgen.sdfgen_pd_set_priority(self._obj, priority)
+            if budget is not None:
+                libsdfgen.sdfgen_pd_set_budget(self._obj, budget)
+            if period is not None:
+                libsdfgen.sdfgen_pd_set_period(self._obj, period)
+            if stack_size is not None:
+                libsdfgen.sdfgen_pd_set_stack_size(self._obj, stack_size)
+
+        def add_child_pd(self, child_pd: ProtectionDomain, child_id=None) -> int:
+            c_child_id = byref(c_uint8(child_id)) if child_id else None
+
+            returned_id = libsdfgen.sdfgen_pd_add_child(self._obj, child_pd._obj, c_child_id)
+            if returned_id is None:
+                raise Exception("Could not allocate child PD ID")
+
+            return returned_id
+
+        def __del__(self):
+            libsdfgen.sdfgen_pd_destroy(self._obj)
+
+
+    class Channel:
+        _obj: c_void_p
+
+        # TODO: handle options
+        def __init__(
+            self,
+            a: ProtectionDomain,
+            b: ProtectionDomain,
+            pp_a=False,
+            pp_b=False,
+            notify_a=True,
+            notify_b=True
+        ) -> None:
+            self._obj = libsdfgen.sdfgen_channel_create(a._obj, b._obj)
+
+        def __del__(self):
+            libsdfgen.sdfgen_channel_destroy(self._obj)
 
     def __init__(self, arch: Arch, paddr_top: int) -> None:
+        """
+        Create a System Description
+        """
         self._obj = libsdfgen.sdfgen_create(arch.value, paddr_top)
 
     def __del__(self):
@@ -216,12 +248,23 @@ class SystemDescription:
     def add_pd(self, pd: ProtectionDomain):
         libsdfgen.sdfgen_add_pd(self._obj, pd._obj)
 
-    def xml(self):
+    def xml(self) -> str:
+        """Generate the XML view of the System Description Format for consumption by the Microkit."""
         return libsdfgen.sdfgen_to_xml(self._obj).decode("utf-8")
 
 
 class Sddf:
+    """
+    Class for creating I/O systems based on the seL4 Device Driver Framework (sDDF).
+
+    There is a Python class for each device class (e.g Block, Network). They all follow
+    the pattern of being initialised, then having clients added, and then being connected
+    before the final SDF is generated.
+    """
     def __init__(self, path: str):
+        """
+        :param path: str to the root of the sDDF source code.
+        """
         libsdfgen.sdfgen_sddf_init(c_char_p(path.encode("utf-8")))
 
     def __del__(self):
@@ -254,9 +297,17 @@ class Sddf:
             )
 
         def add_client(self, client: ProtectionDomain):
+            """Add a new client connection to the serial system."""
             libsdfgen.sdfgen_sddf_serial_add_client(self._obj, client._obj)
 
         def connect(self) -> bool:
+            """
+            Construct and all resources to the associated SystemDescription, returns whether successful.
+
+            Must have all clients and options set before calling.
+
+            Cannot be called more than once.
+            """
             return libsdfgen.sdfgen_sddf_serial_connect(self._obj)
 
         def __del__(self):
@@ -340,13 +391,29 @@ class Sddf:
             copier: ProtectionDomain,
             mac_addr: Tuple[int, int, int, int, int, int]
         ) -> None:
+            """
+            Add a client connected to a copier component for RX traffic.
+
+            :param copier: must be unique to this client, cannot be used with any other client.
+            :param mac_addr: must be unique to the Network system.
+            """
             if len(mac_addr) != 6:
-                raise Exception("invalid mac address length")
+                raise Exception("invalid MAC address length")
 
             c_mac_addr = (c_uint8 * len(mac_addr))(*mac_addr)
-            libsdfgen.sdfgen_sddf_net_add_client_with_copier(
+            ret = libsdfgen.sdfgen_sddf_net_add_client_with_copier(
                 self._obj, client._obj, copier._obj, c_mac_addr
             )
+            if ret == 0:
+                return
+            elif ret == 1:
+                raise Exception(f"duplicate MAC address given '{mac_addr}'")
+            elif ret == 2:
+                raise Exception(f"duplicate client given '{client}'")
+            elif ret == 3:
+                raise Exception(f"duplicate copier given '{copier}'")
+            else:
+                raise Exception("internal error")
 
         def connect(self) -> bool:
             return libsdfgen.sdfgen_sddf_net_connect(self._obj)

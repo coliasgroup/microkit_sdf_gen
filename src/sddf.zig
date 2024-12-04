@@ -1228,8 +1228,28 @@ pub const NetworkSystem = struct {
         };
     }
 
-    pub fn addClientWithCopier(system: *NetworkSystem, client: *Pd, copier: *Pd, options: ClientOptions) void {
+    pub fn addClientWithCopier(system: *NetworkSystem, client: *Pd, copier: *Pd, options: ClientOptions) !void {
         const client_idx = system.clients.items.len;
+
+        // Check that the MAC address isn't present already
+        var i: usize = 0;
+        while (i < client_idx) : (i += 1) {
+            if (std.mem.eql(u8, &options.mac_addr, &system.client_configs.items[i].mac_addr)) {
+                return error.DuplicateMacAddr;
+            }
+        }
+        // Check that the client does not already exist
+        for (system.clients.items) |existing_client| {
+            if (std.mem.eql(u8, existing_client.name, client.name)) {
+                return error.DuplicateClient;
+            }
+        }
+        // Check that the copier does not already exist
+        for (system.copiers.items) |existing_copier| {
+            if (std.mem.eql(u8, existing_copier.name, copier.name)) {
+                return error.DuplicateCopier;
+            }
+        }
 
         system.clients.append(client) catch @panic("Could not add client with copier to NetworkSystem");
         system.copiers.append(copier) catch @panic("Could not add client with copier to NetworkSystem");
