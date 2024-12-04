@@ -44,7 +44,7 @@
             nativeBuildInputs = [ zig ];
           };
 
-        pythonTool = pkgs.python313.withPackages (ps: [
+        pythonWithSdfgen = pkgs.python313.withPackages (ps: [
           pysdfgen
         ]);
       in
@@ -55,8 +55,18 @@
           nativeBuildInputs = with pkgs; [
             dtc
             zig
-            pythonTool
-            # For Python documentation
+            python313
+            sphinx
+          ];
+        };
+
+        devShells.ci = pkgs.mkShell rec {
+          name = "ci";
+
+          nativeBuildInputs = with pkgs; [
+            dtc
+            zig
+            pythonWithSdfgen
             sphinx
           ];
         };
