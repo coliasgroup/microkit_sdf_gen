@@ -18,6 +18,7 @@ jobs:
       - name: Build docs
         id: build
         run: |
+          nix develop -c bash -c "zig build c"
           nix develop .#ci -c bash -c 'cd docs && make html'
       - name: Upload static files as artifact
         id: deployment
