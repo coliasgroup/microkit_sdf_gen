@@ -907,8 +907,7 @@ pub const BlockSystem = struct {
 pub const SerialSystem = struct {
     allocator: Allocator,
     sdf: *SystemDescription,
-    driver_data_size: usize,
-    client_data_size: usize,
+    data_size: usize,
     queue_size: usize,
     driver: *Pd,
     device: *dtb.Node,
@@ -923,8 +922,7 @@ pub const SerialSystem = struct {
     client_configs: std.ArrayList(ConfigResources.Serial.Client),
 
     pub const Options = struct {
-        driver_data_size: usize = 0x10000,
-        client_data_size: usize = 0x10000,
+        data_size: usize = 0x10000,
         queue_size: usize = 0x1000,
         virt_rx: ?*Pd = null,
     };
@@ -933,8 +931,7 @@ pub const SerialSystem = struct {
         return .{
             .allocator = allocator,
             .sdf = sdf,
-            .driver_data_size = options.driver_data_size,
-            .client_data_size = options.client_data_size,
+            .data_size = options.data_size,
             .queue_size = options.queue_size,
             .clients = std.ArrayList(*Pd).init(allocator),
             .driver = driver,
@@ -963,174 +960,77 @@ pub const SerialSystem = struct {
         return system.virt_rx != null;
     }
 
-    fn rxConnectDriver(system: *SerialSystem) void {
-        const allocator = system.allocator;
-
-        const queue_mr = Mr.create(allocator, "serial_driver_rx_queue", system.queue_size, .{});
+    fn createConnection(system: *SerialSystem, server: *Pd, client: *Pd, server_conn: *ConfigResources.Serial.Connection, client_conn: *ConfigResources.Serial.Connection) void {
+        const queue_mr_name = std.fmt.allocPrint(system.allocator, "{s}/serial/queue/{s}/{s}", .{system.device.name, server.name, client.name}) catch @panic("OOM");
+        const queue_mr = Mr.create(system.allocator, queue_mr_name, system.queue_size, .{});
         system.sdf.addMemoryRegion(queue_mr);
 
-        const queue_virt_map = Map.create(queue_mr, system.virt_rx.?.getMapVaddr(&queue_mr), .rw, true, .{});
-        system.virt_rx.?.addMap(queue_virt_map);
-        system.virt_rx_config.driver.queue = ConfigResources.Region.createFromMap(queue_virt_map);
+        const queue_mr_server_map = Map.create(queue_mr, server.getMapVaddr(&queue_mr), .rw, true, .{});
+        server.addMap(queue_mr_server_map);
+        server_conn.queue = ConfigResources.Region.createFromMap(queue_mr_server_map);
 
-        const queue_driver_map = Map.create(queue_mr, system.driver.getMapVaddr(&queue_mr), .rw, true, .{});
-        system.driver.addMap(queue_driver_map);
-        system.driver_config.rx.queue = ConfigResources.Region.createFromMap(queue_driver_map);
-        system.driver_config.rx_enabled = 1;
+        const queue_mr_client_map = Map.create(queue_mr, client.getMapVaddr(&queue_mr), .rw, true, .{});
+        client.addMap(queue_mr_client_map);
+        client_conn.queue = ConfigResources.Region.createFromMap(queue_mr_client_map);
 
-        const data_mr = Mr.create(allocator, "serial_driver_rx_data", system.driver_data_size, .{});
+        const data_mr_name = std.fmt.allocPrint(system.allocator, "{s}/serial/data/{s}/{s}", .{system.device.name, server.name, client.name}) catch @panic("OOM");
+        const data_mr = Mr.create(system.allocator, data_mr_name, system.data_size, .{});
         system.sdf.addMemoryRegion(data_mr);
 
-        const data_virt_map = Map.create(data_mr, system.virt_rx.?.getMapVaddr(&data_mr), .rw, true, .{});
-        system.virt_rx.?.addMap(data_virt_map);
-        system.virt_rx_config.driver.data = ConfigResources.Region.createFromMap(data_virt_map);
+        const data_mr_server_map = Map.create(data_mr, server.getMapVaddr(&data_mr), .rw, true, .{});
+        server.addMap(data_mr_server_map);
+        server_conn.data = ConfigResources.Region.createFromMap(data_mr_server_map);
 
-        const data_driver_map = Map.create(data_mr, system.driver.getMapVaddr(&data_mr), .rw, true, .{});
-        system.driver.addMap(data_driver_map);
-        system.driver_config.rx.data = ConfigResources.Region.createFromMap(data_driver_map);
+        const data_mr_client_map = Map.create(data_mr, client.getMapVaddr(&data_mr), .rw, true, .{});
+        client.addMap(data_mr_client_map);
+        client_conn.data = ConfigResources.Region.createFromMap(data_mr_client_map);
 
-        system.virt_rx_config.switch_char = 28;
-        system.virt_rx_config.terminate_num_char = '\r';
-
-        system.virt_tx_config.enable_rx = 1;
-    }
-
-    fn txConnectDriver(system: *SerialSystem) void {
-        const allocator = system.allocator;
-
-        const queue_mr = Mr.create(allocator, "serial_driver_tx_queue", system.queue_size, .{});
-        system.sdf.addMemoryRegion(queue_mr);
-
-        const queue_virt_map = Map.create(queue_mr, system.virt_tx.getMapVaddr(&queue_mr), .rw, true, .{});
-        system.virt_tx.addMap(queue_virt_map);
-        system.virt_tx_config.driver.queue = ConfigResources.Region.createFromMap(queue_virt_map);
-
-        const queue_driver_map = Map.create(queue_mr, system.driver.getMapVaddr(&queue_mr), .rw, true, .{});
-        system.driver.addMap(queue_driver_map);
-        system.driver_config.tx.queue = ConfigResources.Region.createFromMap(queue_driver_map);
-
-        const data_mr = Mr.create(allocator, "serial_driver_tx_data", system.driver_data_size, .{});
-        system.sdf.addMemoryRegion(data_mr);
-
-        const data_virt_map = Map.create(data_mr, system.virt_tx.getMapVaddr(&data_mr), .rw, true, .{});
-        system.virt_tx.addMap(data_virt_map);
-        system.virt_tx_config.driver.data = ConfigResources.Region.createFromMap(data_virt_map);
-
-        const data_driver_map = Map.create(data_mr, system.driver.getMapVaddr(&data_mr), .rw, true, .{});
-        system.driver.addMap(data_driver_map);
-        system.driver_config.tx.data = ConfigResources.Region.createFromMap(data_driver_map);
-
-        system.virt_tx_config.enable_colour = 1;
-        const begin_str = "Begin input\n";
-        @memcpy(system.virt_tx_config.begin_str[0..begin_str.len], begin_str);
-        assert(system.virt_tx_config.begin_str[begin_str.len] == 0);
-        system.virt_tx_config.begin_str_len = begin_str.len;
-
-        system.driver_config.default_baud = 115200;
-    }
-
-    fn rxConnectClient(system: *SerialSystem, client: *Pd, client_config: *ConfigResources.Serial.Client, i: usize) void {
-        const allocator = system.allocator;
-
-        const queue_mr_name = std.fmt.allocPrint(system.allocator, "serial_virt_rx_{s}_queue", .{ client.name }) catch @panic("OOM");
-        const queue_mr = Mr.create(allocator, queue_mr_name, system.queue_size, .{});
-        system.sdf.addMemoryRegion(queue_mr);
-
-        const queue_virt_map = Map.create(queue_mr, system.virt_rx.?.getMapVaddr(&queue_mr), .rw, true, .{});
-        system.virt_rx.?.addMap(queue_virt_map);
-        system.virt_rx_config.clients[i].queue = ConfigResources.Region.createFromMap(queue_virt_map);
-
-        const queue_client_map = Map.create(queue_mr, client.getMapVaddr(&queue_mr), .rw, true, .{});
-        client.addMap(queue_client_map);
-        client_config.rx.queue = ConfigResources.Region.createFromMap(queue_client_map);
-
-        const data_mr_name = std.fmt.allocPrint(system.allocator, "serial_virt_rx_{s}_data", .{ client.name }) catch @panic("OOM");
-        const data_mr = Mr.create(allocator, data_mr_name, system.driver_data_size, .{});
-        system.sdf.addMemoryRegion(data_mr);
-
-        const data_virt_map = Map.create(data_mr, system.virt_rx.?.getMapVaddr(&data_mr), .rw, true, .{});
-        system.virt_rx.?.addMap(data_virt_map);
-        system.virt_rx_config.clients[i].data = ConfigResources.Region.createFromMap(data_virt_map);
-
-        const data_client_map = Map.create(data_mr, client.getMapVaddr(&data_mr), .rw, true, .{});
-        client.addMap(data_client_map);
-        client_config.rx.data = ConfigResources.Region.createFromMap(data_client_map);
-    }
-
-    fn txConnectClient(system: *SerialSystem, client: *Pd, client_config: *ConfigResources.Serial.Client, i: usize) void {
-        const allocator = system.allocator;
-        // assuming name is null-terminated
-        @memcpy(system.virt_tx_config.clients[i].name[0..client.name.len], client.name);
-        assert(client.name.len < ConfigResources.Serial.VirtTx.MAX_NAME_LEN);
-        assert(system.virt_tx_config.clients[i].name[client.name.len] == 0);
-
-        const queue_mr_name = std.fmt.allocPrint(system.allocator, "serial_virt_tx_{s}_queue", .{ client.name }) catch @panic("OOM");
-        const queue_mr = Mr.create(allocator, queue_mr_name, system.queue_size, .{});
-        system.sdf.addMemoryRegion(queue_mr);
-
-        const queue_virt_map = Map.create(queue_mr, system.virt_tx.getMapVaddr(&queue_mr), .rw, true, .{});
-        system.virt_tx.addMap(queue_virt_map);
-        system.virt_tx_config.clients[i].conn.queue = ConfigResources.Region.createFromMap(queue_virt_map);
-
-        const queue_client_map = Map.create(queue_mr, client.getMapVaddr(&queue_mr), .rw, true, .{});
-        client.addMap(queue_client_map);
-        client_config.tx.queue = ConfigResources.Region.createFromMap(queue_client_map);
-
-        const data_mr_name = std.fmt.allocPrint(system.allocator, "serial_virt_tx_{s}_data", .{ client.name }) catch @panic("OOM");
-        const data_mr = Mr.create(allocator, data_mr_name, system.driver_data_size, .{});
-        system.sdf.addMemoryRegion(data_mr);
-
-        const data_virt_map = Map.create(data_mr, system.virt_tx.getMapVaddr(&data_mr), .rw, true, .{});
-        system.virt_tx.addMap(data_virt_map);
-        system.virt_tx_config.clients[i].conn.data = ConfigResources.Region.createFromMap(data_virt_map);
-
-        const data_client_map = Map.create(data_mr, client.getMapVaddr(&data_mr), .rw, true, .{});
-        client.addMap(data_client_map);
-        client_config.tx.data = ConfigResources.Region.createFromMap(data_client_map);
+        const channel = Channel.create(server, client, .{});
+        system.sdf.addChannel(channel);
+        server_conn.id = channel.pd_a_id;
+        client_conn.id = channel.pd_b_id;
     }
 
     pub fn connect(system: *SerialSystem) !void {
-        var sdf = system.sdf;
+        try createDriver(system.sdf, system.driver, system.device, .serial, &system.device_res);
 
-        // 1. Create all the channels
-        // 1.1 Create channels between driver and virtualisers
-        try createDriver(sdf, system.driver, system.device, .serial, &system.device_res);
-        const ch_driver_virt_tx = Channel.create(system.driver, system.virt_tx, .{});
-        sdf.addChannel(ch_driver_virt_tx);
-        system.driver_config.tx.id = ch_driver_virt_tx.pd_a_id;
-        system.virt_tx_config.driver.id = ch_driver_virt_tx.pd_b_id;
-        if (system.hasRx()) {
-            const ch_driver_virt_rx = Channel.create(system.driver, system.virt_rx.?, .{});
-            sdf.addChannel(ch_driver_virt_rx);
-            system.driver_config.rx.id = ch_driver_virt_rx.pd_a_id;
-            system.virt_rx_config.driver.id = ch_driver_virt_rx.pd_b_id;
-        }
-        // 1.2 Create channels between virtualisers and clients
-        for (system.clients.items, 0..) |client, i| {
-            const ch_virt_tx_client = Channel.create(system.virt_tx, client, .{});
-            sdf.addChannel(ch_virt_tx_client);
-            system.virt_tx_config.clients[i].conn.id = ch_virt_tx_client.pd_a_id;
-            system.client_configs.items[i].tx.id = ch_virt_tx_client.pd_b_id;
+        system.driver_config.default_baud = 115200;
 
-            if (system.hasRx()) {
-                const ch_virt_rx_client = Channel.create(system.virt_rx.?, client, .{});
-                sdf.addChannel(ch_virt_rx_client);
-                system.virt_rx_config.clients[i].id = ch_virt_rx_client.pd_a_id;
-                system.client_configs.items[i].tx.id = ch_virt_rx_client.pd_b_id;
-            }
-        }
         if (system.hasRx()) {
+            system.createConnection(system.driver, system.virt_rx.?, &system.driver_config.rx, &system.virt_rx_config.driver);
+
             system.virt_rx_config.num_clients = @intCast(system.clients.items.len);
-            system.rxConnectDriver();
-        }
-        system.virt_tx_config.num_clients = @intCast(system.clients.items.len);
-        system.txConnectDriver();
-        for (system.clients.items, 0..) |client, i| {
-            if (system.hasRx()) {
-                system.rxConnectClient(client, &system.client_configs.items[i], i);
+            for (system.clients.items, 0..) |client, i| {
+                system.createConnection(system.virt_rx.?, client, &system.virt_rx_config.clients[i], &system.client_configs.items[i].rx);
             }
-            system.txConnectClient(client, &system.client_configs.items[i], i);
+
+            system.driver_config.rx_enabled = 1;
+
+            system.virt_rx_config.switch_char = 28;
+            system.virt_rx_config.terminate_num_char = '\r';
+
+            system.virt_tx_config.enable_rx = 1;
         }
+
+        system.createConnection(system.driver, system.virt_tx, &system.driver_config.tx, &system.virt_tx_config.driver);
+
+        system.virt_tx_config.num_clients = @intCast(system.clients.items.len);
+        for (system.clients.items, 0..) |client, i| {
+            // assuming name is null-terminated
+            @memcpy(system.virt_tx_config.clients[i].name[0..client.name.len], client.name);
+            assert(client.name.len < ConfigResources.Serial.VirtTx.MAX_NAME_LEN);
+            assert(system.virt_tx_config.clients[i].name[client.name.len] == 0);
+
+            system.createConnection(system.virt_tx, client, &system.virt_tx_config.clients[i].conn, &system.client_configs.items[i].tx);
+        }
+
+        system.virt_tx_config.enable_colour = 1;
+
+        const begin_str = "Begin input\n";
+        @memcpy(system.virt_tx_config.begin_str[0..begin_str.len], begin_str);
+        assert(system.virt_tx_config.begin_str[begin_str.len] == 0);
+
+        system.virt_tx_config.begin_str_len = begin_str.len;
     }
 
     pub fn serialiseConfig(system: *SerialSystem, prefix: []const u8) !void {
