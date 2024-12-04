@@ -389,7 +389,8 @@ class Sddf:
             self,
             client: ProtectionDomain,
             copier: ProtectionDomain,
-            mac_addr: Tuple[int, int, int, int, int, int]
+            *,
+            mac_addr: Optional[Tuple[int, int, int, int, int, int]] = None
         ) -> None:
             """
             Add a client connected to a copier component for RX traffic.
@@ -397,10 +398,12 @@ class Sddf:
             :param copier: must be unique to this client, cannot be used with any other client.
             :param mac_addr: must be unique to the Network system.
             """
-            if len(mac_addr) != 6:
+            if mac_addr is not None and len(mac_addr) != 6:
                 raise Exception("invalid MAC address length")
 
-            c_mac_addr = (c_uint8 * len(mac_addr))(*mac_addr)
+            c_mac_addr = 0
+            if mac_addr is not None:
+                c_mac_addr = (c_uint8 * len(mac_addr))(*mac_addr)
             ret = libsdfgen.sdfgen_sddf_net_add_client_with_copier(
                 self._obj, client._obj, copier._obj, c_mac_addr
             )
