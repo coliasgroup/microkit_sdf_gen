@@ -38,8 +38,8 @@
               maintainers = with maintainers; [ au-ts ];
             };
 
-            ZIG_LOCAL_CACHE_DIR="/tmp/zig-cache-local";
-            ZIG_GLOBAL_CACHE_DIR="/tmp/zig-cache-global";
+            env.ZIG_LOCAL_CACHE_DIR="/tmp/zig-cache-local";
+            env.ZIG_GLOBAL_CACHE_DIR="/tmp/zig-cache-global";
 
             nativeBuildInputs = [ zig ];
           };
@@ -51,6 +51,9 @@
       {
         devShells.default = pkgs.mkShell rec {
           name = "dev";
+
+          env.ZIG_LOCAL_CACHE_DIR="/tmp/zig-cache-local";
+          env.ZIG_GLOBAL_CACHE_DIR="/tmp/zig-cache-global";
 
           nativeBuildInputs = with pkgs; [
             dtc
