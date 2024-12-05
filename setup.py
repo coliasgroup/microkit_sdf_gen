@@ -11,8 +11,6 @@ class ZigBuilder(build_ext):
         modpath = self.get_ext_fullpath(ext.name).split('/')
         modpath = os.path.abspath('/'.join(modpath[0:-1]))
 
-        # include_args = [f"-Dpython-include={include}" for include in self.include_dirs]
-        print(f"ext.name: {self.get_ext_filename(ext.name)}")
         args = [
             "zig",
             "build",
@@ -23,7 +21,6 @@ class ZigBuilder(build_ext):
             "--prefix-lib-dir",
             f"{modpath}",
         ]
-        # args.extend(include_args)
 
         self.spawn(args)
 
@@ -37,11 +34,10 @@ setup(
     package_dir={
         "sdfgen": "./python"
     },
-    # Necessary for mypy to work
+    # Necessary for mypy to work for those that import the package
     package_data={"sdfgen": ["py.typed"]},
     ext_modules=[csdfgen],
     cmdclass={"build_ext": ZigBuilder},
     long_description=(Path(__file__).parent / "README.md").read_text(encoding="utf-8"),
     long_description_content_type="text/markdown",
-    # py_modules=["builder"],
 )
