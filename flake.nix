@@ -25,7 +25,7 @@
 
         zig = zig-overlay.packages.${system}.master;
 
-        pysdfgen = with pkgs.python313Packages;
+        pysdfgen = with pkgs.python312Packages;
           buildPythonPackage rec {
             pname = "sdfgen";
             version = "0.2.0";
@@ -43,10 +43,6 @@
 
             nativeBuildInputs = [ zig ];
           };
-
-        pythonWithSdfgen = pkgs.python313.withPackages (ps: [
-          pysdfgen
-        ]);
       in
       {
         devShells.default = pkgs.mkShell rec {
@@ -62,6 +58,11 @@
 
         devShells.ci = pkgs.mkShell rec {
           name = "ci";
+
+          pythonWithSdfgen = pkgs.python312.withPackages (ps: [
+            pysdfgen
+            ps.sphinx-rtd-theme
+          ]);
 
           nativeBuildInputs = with pkgs; [
             dtc
