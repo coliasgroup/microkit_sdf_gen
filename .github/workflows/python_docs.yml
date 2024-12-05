@@ -1,4 +1,4 @@
-name: Python Docs Deploy
+name: Python Docs
 
 on:
   pull_request:
@@ -22,13 +22,13 @@ jobs:
           ./venv/bin/pip install sphinx sphinx_rtd_theme
           ./venv/bin/python -m pip install .
           source ./venv/bin/activate
-          cd docs
+          cd docs/python
           make html
       - name: Upload static files as artifact
         id: deployment
         uses: actions/upload-pages-artifact@v3
         with:
-          path: docs/build/html/
+          path: docs/python/build/html/
 
   deploy:
     # Do not deploy unless we've pushed to main and we're not on a fork
