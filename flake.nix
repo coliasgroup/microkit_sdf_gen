@@ -38,8 +38,8 @@
               maintainers = with maintainers; [ au-ts ];
             };
 
-            env.ZIG_LOCAL_CACHE_DIR="/tmp/zig-cache-local";
-            env.ZIG_GLOBAL_CACHE_DIR="/tmp/zig-cache-global";
+            ZIG_LOCAL_CACHE_DIR="/tmp/zig-cache-local";
+            ZIG_GLOBAL_CACHE_DIR="/tmp/zig-cache-global";
 
             nativeBuildInputs = [ zig ];
           };
