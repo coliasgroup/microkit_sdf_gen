@@ -18,7 +18,8 @@ jobs:
       - name: Build docs
         id: build
         run: |
-          nix develop .#ci zig build c && cd docs && make html
+          nix develop --command zig build c
+          nix develop .#ci --command cd docs && make html
       - name: Upload static files as artifact
         id: deployment
         uses: actions/upload-pages-artifact@v3
