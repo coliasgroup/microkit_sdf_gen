@@ -14,8 +14,6 @@ pub fn build(b: *std.Build) !void {
     const dtbzig_dep = b.dependency("dtb.zig", .{});
     const dtb_module = dtbzig_dep.module("dtb");
 
-    const python_include = b.option([]const []const u8, "python-include", "Include directory for Python bindings") orelse &.{};
-
     const sdf_module = b.addModule("sdf", .{
         .root_source_file = b.path("src/mod.zig"),
         .target = target,
@@ -89,30 +87,6 @@ pub fn build(b: *std.Build) !void {
     csdfgen.addIncludePath(b.path("src/c"));
     csdfgen.root_module.addImport("sdf", modsdf);
     b.installArtifact(csdfgen);
-
-    const pysdfgen_bin = b.option([]const u8, "pysdfgen-emit", "Build pysdfgen library") orelse "pysdfgen.so";
-    const pysdfgen = b.addSharedLibrary(.{
-        .name = "pysdfgen",
-        .root_source_file = b.path("src/c/c.zig"),
-        .target = target,
-        .optimize = optimize,
-    });
-    pysdfgen.root_module.addImport("sdf", modsdf);
-    pysdfgen.addIncludePath(b.path("src/c"));
-    pysdfgen.linker_allow_shlib_undefined = true;
-    pysdfgen.addCSourceFile(.{ .file = b.path("python/module.c"), .flags = &.{ "-Wall", "-Werror" } });
-    for (python_include) |include| {
-        pysdfgen.addIncludePath(.{ .cwd_relative = include });
-    }
-    if (python_include.len == 0) {
-        try pysdfgen.step.addError("python bindings need a list of python include directories, see -Dpython-include option", .{});
-    }
-    pysdfgen.linkLibC();
-    b.installArtifact(pysdfgen);
-
-    const pysdfgen_step = b.step("python", "Library for the Python sdfgen module");
-    const pysdfgen_install = b.addInstallFileWithDir(pysdfgen.getEmittedBin(), .lib, pysdfgen_bin);
-    pysdfgen_step.dependOn(&pysdfgen_install.step);
 
     const c_step = b.step("c", "Static library for C bindings");
     const csdfgen_emit = b.option([]const u8, "csdfgen-emit", "C sdfgen emit") orelse "csdfgen";
