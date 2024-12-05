@@ -19,7 +19,7 @@ jobs:
         id: build
         run: |
           nix develop -c bash -c "zig build c"
-          nix develop .#ci -c bash -c 'cd docs && make html'
+          # nix develop .#ci -c bash -c 'cd docs && make html'
       - name: Upload static files as artifact
         id: deployment
         uses: actions/upload-pages-artifact@v3
