@@ -19,7 +19,7 @@ jobs:
         id: build
         run: |
           python3 -m venv venv
-          ./venv/bin/pip install sphinx
+          ./venv/bin/pip install sphinx sphinx_rtd_theme
           ./venv/bin/python -m pip install .
           source ./venv/bin/activate
           cd docs
