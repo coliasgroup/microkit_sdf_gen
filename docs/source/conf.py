@@ -7,8 +7,9 @@
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
 project = 'pysdfgen'
-copyright = '2024, Ivan Velickovic'
-author = 'Ivan Velickovic'
+copyright = '2024, UNSW'
+author = 'Trustworthy Systems'
+version = '0.2.0'
 release = '0.2.0'
 
 # -- General configuration ---------------------------------------------------
