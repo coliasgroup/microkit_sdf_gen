@@ -52,8 +52,8 @@
         devShells.default = pkgs.mkShell rec {
           name = "dev";
 
-          env.ZIG_LOCAL_CACHE_DIR="/tmp/zig-cache-local";
-          env.ZIG_GLOBAL_CACHE_DIR="/tmp/zig-cache-global";
+          ZIG_LOCAL_CACHE_DIR="/tmp/zig-cache-local";
+          ZIG_GLOBAL_CACHE_DIR="/tmp/zig-cache-global";
 
           nativeBuildInputs = with pkgs; [
             dtc
@@ -66,8 +66,8 @@
         devShells.ci = pkgs.mkShell rec {
           name = "ci";
 
-          env.ZIG_LOCAL_CACHE_DIR="/tmp/zig-cache-local";
-          env.ZIG_GLOBAL_CACHE_DIR="/tmp/zig-cache-global";
+          ZIG_LOCAL_CACHE_DIR="/tmp/zig-cache-local";
+          ZIG_GLOBAL_CACHE_DIR="/tmp/zig-cache-global";
 
           nativeBuildInputs = with pkgs; [
             dtc

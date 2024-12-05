@@ -18,9 +18,7 @@ jobs:
       - name: Build docs
         id: build
         run: |
-          nix develop -c bash -c "echo $ZIG_GLOBAL_CACHE_DIR && zig build c && ls -l $ZIG_GLOBAL_CACHE_DIR"
-          nix develop -c bash -c "zig fetch https://github.com/kivikakk/dtb.zig/archive/7b4f1968ed71fa2968f1ac0a149a1c1dfa48e773.tar.gz"
-          nix develop .#ci -c bash -c 'cd docs && make html'
+          nix develop .#ci zig build c && cd docs && make html
       - name: Upload static files as artifact
         id: deployment
         uses: actions/upload-pages-artifact@v3
