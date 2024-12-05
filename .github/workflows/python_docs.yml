@@ -11,15 +11,18 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-      - name: Install Nix
-        uses: cachix/install-nix-action@v25
+      - name: Install Zig
+        uses: mlugg/setup-zig@v1.2.0
         with:
-          nix_path: nixpkgs=channel:nixos-unstable
+          version: 0.13.0
       - name: Build docs
         id: build
         run: |
-          nix develop --command zig build c
-          nix develop .#ci --command make -C docs html
+          python3 -m venv venv
+          ./venv/bin/pip install sphinx
+          ./venv/bin/python -m pip install .
+          cd docs
+          make html
       - name: Upload static files as artifact
         id: deployment
         uses: actions/upload-pages-artifact@v3
