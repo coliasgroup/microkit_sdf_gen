@@ -129,8 +129,7 @@ These have some consequences, mainly that the regular `setup.py` has a custom
 using the correct output library name/path that the Python packaging
 wants to use.
 
-So instead, we build one `pysdfgen` library that contains everything. The consequence of this
-is that you *must* use Zig to build the Python package.
+This means that you *must* use Zig to build the Python package from source.
 
 ##### Supported versions
 
