@@ -52,9 +52,6 @@
         devShells.default = pkgs.mkShell rec {
           name = "dev";
 
-          ZIG_LOCAL_CACHE_DIR="/zig-cache-local";
-          ZIG_GLOBAL_CACHE_DIR="/zig-cache-global";
-
           nativeBuildInputs = with pkgs; [
             dtc
             zig
@@ -65,9 +62,6 @@
 
         devShells.ci = pkgs.mkShell rec {
           name = "ci";
-
-          ZIG_LOCAL_CACHE_DIR="/zig-cache-local";
-          ZIG_GLOBAL_CACHE_DIR="/zig-cache-global";
 
           nativeBuildInputs = with pkgs; [
             dtc
