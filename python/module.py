@@ -176,6 +176,8 @@ class SystemDescription:
     """
 
     _obj: c_void_p
+    # We need to hold references to the PDs in case they get GC'd.
+    _pds: List[ProtectionDomain]
 
     class Arch(IntEnum):
         """Target architecture. Used to resolve architecture specific features or attributes."""
@@ -189,6 +191,8 @@ class SystemDescription:
 
     class ProtectionDomain:
         _obj: c_void_p
+        # We need to hold references to the PDs in case they get GC'd.
+        _child_pds: List[ProtectionDomain]
 
         def __init__(
             self,
@@ -202,6 +206,7 @@ class SystemDescription:
             c_name = c_char_p(name.encode("utf-8"))
             c_program_image = c_char_p(program_image.encode("utf-8"))
             self._obj = libsdfgen.sdfgen_pd_create(c_name, c_program_image)
+            self._child_pds = []
             if priority is not None:
                 libsdfgen.sdfgen_pd_set_priority(self._obj, priority)
             if budget is not None:
@@ -217,6 +222,8 @@ class SystemDescription:
             returned_id = libsdfgen.sdfgen_pd_add_child(self._obj, child_pd._obj, c_child_id)
             if returned_id is None:
                 raise Exception("Could not allocate child PD ID")
+
+            self._child_pds.append(child_pd)
 
             return returned_id
 
@@ -247,11 +254,13 @@ class SystemDescription:
         Create a System Description
         """
         self._obj = libsdfgen.sdfgen_create(arch.value, paddr_top)
+        self._pds = []
 
     def __del__(self):
         libsdfgen.sdfgen_destroy(self._obj)
 
     def add_pd(self, pd: ProtectionDomain):
+        self._pds.append(pd)
         libsdfgen.sdfgen_add_pd(self._obj, pd._obj)
 
     def xml(self) -> str:
