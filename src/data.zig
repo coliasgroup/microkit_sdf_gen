@@ -1,13 +1,10 @@
 const std = @import("std");
 const sdf = @import("sdf.zig");
 
-// TODO: apply this more widely
-pub const DeviceTreeIndex = u8;
-
 pub const Resources = struct {
     /// Provides information to a component about a memory region that is mapped into its address space
     pub const Region = extern struct {
-        pub fn create(vaddr: usize, size: usize) Region {
+        pub fn create(vaddr: u64, size: u64) Region {
             return .{
                 .vaddr = vaddr,
                 .size = size,
@@ -31,7 +28,7 @@ pub const Resources = struct {
             region: Resources.Region,
             io_addr: u64,
 
-            pub fn create(vaddr: usize, size: usize, io_addr: u64) Device.Region {
+            pub fn create(vaddr: u64, size: u64, io_addr: u64) Device.Region {
                 return .{
                     .region = Resources.Region.create(vaddr, size),
                     .io_addr = io_addr,

@@ -17,8 +17,10 @@ const Interrupt = SystemDescription.Interrupt;
 const Channel = SystemDescription.Channel;
 const SetVar = SystemDescription.SetVar;
 
-const DeviceTreeIndex = data.DeviceTreeIndex;
 const ConfigResources = data.Resources;
+
+// TODO: apply this more widely
+pub const DeviceTreeIndex = u8;
 
 ///
 /// Expected sDDF repository layout:
