@@ -93,6 +93,9 @@ libsdfgen.sdfgen_sddf_serial_add_client.argtypes = [c_void_p, c_void_p]
 libsdfgen.sdfgen_sddf_serial_connect.restype = c_bool
 libsdfgen.sdfgen_sddf_serial_connect.argtypes = [c_void_p]
 
+libsdfgen.sdfgen_sddf_serial_serialise_config.restype = c_bool
+libsdfgen.sdfgen_sddf_serial_serialise_config.argtypes = [c_void_p, c_char_p]
+
 libsdfgen.sdfgen_sddf_net.restype = c_void_p
 libsdfgen.sdfgen_sddf_net.argtypes = [c_void_p, c_void_p, c_void_p, c_void_p, c_void_p]
 libsdfgen.sdfgen_sddf_net_destroy.restype = None
@@ -108,6 +111,9 @@ libsdfgen.sdfgen_sddf_net_add_client_with_copier.argtypes = [
 
 libsdfgen.sdfgen_sddf_net_connect.restype = c_bool
 libsdfgen.sdfgen_sddf_net_connect.argtypes = [c_void_p]
+
+libsdfgen.sdfgen_sddf_net_serialise_config.restype = c_bool
+libsdfgen.sdfgen_sddf_net_serialise_config.argtypes = [c_void_p, c_char_p]
 
 class DeviceTree:
     _obj: c_void_p
@@ -310,6 +316,10 @@ class Sddf:
             """
             return libsdfgen.sdfgen_sddf_serial_connect(self._obj)
 
+        def serialise_config(self, output: str) -> bool:
+            c_output = c_char_p(output.encode("utf-8"))
+            return libsdfgen.sdfgen_sddf_serial_serialise_config(self._obj, c_output)
+
         def __del__(self):
             libsdfgen.sdfgen_sddf_serial_destroy(self._obj)
 
@@ -420,6 +430,10 @@ class Sddf:
 
         def connect(self) -> bool:
             return libsdfgen.sdfgen_sddf_net_connect(self._obj)
+
+        def serialise_config(self, output: str) -> bool:
+            c_output = c_char_p(output.encode("utf-8"))
+            return libsdfgen.sdfgen_sddf_net_serialise_config(self._obj, c_output)
 
         def __del__(self):
             libsdfgen.sdfgen_sddf_net_destroy(self._obj)

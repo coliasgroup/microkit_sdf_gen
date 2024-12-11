@@ -64,6 +64,7 @@ bool sdfgen_sddf_timer_serialise_config(void *system, char *output);
 void *sdfgen_sddf_serial(void *sdf, void *device, void *driver, void *virt_tx, void *virt_rx);
 void sdfgen_sddf_serial_add_client(void *system, void *client);
 bool sdfgen_sddf_serial_connect(void *system);
+bool sdfgen_sddf_serial_serialise_config(void *system, char *output);
 
 void *sdfgen_sddf_i2c(void *sdf, void *device, void *driver, void *virt);
 void sdfgen_sddf_i2c_destroy(void *system);
@@ -79,6 +80,7 @@ void *sdfgen_sddf_net(void *sdf, void *device, void *driver, void *virt_rx, void
 void sdfgen_sddf_net_destroy(void *system);
 sdfgen_sddf_error_t sdfgen_sddf_net_add_client_with_copier(void *system, void *client, void *copier, uint8_t mac_addr[6]);
 bool sdfgen_sddf_net_connect(void *system);
+bool sdfgen_sddf_net_serialise_config(void *system, char *output);
 
 /*** LionsOS ***/
 

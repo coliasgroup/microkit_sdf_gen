@@ -237,6 +237,12 @@ export fn sdfgen_sddf_serial_connect(system: *align(8) anyopaque) bool {
     return true;
 }
 
+export fn sdfgen_sddf_serial_serialise_config(system: *align(8) anyopaque, output: [*c]u8) bool {
+    const serial: *sddf.SerialSystem = @ptrCast(system);
+    serial.serialiseConfig(std.mem.span(output)) catch return false;
+    return true;
+}
+
 export fn sdfgen_sddf_i2c(c_sdf: *align(8) anyopaque, c_device: ?*align(8) anyopaque, driver: *align(8) anyopaque, virt: *align(8) anyopaque) *anyopaque {
     const sdf: *SystemDescription = @ptrCast(c_sdf);
     const i2c = allocator.create(sddf.I2cSystem) catch @panic("OOM");
@@ -317,6 +323,12 @@ export fn sdfgen_sddf_net_connect(system: *align(8) anyopaque) bool {
     const net: *sddf.NetworkSystem = @ptrCast(system);
     net.connect() catch return false;
 
+    return true;
+}
+
+export fn sdfgen_sddf_net_serialise_config(system: *align(8) anyopaque, output: [*c]u8) bool {
+    const net: *sddf.NetworkSystem = @ptrCast(system);
+    net.serialiseConfig(std.mem.span(output)) catch return false;
     return true;
 }
 
