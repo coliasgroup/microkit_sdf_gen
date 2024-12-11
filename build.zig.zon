@@ -3,8 +3,7 @@
     .version = "0.1.0",
     .dependencies = .{
         .@"dtb.zig" = .{
-            .url = "https://github.com/kivikakk/dtb.zig/archive/7b4f1968ed71fa2968f1ac0a149a1c1dfa48e773.tar.gz",
-            .hash = "122035424754163fd26b512208f67c89a3bb24a916a0b2921e686ebc13242b40225a"
+            .path = "./dtb.zig";
         },
     },
     .paths = .{
