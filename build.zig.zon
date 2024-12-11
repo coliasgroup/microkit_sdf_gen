@@ -3,7 +3,7 @@
     .version = "0.1.0",
     .dependencies = .{
         .@"dtb.zig" = .{
-            .path = "./dtb.zig";
+            .path = "./dtb.zig",
         },
     },
     .paths = .{
