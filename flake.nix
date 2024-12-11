@@ -71,5 +71,7 @@
             sphinx
           ];
         };
+
+        packages.pysdfgen = pysdfgen;
       });
 }
