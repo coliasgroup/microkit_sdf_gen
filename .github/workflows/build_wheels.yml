@@ -16,6 +16,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: 'true'
       - uses: mlugg/setup-zig@v1.2.1
         with:
           version: 0.14.0-dev.2254+73f2671c7
