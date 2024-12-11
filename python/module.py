@@ -401,7 +401,7 @@ class Sddf:
             if mac_addr is not None and len(mac_addr) != 17:
                 raise Exception("invalid MAC address length")
 
-            c_mac_addr = 0
+            c_mac_addr = c_char_p(0)
             if mac_addr is not None:
                 c_mac_addr = c_char_p(mac_addr.encode("utf-8"))
             ret = libsdfgen.sdfgen_sddf_net_add_client_with_copier(
