@@ -280,7 +280,10 @@ class Sddf:
         """
         :param path: str to the root of the sDDF source code.
         """
-        libsdfgen.sdfgen_sddf_init(c_char_p(path.encode("utf-8")))
+        ret = libsdfgen.sdfgen_sddf_init(c_char_p(path.encode("utf-8")))
+        if not ret:
+            # TODO: report more information
+            raise Exception("sDDF failed to initialise")
 
     def __del__(self):
         # TODO
