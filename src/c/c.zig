@@ -14,7 +14,10 @@ const sddf = modsdf.sddf;
 const lionsos = modsdf.lionsos;
 const SystemDescription = modsdf.sdf.SystemDescription;
 const Pd = SystemDescription.ProtectionDomain;
+const Vm = SystemDescription.VirtualMachine;
 const Channel = SystemDescription.Channel;
+const Mr = SystemDescription.MemoryRegion;
+const Map = SystemDescription.Map;
 const Arch = SystemDescription.Arch;
 
 // TODO: do proper error logging
@@ -46,6 +49,12 @@ export fn sdfgen_destroy(c_sdf: *align(8) anyopaque) void {
 export fn sdfgen_add_pd(c_sdf: *align(8) anyopaque, c_pd: *align(8) anyopaque) void {
     const sdf: *SystemDescription = @ptrCast(c_sdf);
     sdf.addProtectionDomain(@ptrCast(c_pd));
+}
+
+export fn sdfgen_add_mr(c_sdf: *align(8) anyopaque, c_mr: *align(8) anyopaque) void {
+    const sdf: *SystemDescription = @ptrCast(c_sdf);
+    const mr: *Mr = @ptrCast(c_mr);
+    sdf.addMemoryRegion(mr.*);
 }
 
 export fn sdfgen_to_xml(c_sdf: *align(8) anyopaque) [*c]u8 {
@@ -126,6 +135,13 @@ export fn sdfgen_pd_add_child(c_pd: *align(8) anyopaque, c_child_pd: *align(8) a
     return pd.addChild(child_pd, .{ .id = child_id }) catch @panic("TODO");
 }
 
+export fn sdfgen_pd_add_map(c_pd: *align(8) anyopaque, c_map: *align(8) anyopaque) void {
+    const pd: *Pd = @ptrCast(c_pd);
+    const map: *Map = @ptrCast(c_map);
+
+    pd.addMap(map.*);
+}
+
 export fn sdfgen_pd_set_priority(c_pd: *align(8) anyopaque, priority: u8) void {
     const pd: *Pd = @ptrCast(c_pd);
     pd.priority = priority;
@@ -146,10 +162,79 @@ export fn sdfgen_pd_set_stack_size(c_pd: *align(8) anyopaque, stack_size: u32) v
     pd.stack_size = stack_size;
 }
 
+export fn sdfgen_pd_set_virtual_machine(c_pd: *align(8) anyopaque, c_vm: *align(8) anyopaque) bool {
+    const pd: *Pd = @ptrCast(c_pd);
+    const vm: *Vm = @ptrCast(c_vm);
+    pd.setVirtualMachine(vm) catch return false;
+
+    return true;
+}
+
+export fn sdfgen_vm_create(name: [*c]u8, c_vcpus: [*c]*align(8) anyopaque, num_vcpus: u32) ?*anyopaque {
+    var vcpus = std.ArrayList(Vm.Vcpu).initCapacity(allocator, num_vcpus) catch @panic("OOM");
+    defer vcpus.deinit();
+
+    var i: usize = 0;
+    while (i < num_vcpus) : (i += 1) {
+        const vcpu: *Vm.Vcpu = @ptrCast(c_vcpus[i]);
+        vcpus.appendAssumeCapacity(vcpu.*);
+    }
+
+    const vm = allocator.create(Vm) catch @panic("OOM");
+    vm.* = Vm.create(allocator, std.mem.span(name), vcpus.items) catch return null;
+
+    return vm;
+}
+
+// TODO
+// export fn sdfgen_vm_add_map(c_vm: *align(8) anyopaque, c_map: *align(8) anyopaque) void {
+//     const 
+// }
+
 export fn sdfgen_sddf_init(path: [*c]u8) bool {
     sddf.probe(allocator, std.mem.span(path)) catch return false;
 
     return true;
+}
+
+export fn sdfgen_mr_create(name: [*c]u8, size: u64) *anyopaque {
+    const mr = allocator.create(Mr) catch @panic("OOM");
+    mr.* = Mr.create(allocator, std.mem.span(name), size, .{});
+
+    return mr;
+}
+
+export fn sdfgen_mr_destroy(c_mr: *align(8) anyopaque) void {
+    const mr: *Mr = @ptrCast(c_mr);
+    mr.destroy();
+    allocator.destroy(mr);
+}
+
+export fn sdfgen_map_create(c_mr: *align(8) anyopaque, vaddr: u64, c_perms: bindings.sdfgen_map_perms_t, cached: bool) *anyopaque {
+    const mr: *Mr = @ptrCast(c_mr);
+
+    var perms: Map.Perms = .{};
+    if (c_perms & 0b001 != 0) {
+        perms.read = true;
+    }
+    if (c_perms & 0b010 != 0) {
+        perms.write = true;
+    }
+    if (c_perms & 0b100 != 0) {
+        perms.execute = true;
+    }
+
+    const map = allocator.create(Map) catch @panic("OOM");
+    // TODO: I think we got some memory problems if we're dereferencing this stuff since
+    // we need MemoryRegion to still be valid the whole time since we depend on it
+    map.* = Map.create(mr.*, vaddr, perms, cached, .{});
+
+    return map;
+}
+
+export fn sdfgen_map_destroy(c_map: *align(8) anyopaque) void {
+    const map: *Map = @ptrCast(c_map);
+    allocator.destroy(map);
 }
 
 // TODO: handle specifying channel parameters
@@ -205,9 +290,9 @@ export fn sdfgen_sddf_timer_connect(system: *align(8) anyopaque) bool {
     return true;
 }
 
-export fn sdfgen_sddf_timer_serialise_config(system: *align(8) anyopaque, output: [*c]u8) bool {
+export fn sdfgen_sddf_timer_serialise_config(system: *align(8) anyopaque, output_dir: [*c]u8) bool {
     const timer: *sddf.TimerSystem = @ptrCast(system);
-    timer.serialiseConfig(std.mem.span(output)) catch return false;
+    timer.serialiseConfig(std.mem.span(output_dir)) catch return false;
 
     return true;
 }
@@ -237,9 +322,9 @@ export fn sdfgen_sddf_serial_connect(system: *align(8) anyopaque) bool {
     return true;
 }
 
-export fn sdfgen_sddf_serial_serialise_config(system: *align(8) anyopaque, output: [*c]u8) bool {
+export fn sdfgen_sddf_serial_serialise_config(system: *align(8) anyopaque, output_dir: [*c]u8) bool {
     const serial: *sddf.SerialSystem = @ptrCast(system);
-    serial.serialiseConfig(std.mem.span(output)) catch return false;
+    serial.serialiseConfig(std.mem.span(output_dir)) catch return false;
     return true;
 }
 
@@ -268,6 +353,12 @@ export fn sdfgen_sddf_i2c_connect(system: *align(8) anyopaque) bool {
     return true;
 }
 
+export fn sdfgen_sddf_i2c_serialise_config(system: *align(8) anyopaque, output_dir: [*c]u8) bool {
+    const i2c: *sddf.I2cSystem = @ptrCast(system);
+    i2c.serialiseConfig(std.mem.span(output_dir)) catch return false;
+    return true;
+}
+
 export fn sdfgen_sddf_block(c_sdf: *align(8) anyopaque, c_device: *align(8) anyopaque, driver: *align(8) anyopaque, virt: *align(8) anyopaque) *anyopaque {
     const sdf: *SystemDescription = @ptrCast(c_sdf);
     const block = allocator.create(sddf.BlockSystem) catch @panic("OOM");
@@ -278,6 +369,7 @@ export fn sdfgen_sddf_block(c_sdf: *align(8) anyopaque, c_device: *align(8) anyo
 
 export fn sdfgen_sddf_block_destroy(system: *align(8) anyopaque) void {
     const block: *sddf.BlockSystem = @ptrCast(system);
+    block.deinit();
     allocator.destroy(block);
 }
 
@@ -289,6 +381,13 @@ export fn sdfgen_sddf_block_add_client(system: *align(8) anyopaque, client: *ali
 export fn sdfgen_sddf_block_connect(system: *align(8) anyopaque) bool {
     const block: *sddf.BlockSystem = @ptrCast(system);
     block.connect() catch return false;
+
+    return true;
+}
+
+export fn sdfgen_sddf_block_serialise_config(system: *align(8) anyopaque, output_dir: [*c]u8) bool {
+    const block: *sddf.BlockSystem = @ptrCast(system);
+    block.serialiseConfig(std.mem.span(output_dir)) catch return false;
 
     return true;
 }
@@ -326,9 +425,9 @@ export fn sdfgen_sddf_net_connect(system: *align(8) anyopaque) bool {
     return true;
 }
 
-export fn sdfgen_sddf_net_serialise_config(system: *align(8) anyopaque, output: [*c]u8) bool {
+export fn sdfgen_sddf_net_serialise_config(system: *align(8) anyopaque, output_dir: [*c]u8) bool {
     const net: *sddf.NetworkSystem = @ptrCast(system);
-    net.serialiseConfig(std.mem.span(output)) catch return false;
+    net.serialiseConfig(std.mem.span(output_dir)) catch return false;
     return true;
 }
 

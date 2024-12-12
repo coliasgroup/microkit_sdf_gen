@@ -1,9 +1,12 @@
 from __future__ import annotations
 import ctypes
 import importlib.util
-from ctypes import c_void_p, c_char_p, c_uint8, c_uint32, c_bool, POINTER, byref
+from ctypes import c_void_p, c_char_p, c_uint8, c_uint32, c_uint64, c_bool, POINTER, byref
 from typing import Optional, Tuple
 from enum import IntEnum
+
+# TOOD: double check
+MapPermsType = c_uint32
 
 libsdfgen = ctypes.CDLL(importlib.util.find_spec("csdfgen").origin)
 
@@ -23,6 +26,8 @@ libsdfgen.sdfgen_dtb_node.argtypes = [c_void_p, c_char_p]
 
 libsdfgen.sdfgen_add_pd.restype = None
 libsdfgen.sdfgen_add_pd.argtypes = [c_void_p, c_void_p]
+libsdfgen.sdfgen_add_mr.restype = None
+libsdfgen.sdfgen_add_mr.argtypes = [c_void_p, c_void_p]
 
 libsdfgen.sdfgen_pd_set_priority.restype = None
 libsdfgen.sdfgen_pd_set_priority.argtypes = [c_void_p, c_uint8]
@@ -41,6 +46,16 @@ libsdfgen.sdfgen_channel_create.argtypes = [c_void_p, c_void_p]
 libsdfgen.sdfgen_channel_destroy.restype = None
 libsdfgen.sdfgen_channel_destroy.argtypes = [c_void_p]
 
+libsdfgen.sdfgen_map_create.restype = c_void_p
+libsdfgen.sdfgen_map_create.argtypes = [c_void_p, c_uint64, MapPermsType, c_bool]
+libsdfgen.sdfgen_map_destroy.restype = None
+libsdfgen.sdfgen_map_destroy.argtypes = [c_void_p]
+
+libsdfgen.sdfgen_mr_create.restype = c_void_p
+libsdfgen.sdfgen_mr_create.argtypes = [c_char_p, c_uint64]
+libsdfgen.sdfgen_mr_destroy.restype = None
+libsdfgen.sdfgen_mr_destroy.argtypes = [c_void_p]
+
 libsdfgen.sdfgen_pd_create.restype = c_void_p
 libsdfgen.sdfgen_pd_create.argtypes = [c_char_p, c_char_p]
 libsdfgen.sdfgen_pd_destroy.restype = None
@@ -48,6 +63,8 @@ libsdfgen.sdfgen_pd_destroy.argtypes = [c_void_p]
 
 libsdfgen.sdfgen_pd_add_child.restype = c_uint8
 libsdfgen.sdfgen_pd_add_child.argtypes = [c_void_p, c_void_p, POINTER(c_uint8)]
+libsdfgen.sdfgen_pd_add_map.restype = None
+libsdfgen.sdfgen_pd_add_map.argtypes = [c_void_p, c_void_p]
 
 libsdfgen.sdfgen_sddf_timer.restype = c_void_p
 libsdfgen.sdfgen_sddf_timer.argtypes = [c_void_p, c_void_p, c_void_p]
@@ -67,20 +84,27 @@ libsdfgen.sdfgen_sddf_i2c.argtypes = [c_void_p, c_void_p, c_void_p, c_void_p]
 libsdfgen.sdfgen_sddf_i2c_destroy.restype = None
 libsdfgen.sdfgen_sddf_i2c_destroy.argtypes = [c_void_p]
 
-libsdfgen.sdfgen_sddf_i2c_add_client.restype = c_void_p
+libsdfgen.sdfgen_sddf_i2c_add_client.restype = None
 libsdfgen.sdfgen_sddf_i2c_add_client.argtypes = [c_void_p, c_void_p]
 
 libsdfgen.sdfgen_sddf_i2c_connect.restype = c_bool
 libsdfgen.sdfgen_sddf_i2c_connect.argtypes = [c_void_p]
+libsdfgen.sdfgen_sddf_i2c_serialise_config.restype = c_bool
+libsdfgen.sdfgen_sddf_i2c_serialise_config.argtypes = [c_void_p, c_char_p]
 
 libsdfgen.sdfgen_sddf_block.restype = c_void_p
 libsdfgen.sdfgen_sddf_block.argtypes = [c_void_p, c_void_p, c_void_p, c_void_p]
+libsdfgen.sdfgen_sddf_block_destroy.restype = None
+libsdfgen.sdfgen_sddf_block_destroy.argtypes = [c_void_p]
 
-libsdfgen.sdfgen_sddf_block_add_client.restype = c_void_p
-libsdfgen.sdfgen_sddf_block_add_client.argtypes = [c_void_p, c_void_p]
+libsdfgen.sdfgen_sddf_block_add_client.restype = None
+libsdfgen.sdfgen_sddf_block_add_client.argtypes = [c_void_p, c_void_p, c_uint32]
 
 libsdfgen.sdfgen_sddf_block_connect.restype = c_bool
 libsdfgen.sdfgen_sddf_block_connect.argtypes = [c_void_p]
+
+libsdfgen.sdfgen_sddf_block_serialise_config.restype = c_bool
+libsdfgen.sdfgen_sddf_block_serialise_config.argtypes = [c_void_p, c_char_p]
 
 libsdfgen.sdfgen_sddf_serial.restype = c_void_p
 libsdfgen.sdfgen_sddf_serial.argtypes = [c_void_p, c_void_p, c_void_p, c_void_p, c_void_p]
@@ -227,9 +251,73 @@ class SystemDescription:
 
             return returned_id
 
+        def add_map(self, map: Map):
+            libsdfgen.sdfgen_pd_add_map(self._obj, map._obj)
+
+        def set_virtual_machine(self, vm: VirtualMachine):
+            ret = libsdfgen.sdfgen_pd_set_virtual_machine(self._obj, vm._obj)
+            if not ret:
+                # TODO: improve error message
+                raise Exception(f"ProtectionDomain already has VirtualMachine")
+
         def __del__(self):
             libsdfgen.sdfgen_pd_destroy(self._obj)
 
+    class VirtualMachine:
+        _obj: c_void_p
+
+        class VirtualCpu:
+            def __init__(self, *, id: int, cpu: int):
+                # TODO: error checking
+                self._obj = libsdfgen.sdfgen_vm_vcpu_create(id, cpu)
+
+        def __init__(self, name: str, vcpus: List[VirtualCpu]):
+            self._obj = libsfdgen.sdfgen_vm_create(name, VirtualCpuListType([vcpu._obj for vcpu in vcpus]))
+
+    class Map:
+        _obj: c_void_p
+
+        class Perms:
+            def __init__(self, *, r: bool, w: bool, x: bool):
+                self.read = r
+                self.write = w
+                self.execute = x
+
+            def _to_c_bindings(self) -> int:
+                c_perms = 0
+                if self.read:
+                    c_perms |= 0b001
+                if self.write:
+                    c_perms |= 0b010
+                if self.execute:
+                    c_perms |= 0b100
+
+                return c_perms
+
+        def __init__(
+            mr: MemoryRegion,
+            vaddr: int,
+            perms: Perms,
+            *,
+            cached: bool,
+        ) -> None:
+            self._obj = libsdfgen.sdfgen_map_create(mr._obj, vaddr, perms._to_c_bindings(), cached)
+
+    class MemoryRegion:
+        _obj: c_void_p
+
+        # TODO: handle more options
+        def __init__(
+            self,
+            name: str,
+            size: int,
+            *,
+            paddr: int
+        ) -> None:
+            self._obj = libsdfgen.sdfgen_memory_region_create(a._obj, b._obj)
+
+        def __del__(self):
+            libsdfgen.sdfgen_memory_region_destroy(self._obj)
 
     class Channel:
         _obj: c_void_p
@@ -328,9 +416,9 @@ class Sddf:
             """
             return libsdfgen.sdfgen_sddf_serial_connect(self._obj)
 
-        def serialise_config(self, output: str) -> bool:
-            c_output = c_char_p(output.encode("utf-8"))
-            return libsdfgen.sdfgen_sddf_serial_serialise_config(self._obj, c_output)
+        def serialise_config(self, output_dir: str) -> bool:
+            c_output_dir = c_char_p(output_dir.encode("utf-8"))
+            return libsdfgen.sdfgen_sddf_serial_serialise_config(self._obj, c_output_dir)
 
         def __del__(self):
             libsdfgen.sdfgen_sddf_serial_destroy(self._obj)
@@ -358,6 +446,10 @@ class Sddf:
         def connect(self) -> bool:
             return libsdfgen.sdfgen_sddf_i2c_connect(self._obj)
 
+        def serialise_config(self, output_dir: str) -> bool:
+            c_output_dir = c_char_p(output_dir.encode("utf-8"))
+            return libsdfgen.sdfgen_sddf_i2c_serialise_config(self._obj, c_output_dir)
+
         def __del__(self):
             libsdfgen.sdfgen_sddf_i2c_destroy(self._obj)
 
@@ -378,11 +470,15 @@ class Sddf:
 
             self._obj = libsdfgen.sdfgen_sddf_block(sdf._obj, device_obj, driver._obj, virt._obj)
 
-        def add_client(self, client: ProtectionDomain):
-            libsdfgen.sdfgen_sddf_block_add_client(self._obj, client._obj)
+        def add_client(self, client: ProtectionDomain, *, partition: int):
+            libsdfgen.sdfgen_sddf_block_add_client(self._obj, client._obj, partition)
 
         def connect(self) -> bool:
             return libsdfgen.sdfgen_sddf_block_connect(self._obj)
+
+        def serialise_config(self, output_dir: str) -> bool:
+            c_output_dir = c_char_p(output_dir.encode("utf-8"))
+            return libsdfgen.sdfgen_sddf_block_serialise_config(self._obj, c_output_dir)
 
         def __del__(self):
             libsdfgen.sdfgen_sddf_block_destroy(self._obj)
@@ -443,9 +539,9 @@ class Sddf:
         def connect(self) -> bool:
             return libsdfgen.sdfgen_sddf_net_connect(self._obj)
 
-        def serialise_config(self, output: str) -> bool:
-            c_output = c_char_p(output.encode("utf-8"))
-            return libsdfgen.sdfgen_sddf_net_serialise_config(self._obj, c_output)
+        def serialise_config(self, output_dir: str) -> bool:
+            c_output_dir = c_char_p(output_dir.encode("utf-8"))
+            return libsdfgen.sdfgen_sddf_net_serialise_config(self._obj, c_output_dir)
 
         def __del__(self):
             libsdfgen.sdfgen_sddf_net_destroy(self._obj)
@@ -472,9 +568,9 @@ class Sddf:
         def connect(self) -> bool:
             return libsdfgen.sdfgen_sddf_timer_connect(self._obj)
 
-        def serialise_config(self, output: str) -> bool:
-            c_output = c_char_p(output.encode("utf-8"))
-            return libsdfgen.sdfgen_sddf_timer_serialise_config(self._obj, c_output)
+        def serialise_config(self, output_dir: str) -> bool:
+            c_output_dir = c_char_p(output_dir.encode("utf-8"))
+            return libsdfgen.sdfgen_sddf_timer_serialise_config(self._obj, c_output_dir)
 
         def __del__(self):
             libsdfgen.sdfgen_sddf_timer_destroy(self._obj)

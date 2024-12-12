@@ -75,7 +75,7 @@ pub const SystemDescription = struct {
         // TODO: change to two API:
         // MemoryRegion.virtual()
         // MemoryRegion.physical()
-        pub fn create(allocator: Allocator, name: []const u8, size: usize, options: Options) MemoryRegion {
+        pub fn create(allocator: Allocator, name: []const u8, size: u64, options: Options) MemoryRegion {
             return MemoryRegion{
                 .allocator = allocator,
                 .name = allocator.dupe(u8, name) catch "Could not allocate name for MemoryRegion",
@@ -179,7 +179,7 @@ pub const SystemDescription = struct {
     pub const Map = struct {
         mr: MemoryRegion,
         vaddr: usize,
-        perms: Permissions,
+        perms: Perms,
         cached: bool,
         // TODO: could make this a type?
         setvar_vaddr: ?[]const u8,
@@ -188,19 +188,19 @@ pub const SystemDescription = struct {
             setvar_vaddr: ?[]const u8 = null,
         };
 
-        pub const Permissions = packed struct {
+        pub const Perms = packed struct {
             // TODO: check that perms are not write-only
             read: bool = false,
             write: bool = false,
             execute: bool = false,
 
-            pub const r = Permissions{ .read = true };
-            pub const x = Permissions{ .execute = true };
-            pub const rw = Permissions{ .read = true, .write = true };
-            pub const rx = Permissions{ .read = true, .execute = true };
-            pub const rwx = Permissions{ .read = true, .write = true, .execute = true };
+            pub const r = Perms{ .read = true };
+            pub const x = Perms{ .execute = true };
+            pub const rw = Perms{ .read = true, .write = true };
+            pub const rx = Perms{ .read = true, .execute = true };
+            pub const rwx = Perms{ .read = true, .write = true, .execute = true };
 
-            pub fn toString(perms: Permissions, buf: *[4]u8) usize {
+            pub fn toString(perms: Perms, buf: *[4]u8) usize {
                 var i: u8 = 0;
                 if (perms.read) {
                     buf[i] = 'r';
@@ -218,7 +218,7 @@ pub const SystemDescription = struct {
                 return i;
             }
 
-            pub fn fromString(str: []const u8) Permissions {
+            pub fn fromString(str: []const u8) Perms {
                 const read_count = std.mem.count(u8, str, "r");
                 const write_count = std.mem.count(u8, str, "w");
                 const exec_count = std.mem.count(u8, str, "x");
@@ -226,7 +226,7 @@ pub const SystemDescription = struct {
                 std.debug.assert(write_count == 0 or write_count == 1);
                 std.debug.assert(exec_count == 0 or exec_count == 1);
 
-                var perms: Permissions = .{};
+                var perms: Perms = .{};
                 if (read_count > 0) {
                     perms.read = true;
                 }
@@ -242,7 +242,8 @@ pub const SystemDescription = struct {
         };
 
         // TODO: make vaddr optional so its easier to allocate it automatically
-        pub fn create(mr: MemoryRegion, vaddr: usize, perms: Permissions, cached: bool, options: Options) Map {
+        // TODO: put cached in options and default to true
+        pub fn create(mr: MemoryRegion, vaddr: u64, perms: Perms, cached: bool, options: Options) Map {
             // const vaddr = if (options.vaddr) |fixed_vaddr| fixed_vaddr else ;
             return Map{
                 .mr = mr,
@@ -280,6 +281,7 @@ pub const SystemDescription = struct {
     };
 
     pub const VirtualMachine = struct {
+        allocator: Allocator,
         name: []const u8,
         priority: u8 = 100,
         // TODO: this budget and period is worng, the period needs to be the same as
@@ -289,16 +291,27 @@ pub const SystemDescription = struct {
         vcpus: []const Vcpu,
         maps: ArrayList(Map),
 
-        const Vcpu = struct {
-            id: usize,
+        pub const Vcpu = struct {
+            id: u8,
             /// Physical core the vCPU will run on
             cpu: usize = 0,
         };
 
-        pub fn create(allocator: Allocator, name: []const u8, vcpus: []const Vcpu) VirtualMachine {
+        pub fn create(allocator: Allocator, name: []const u8, vcpus: []const Vcpu) !VirtualMachine {
+            var i: usize = 0;
+            while (i < vcpus.len) : (i += 1) {
+                var j = i;
+                while (j < vcpus.len) : (j += 1) {
+                    if (vcpus[i].id == vcpus[j].id) {
+                        return error.DuplicateVcpuId;
+                    }
+                }
+            }
+
             return VirtualMachine{
-                .name = name,
-                .vcpus = vcpus,
+                .allocator = allocator,
+                .name = allocator.dupe(u8, name) catch @panic("Could not dupe VirtualMachine name"),
+                .vcpus = allocator.dupe(Vcpu, vcpus) catch @panic("Could not dupe VirtualMachine vCPU list"),
                 .maps = ArrayList(Map).init(allocator),
             };
         }
@@ -308,6 +321,8 @@ pub const SystemDescription = struct {
         }
 
         pub fn destroy(vm: *VirtualMachine) void {
+            vm.allocator.free(vm.vcpus);
+            vm.allocator.free(vm.name);
             vm.maps.deinit();
         }
 
