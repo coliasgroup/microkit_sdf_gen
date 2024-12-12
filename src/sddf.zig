@@ -1047,8 +1047,8 @@ pub const SerialSystem = struct {
         try data.serialize(system.device_res, try std.fs.path.join(system.allocator, &.{ prefix, device_res_data_name }));
         try data.jsonify(system.device_res, try std.fs.path.join(system.allocator, &.{ prefix, device_res_json_name }), .{ .whitespace = .indent_4 });
 
-        try data.serialize(system.driver_config, try fs.path.join(allocator, &.{ prefix, "serial_driver.data" }));
-        try data.jsonify(system.driver_config, try fs.path.join(allocator, &.{ prefix, "serial_driver.json"}), .{ .whitespace = .indent_4 });
+        try data.serialize(system.driver_config, try fs.path.join(allocator, &.{ prefix, "serial_driver_config.data" }));
+        try data.jsonify(system.driver_config, try fs.path.join(allocator, &.{ prefix, "serial_driver_config.json"}), .{ .whitespace = .indent_4 });
 
         try data.serialize(system.virt_rx_config, try fs.path.join(allocator, &.{ prefix, "serial_virt_rx.data" }));
         try data.jsonify(system.virt_rx_config, try fs.path.join(allocator, &.{ prefix, "serial_virt_rx.json" }), .{ .whitespace = .indent_4 });
