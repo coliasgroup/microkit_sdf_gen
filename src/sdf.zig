@@ -528,10 +528,11 @@ pub const SystemDescription = struct {
             // specify the ID for the root PD to use when referring to this child PD.
             // TODO: simplify this whole logic, it's quite messy right now
             // TODO: find a better way of caluclating the period
+            // TODO: support ARM SMC
             const attributes_str =
-                \\priority="{}" budget="{}" period="{}" passive="{}" stack_size="0x{x}" smc="{}"
+                \\priority="{}" budget="{}" period="{}" passive="{}" stack_size="0x{x}"
             ;
-            const attributes_xml = try allocPrint(sdf.allocator, attributes_str, .{ pd.priority, pd.budget, pd.period, pd.passive, pd.stack_size, pd.arm_smc });
+            const attributes_xml = try allocPrint(sdf.allocator, attributes_str, .{ pd.priority, pd.budget, pd.period, pd.passive, pd.stack_size });
             defer sdf.allocator.free(attributes_xml);
             var top: []const u8 = undefined;
             if (id) |id_val| {
