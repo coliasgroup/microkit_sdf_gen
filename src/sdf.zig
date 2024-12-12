@@ -300,7 +300,7 @@ pub const SystemDescription = struct {
         pub fn create(allocator: Allocator, name: []const u8, vcpus: []const Vcpu) !VirtualMachine {
             var i: usize = 0;
             while (i < vcpus.len) : (i += 1) {
-                var j = i;
+                var j = i + 1;
                 while (j < vcpus.len) : (j += 1) {
                     if (vcpus[i].id == vcpus[j].id) {
                         return error.DuplicateVcpuId;
