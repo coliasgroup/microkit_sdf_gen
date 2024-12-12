@@ -222,6 +222,14 @@ export fn sdfgen_mr_create(name: [*c]u8, size: u64) *anyopaque {
     return mr;
 }
 
+export fn sdfgen_mr_create_physical(name: [*c]u8, size: u64, paddr: u64) *anyopaque {
+    const mr = allocator.create(Mr) catch @panic("OOM");
+    mr.* = Mr.create(allocator, std.mem.span(name), size, .{});
+    mr.paddr = paddr;
+
+    return mr;
+}
+
 export fn sdfgen_mr_destroy(c_mr: *align(8) anyopaque) void {
     const mr: *Mr = @ptrCast(c_mr);
     mr.destroy();

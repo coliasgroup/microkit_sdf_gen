@@ -53,6 +53,8 @@ libsdfgen.sdfgen_map_destroy.argtypes = [c_void_p]
 
 libsdfgen.sdfgen_mr_create.restype = c_void_p
 libsdfgen.sdfgen_mr_create.argtypes = [c_char_p, c_uint64]
+libsdfgen.sdfgen_mr_create_physical.restype = c_void_p
+libsdfgen.sdfgen_mr_create_physical.argtypes = [c_char_p, c_uint64, c_uint64]
 libsdfgen.sdfgen_mr_destroy.restype = None
 libsdfgen.sdfgen_mr_destroy.argtypes = [c_void_p]
 
@@ -211,6 +213,7 @@ class SystemDescription:
 
     _obj: c_void_p
     # We need to hold references to the PDs in case they get GC'd.
+    # TODO: is this really necessary?
     _pds: List[ProtectionDomain]
 
     class Arch(IntEnum):
@@ -288,7 +291,7 @@ class SystemDescription:
         _obj: c_void_p
 
         class Perms:
-            def __init__(self, *, r: bool, w: bool, x: bool):
+            def __init__(self, *, r: bool=False, w: bool=False, x: bool=False):
                 self.read = r
                 self.write = w
                 self.execute = x
@@ -305,6 +308,7 @@ class SystemDescription:
                 return c_perms
 
         def __init__(
+            self,
             mr: MemoryRegion,
             vaddr: int,
             perms: Perms,
@@ -322,12 +326,16 @@ class SystemDescription:
             name: str,
             size: int,
             *,
-            paddr: int
+            paddr: Optional[int]=None
         ) -> None:
-            self._obj = libsdfgen.sdfgen_memory_region_create(a._obj, b._obj)
+            c_name = c_char_p(name.encode("utf-8"))
+            if paddr:
+                self._obj = libsdfgen.sdfgen_mr_create_physical(c_name, size, paddr)
+            else:
+                self._obj = libsdfgen.sdfgen_mr_create(c_name, size)
 
         def __del__(self):
-            libsdfgen.sdfgen_memory_region_destroy(self._obj)
+            libsdfgen.sdfgen_mr_destroy(self._obj)
 
     class Channel:
         _obj: c_void_p
@@ -360,6 +368,9 @@ class SystemDescription:
     def add_pd(self, pd: ProtectionDomain):
         self._pds.append(pd)
         libsdfgen.sdfgen_add_pd(self._obj, pd._obj)
+
+    def add_mr(self, mr: MemoryRegion):
+        libsdfgen.sdfgen_add_mr(self._obj, mr._obj)
 
     def xml(self) -> str:
         """Generate the XML view of the System Description Format for consumption by the Microkit."""

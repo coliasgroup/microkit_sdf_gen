@@ -53,11 +53,15 @@ bool sdfgen_pd_set_virtual_machine(void *pd, void *vm);
 void *sdfgen_vm_create(char *name, void **vcpus, uint32_t num_vcpus);
 void sdfgen_vm_destroy(void *vm);
 
+void *sdfgen_vm_vcpu_create(uint8_t id, uint16_t cpu);
+void sdfgen_vm_vcpu_destroy(void *vm);
+
 void *sdfgen_channel_create(void *pd_a, void *pd_b);
 void sdfgen_channel_destroy(void *ch);
 void *sdfgen_channel_add(void *sdf, void *ch);
 
 void *sdfgen_mr_create(char *name, uint64_t size);
+void *sdfgen_mr_create_physical(char *name, uint64_t size, uint64_t paddr);
 void sdfgen_mr_destroy(void *mr);
 
 void *sdfgen_map_create(void *mr, uint64_t vaddr, sdfgen_map_perms_t perms, bool cached);
