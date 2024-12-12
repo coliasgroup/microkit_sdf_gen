@@ -1,7 +1,7 @@
 from __future__ import annotations
 import ctypes
 import importlib.util
-from ctypes import c_void_p, c_char_p, c_uint8, c_uint32, c_uint64, c_bool, POINTER, byref
+from ctypes import c_void_p, c_char_p, c_uint8, c_uint16, c_uint32, c_uint64, c_bool, POINTER, byref
 from typing import Optional, Tuple
 from enum import IntEnum
 
@@ -55,6 +55,16 @@ libsdfgen.sdfgen_mr_create.restype = c_void_p
 libsdfgen.sdfgen_mr_create.argtypes = [c_char_p, c_uint64]
 libsdfgen.sdfgen_mr_destroy.restype = None
 libsdfgen.sdfgen_mr_destroy.argtypes = [c_void_p]
+
+libsdfgen.sdfgen_vm_create.restype = c_void_p
+libsdfgen.sdfgen_vm_create.argtypes = [c_char_p, POINTER(c_void_p), c_uint32]
+libsdfgen.sdfgen_vm_destroy.restype = None
+libsdfgen.sdfgen_vm_destroy.argtypes = [c_void_p]
+
+libsdfgen.sdfgen_vm_vcpu_create.restype = c_void_p
+libsdfgen.sdfgen_vm_vcpu_create.argtypes = [c_uint8, c_uint16]
+libsdfgen.sdfgen_vm_vcpu_destroy.restype = None
+libsdfgen.sdfgen_vm_vcpu_destroy.argtypes = [c_void_p]
 
 libsdfgen.sdfgen_pd_create.restype = c_void_p
 libsdfgen.sdfgen_pd_create.argtypes = [c_char_p, c_char_p]
@@ -267,7 +277,7 @@ class SystemDescription:
         _obj: c_void_p
 
         class VirtualCpu:
-            def __init__(self, *, id: int, cpu: int):
+            def __init__(self, *, id: int, cpu: Optional[int]=0):
                 # TODO: error checking
                 self._obj = libsdfgen.sdfgen_vm_vcpu_create(id, cpu)
 

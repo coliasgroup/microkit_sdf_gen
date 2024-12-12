@@ -186,6 +186,24 @@ export fn sdfgen_vm_create(name: [*c]u8, c_vcpus: [*c]*align(8) anyopaque, num_v
     return vm;
 }
 
+export fn sdfgen_vm_destroy(c_vm: *align(8) anyopaque) void {
+    const vm: *Vm = @ptrCast(c_vm);
+    vm.destroy();
+    allocator.destroy(vm);
+}
+
+export fn sdfgen_vm_vcpu_create(id: u8, cpu: u16) *anyopaque {
+    const vcpu: *Vm.Vcpu = allocator.create(Vm.Vcpu) catch @panic("OOM");
+    vcpu.* = Vm.Vcpu { .id = id, .cpu = cpu };
+
+    return vcpu;
+}
+
+export fn sdfgen_vm_vcpu_destroy(c_vcpu: *align(8) anyopaque) void {
+    const vcpu: *Vm.Vcpu = @ptrCast(c_vcpu);
+    allocator.destroy(vcpu);
+}
+
 // TODO
 // export fn sdfgen_vm_add_map(c_vm: *align(8) anyopaque, c_map: *align(8) anyopaque) void {
 //     const 

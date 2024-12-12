@@ -294,7 +294,7 @@ pub const SystemDescription = struct {
         pub const Vcpu = struct {
             id: u8,
             /// Physical core the vCPU will run on
-            cpu: usize = 0,
+            cpu: u16 = 0,
         };
 
         pub fn create(allocator: Allocator, name: []const u8, vcpus: []const Vcpu) !VirtualMachine {
