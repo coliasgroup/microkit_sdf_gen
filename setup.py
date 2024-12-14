@@ -5,6 +5,8 @@ from pathlib import Path
 
 csdfgen = Extension("csdfgen", sources=[], depends=["src/c/sdfgen.h"], include_dirs=["src/c/"])
 
+with open("VERSION", "r") as f:
+    version = f.read()
 
 class ZigBuilder(build_ext):
     def build_extension(self, ext):
@@ -27,7 +29,7 @@ class ZigBuilder(build_ext):
 
 setup(
     name="sdfgen",
-    version="0.2.0",
+    version=version,
     url="https://github.com/au-ts/microkit_sdf_gen",
     description="Automating the creation of Microkit System Description Files (SDF)",
     packages=["sdfgen"],

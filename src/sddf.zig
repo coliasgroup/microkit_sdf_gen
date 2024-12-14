@@ -652,14 +652,16 @@ pub const I2cSystem = struct {
         if (i == 0) {
             system.driver_config.data_region = driver_map_data.vaddr;
         }
+        // Create a channel between the virtualiser and client
+        const ch = Channel.create(virt, client, .{ .pp = .b });
+        sdf.addChannel(ch);
+
         system.client_configs.items[i] = .{
             .request_region = client_map_req.vaddr,
             .response_region = client_map_resp.vaddr,
             .data_region = client_map_data.vaddr,
+            .virt_id = ch.pd_b_id,
         };
-
-        // Create a channel between the virtualiser and client
-        sdf.addChannel(.create(virt, client, .{ .pp = .b }));
     }
 
     pub fn connect(system: *I2cSystem) !void {
@@ -672,7 +674,11 @@ pub const I2cSystem = struct {
         // 2. Connect the driver to the virtualiser
         system.connectDriver();
         // 3. Create a channel between the driver and virtualiser for notifications
-        sdf.addChannel(.create(system.driver, system.virt, .{}));
+        const driver_virt_ch = Channel.create(system.driver, system.virt, .{});
+        sdf.addChannel(driver_virt_ch);
+        // TODO: don't put this here, do it in connectDriver?
+        system.driver_config.virt_id = driver_virt_ch.pd_a_id;
+        system.virt_config.driver_id = driver_virt_ch.pd_b_id;
         // 4. Connect each client to the virtualiser
         for (system.clients.items, 0..) |client, i| {
             system.connectClient(client, i);
@@ -698,7 +704,7 @@ pub const I2cSystem = struct {
 
         for (system.clients.items, 0..) |client, i| {
             const data_name = std.fmt.allocPrint(allocator, "i2c_client_{s}.data", .{client.name}) catch @panic("OOM");
-            const json_name = std.fmt.allocPrint(allocator, "i2c_client{s}.json", .{client.name}) catch @panic("OOM");
+            const json_name = std.fmt.allocPrint(allocator, "i2c_client_{s}.json", .{client.name}) catch @panic("OOM");
             try data.serialize(system.client_configs.items[i], try fs.path.join(allocator, &.{ prefix, data_name }));
             try data.jsonify(system.client_configs.items[i], try fs.path.join(allocator, &.{ prefix, json_name }), .{ .whitespace = .indent_4 });
         }
@@ -1358,9 +1364,9 @@ pub const NetworkSystem = struct {
         try data.jsonify(system.virt_tx_config, try fs.path.join(allocator, &.{ prefix, "net_virt_tx.json" }), .{ .whitespace = .indent_4 });
 
         for (system.copiers.items, 0..) |copier, i| {
-            const data_name = std.fmt.allocPrint(allocator, "{s}.data", .{copier.name}) catch @panic("OOM");
+            const data_name = std.fmt.allocPrint(allocator, "net_copy_{s}.data", .{copier.name}) catch @panic("OOM");
             try data.serialize(system.copy_configs.items[i], try fs.path.join(allocator, &.{ prefix, data_name }));
-            const json_name = std.fmt.allocPrint(allocator, "{s}.json", .{copier.name}) catch @panic("OOM");
+            const json_name = std.fmt.allocPrint(allocator, "net_copy_{s}.json", .{copier.name}) catch @panic("OOM");
             try data.jsonify(system.copy_configs.items[i], try fs.path.join(allocator, &.{ prefix, json_name }), .{ .whitespace = .indent_4 });
         }
 
@@ -1428,6 +1434,7 @@ pub fn createDriver(sdf: *SystemDescription, pd: *Pd, device: *dtb.Node, class: 
 
     const interrupts = device.prop(.Interrupts).?;
 
+    // TODO: check for duplicate dt index on irqs and regions
     for (driver.resources.regions) |region_resource| {
         if (region_resource.dt_index == null and region_resource.size == null) {
             log.err("driver '{s}' has region resource '{s}'' which specifies neither dt_index nor size: one or both must be specified", .{ driver.name, region_resource.name });
@@ -1498,6 +1505,10 @@ pub fn createDriver(sdf: *SystemDescription, pd: *Pd, device: *dtb.Node, class: 
     // For all driver IRQs, find the corresponding entry in the device tree and
     // process it for the SDF.
     for (driver.resources.irqs) |driver_irq| {
+        if (driver_irq.dt_index >= interrupts.len) {
+            std.log.err("invalid device tree index '{}' when creating driver for '{s}'", .{ driver_irq.dt_index, driver.name });
+            return error.InvalidDeviceTreeIndex;
+        }
         const dt_irq = interrupts[driver_irq.dt_index];
 
         const irq = blk: switch (sdf.arch) {

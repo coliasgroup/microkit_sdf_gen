@@ -165,6 +165,7 @@ pub const Resources = struct {
 
             driver_request_queue: u64,
             driver_response_queue: u64,
+            driver_id: u8,
             num_clients: u64,
             clients: [MAX_NUM_CLIENTS]VirtClient,
         };
@@ -174,12 +175,14 @@ pub const Resources = struct {
             request_region: u64,
             response_region: u64,
             data_region: u64,
+            virt_id: u8,
         };
 
         pub const Client = extern struct {
             request_region: u64,
             response_region: u64,
             data_region: u64,
+            virt_id: u8,
         };
     };
 

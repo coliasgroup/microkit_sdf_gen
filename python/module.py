@@ -152,6 +152,10 @@ libsdfgen.sdfgen_sddf_net_serialise_config.restype = c_bool
 libsdfgen.sdfgen_sddf_net_serialise_config.argtypes = [c_void_p, c_char_p]
 
 class DeviceTree:
+    """
+    This class exists to allow other layers to be generic to boards or architectures
+    by letting the user talk about hardware via the Device Tree.
+    """
     _obj: c_void_p
     _bytes: bytes
 
@@ -227,6 +231,7 @@ class SystemDescription:
         X86_64 = 5,
 
     class ProtectionDomain:
+        name: str
         _obj: c_void_p
         # We need to hold references to the PDs in case they get GC'd.
         _child_pds: List[ProtectionDomain]
@@ -240,6 +245,9 @@ class SystemDescription:
             period: Optional[int] = None,
             stack_size: Optional[int] = None
         ) -> None:
+            # TODO: don't do this, users might expect to be able to mutate name which
+            # is not the case
+            self.name = name
             c_name = c_char_p(name.encode("utf-8"))
             c_program_image = c_char_p(program_image.encode("utf-8"))
             self._obj = libsdfgen.sdfgen_pd_create(c_name, c_program_image)
@@ -254,6 +262,9 @@ class SystemDescription:
                 libsdfgen.sdfgen_pd_set_stack_size(self._obj, stack_size)
 
         def add_child_pd(self, child_pd: ProtectionDomain, child_id=None) -> int:
+            """
+            Returns allocated ID for the child.
+            """
             c_child_id = byref(c_uint8(child_id)) if child_id else None
 
             returned_id = libsdfgen.sdfgen_pd_add_child(self._obj, child_pd._obj, c_child_id)
@@ -407,7 +418,8 @@ class Sddf:
             device: Optional[DeviceTree.Node],
             driver: ProtectionDomain,
             virt_tx: ProtectionDomain,
-            virt_rx: Optional[ProtectionDomain]
+            *,
+            virt_rx: Optional[ProtectionDomain]=None
         ) -> None:
             if device is None:
                 device_obj = None
