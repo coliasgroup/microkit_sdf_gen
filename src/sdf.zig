@@ -336,14 +336,6 @@ pub const SystemDescription = struct {
         pub fn toXml(vm: *VirtualMachine, sdf: *SystemDescription, writer: ArrayList(u8).Writer, separator: []const u8) !void {
             const allocator = sdf.allocator;
 
-            // const first_tag =
-            //     \\{s}<virtual_machine name="{s}" priority="{}" budget="{}" period="{}" >
-            // ;
-            // const first_xml = try allocPrint(sdf.allocator, first_tag, .{ separator, vm.name, vm.priority, vm.budget, vm.period });
-            // defer sdf.allocator.free(first_xml);
-            // _ = try writer.write(first_xml);
-            // _ = try writer.write("\n");
-
             const vm_xml = try allocPrint(allocator, "{s}<virtual_machine name=\"{s}\"", .{ separator, vm.name });
             defer allocator.free(vm_xml);
             _ = try writer.write(vm_xml);
