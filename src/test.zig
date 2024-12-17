@@ -133,7 +133,7 @@ test "basic VM" {
     var vmm = ProtectionDomain.create(allocator, "vmm", "vmm.elf", .{});
     sdf.addProtectionDomain(&vmm);
 
-    var vm = try VirtualMachine.create(allocator, "vm", &.{ .{ .id = 0 } });
+    var vm = try VirtualMachine.create(allocator, "vm", &.{ .{ .id = 0 } }, .{});
 
     var vmm_system = VirtualMachineSystem.init(allocator, &sdf, &vmm, &vm, guest_dtb, .{});
 

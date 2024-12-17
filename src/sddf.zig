@@ -505,8 +505,8 @@ pub const TimerSystem = struct {
     }
 
     pub fn connect(system: *TimerSystem) !void {
-        // The driver must be passive and it must be able to receive protected procedure calls
-        assert(system.driver.passive);
+        // The driver must be passive
+        assert(system.driver.passive.?);
 
         try createDriver(system.sdf, system.driver, system.device, .timer, &system.device_res);
         for (system.clients.items, 0..) |client, i| {

@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <system>
-    <protection_domain name="hello" priority="100" budget="100" period="100" passive="false" stack_size="0x1000">
+    <protection_domain name="hello">
         <program_image path="hello.elf" />
     </protection_domain>
 </system>

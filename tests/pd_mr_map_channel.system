@@ -1,14 +1,14 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <system>
     <memory_region name="test" size="0x1000" page_size="0x1000" />
-    <protection_domain name="hello-1" priority="100" budget="100" period="100" passive="false" stack_size="0x1000">
+    <protection_domain name="hello-1">
         <program_image path="hello.elf" />
         <map mr="test" vaddr="0x400000000" perms="r" cached="true" />
         <map mr="test" vaddr="0x600000000" perms="x" cached="true" />
         <map mr="test" vaddr="0x800000000" perms="rwx" cached="true" />
         <irq irq="33" trigger="level" id="0" />
     </protection_domain>
-    <protection_domain name="hello-2" priority="100" budget="100" period="100" passive="false" stack_size="0x1000">
+    <protection_domain name="hello-2">
         <program_image path="hello.elf" />
     </protection_domain>
     <channel>

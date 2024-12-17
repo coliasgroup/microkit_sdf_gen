@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <system>
-    <protection_domain name="hello-1" priority="100" budget="100" period="100" passive="false" stack_size="0x1000">
+    <protection_domain name="hello-1">
         <program_image path="hello.elf" />
         <irq irq="33" trigger="level" id="0" />
     </protection_domain>
-    <protection_domain name="hello-2" priority="100" budget="100" period="100" passive="false" stack_size="0x1000">
+    <protection_domain name="hello-2">
         <program_image path="hello.elf" />
     </protection_domain>
     <channel>

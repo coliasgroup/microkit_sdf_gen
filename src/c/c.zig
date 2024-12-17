@@ -187,7 +187,7 @@ export fn sdfgen_vm_create(name: [*c]u8, c_vcpus: [*c]*align(8) anyopaque, num_v
     }
 
     const vm = allocator.create(Vm) catch @panic("OOM");
-    vm.* = Vm.create(allocator, std.mem.span(name), vcpus.items) catch return null;
+    vm.* = Vm.create(allocator, std.mem.span(name), vcpus.items, .{}) catch return null;
 
     return vm;
 }

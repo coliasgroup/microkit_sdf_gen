@@ -283,13 +283,17 @@ pub const SystemDescription = struct {
     pub const VirtualMachine = struct {
         allocator: Allocator,
         name: []const u8,
-        priority: u8 = 100,
-        // TODO: this budget and period is worng, the period needs to be the same as
-        // the budget
-        budget: usize = 100,
-        period: usize = 100,
+        priority: ?u8,
+        budget: ?u32,
+        period: ?u32,
         vcpus: []const Vcpu,
         maps: ArrayList(Map),
+
+        const Options = struct {
+            priority: ?u8 = null,
+            budget: ?u32 = null,
+            period: ?u32 = null,
+        };
 
         pub const Vcpu = struct {
             id: u8,
@@ -297,7 +301,7 @@ pub const SystemDescription = struct {
             cpu: u16 = 0,
         };
 
-        pub fn create(allocator: Allocator, name: []const u8, vcpus: []const Vcpu) !VirtualMachine {
+        pub fn create(allocator: Allocator, name: []const u8, vcpus: []const Vcpu, options: Options) !VirtualMachine {
             var i: usize = 0;
             while (i < vcpus.len) : (i += 1) {
                 var j = i + 1;
@@ -313,6 +317,9 @@ pub const SystemDescription = struct {
                 .name = allocator.dupe(u8, name) catch @panic("Could not dupe VirtualMachine name"),
                 .vcpus = allocator.dupe(Vcpu, vcpus) catch @panic("Could not dupe VirtualMachine vCPU list"),
                 .maps = ArrayList(Map).init(allocator),
+                .priority = options.priority,
+                .budget = options.budget,
+                .period = options.period,
             };
         }
 
@@ -327,13 +334,39 @@ pub const SystemDescription = struct {
         }
 
         pub fn toXml(vm: *VirtualMachine, sdf: *SystemDescription, writer: ArrayList(u8).Writer, separator: []const u8) !void {
-            const first_tag =
-                \\{s}<virtual_machine name="{s}" priority="{}" budget="{}" period="{}" >
-            ;
-            const first_xml = try allocPrint(sdf.allocator, first_tag, .{ separator, vm.name, vm.priority, vm.budget, vm.period });
-            defer sdf.allocator.free(first_xml);
-            _ = try writer.write(first_xml);
-            _ = try writer.write("\n");
+            const allocator = sdf.allocator;
+
+            // const first_tag =
+            //     \\{s}<virtual_machine name="{s}" priority="{}" budget="{}" period="{}" >
+            // ;
+            // const first_xml = try allocPrint(sdf.allocator, first_tag, .{ separator, vm.name, vm.priority, vm.budget, vm.period });
+            // defer sdf.allocator.free(first_xml);
+            // _ = try writer.write(first_xml);
+            // _ = try writer.write("\n");
+
+            const vm_xml = try allocPrint(allocator, "{s}<virtual_machine name=\"{s}\"", .{ separator, vm.name });
+            defer allocator.free(vm_xml);
+            _ = try writer.write(vm_xml);
+
+            if (vm.priority) |priority| {
+                const xml = try allocPrint(allocator, " priority=\"{}\"", .{ priority });
+                defer allocator.free(xml);
+                _ = try writer.write(xml);
+            }
+
+            if (vm.budget) |budget| {
+                const xml = try allocPrint(allocator, " budget=\"{}\"", .{ budget });
+                defer allocator.free(xml);
+                _ = try writer.write(xml);
+            }
+
+            if (vm.period) |period| {
+                const xml = try allocPrint(allocator, " period=\"{}\"", .{ period });
+                defer allocator.free(xml);
+                _ = try writer.write(xml);
+            }
+
+            _ = try writer.write(">\n");
 
             // Add memory region mappings as child nodes
             const child_separator = try allocPrint(sdf.allocator, "{s}    ", .{separator});
@@ -367,11 +400,11 @@ pub const SystemDescription = struct {
         program_image: ?[]const u8,
         /// Scheduling parameters
         /// The policy here is to follow the default values that Microkit uses.
-        priority: u8,
-        budget: usize,
-        period: usize,
-        passive: bool,
-        stack_size: u32,
+        priority: ?u8,
+        budget: ?u32,
+        period: ?u32,
+        passive: ?bool,
+        stack_size: ?u32,
         /// Memory mappings
         maps: ArrayList(Map),
         /// The length of this array is bound by the maximum number of child PDs a PD can have.
@@ -382,7 +415,7 @@ pub const SystemDescription = struct {
         /// Keeping track of what IDs are available for channels, IRQs, etc
         ids: std.bit_set.StaticBitSet(MAX_IDS),
         /// Whether or not ARM SMC is available
-        arm_smc: bool,
+        arm_smc: ?bool,
         /// If this PD is a child of another PD, this ID identifies it to its parent PD
         child_id: ?u8,
 
@@ -394,18 +427,15 @@ pub const SystemDescription = struct {
         const MAX_CHILD_PDS: u8 = MAX_IDS;
 
         const Options = struct {
-            passive: bool = false,
-            priority: u8 = 100,
-            budget: ?usize = null,
-            period: ?usize = null,
-            stack_size: u32 = 0x1000,
-            arm_smc: bool = false,
+            passive: ?bool = null,
+            priority: ?u8 = null,
+            budget: ?u32 = null,
+            period: ?u32 = null,
+            stack_size: ?u32 = null,
+            arm_smc: ?bool = null,
         };
 
         pub fn create(allocator: Allocator, name: []const u8, program_image: ?[]const u8, options: Options) ProtectionDomain {
-            const budget = if (options.budget) |budget| budget else 100;
-            const period = if (options.period) |period| period else budget;
-
             const program_image_dupe = if (program_image) |p| allocator.dupe(u8, p) catch @panic("Could not dupe PD program_image") else null;
 
             return ProtectionDomain{
@@ -420,8 +450,8 @@ pub const SystemDescription = struct {
                 .setvars = ArrayList(SetVar).init(allocator),
                 .priority = options.priority,
                 .passive = options.passive,
-                .budget = budget,
-                .period = period,
+                .budget = options.budget,
+                .period = options.period,
                 .arm_smc = options.arm_smc,
                 .stack_size = options.stack_size,
                 .child_id = null,
@@ -541,22 +571,57 @@ pub const SystemDescription = struct {
         pub fn toXml(pd: *ProtectionDomain, sdf: *SystemDescription, writer: ArrayList(u8).Writer, separator: []const u8, id: ?usize) !void {
             // If we are given an ID, this PD is in fact a child PD and we have to
             // specify the ID for the root PD to use when referring to this child PD.
-            // TODO: simplify this whole logic, it's quite messy right now
-            // TODO: find a better way of caluclating the period
-            // TODO: support ARM SMC
-            const attributes_str =
-                \\priority="{}" budget="{}" period="{}" passive="{}" stack_size="0x{x}"
-            ;
-            const attributes_xml = try allocPrint(sdf.allocator, attributes_str, .{ pd.priority, pd.budget, pd.period, pd.passive, pd.stack_size });
-            defer sdf.allocator.free(attributes_xml);
-            var top: []const u8 = undefined;
+            const allocator = sdf.allocator;
+
+            const pd_xml = try allocPrint(allocator, "{s}<protection_domain name=\"{s}\"", .{ separator, pd.name });
+            defer allocator.free(pd_xml);
+            _ = try writer.write(pd_xml);
+
             if (id) |id_val| {
-                top = try allocPrint(sdf.allocator, "{s}<protection_domain name=\"{s}\" id=\"{}\" {s}>\n", .{ separator, pd.name, id_val, attributes_xml });
-            } else {
-                top = try allocPrint(sdf.allocator, "{s}<protection_domain name=\"{s}\" {s}>\n", .{ separator, pd.name, attributes_xml });
+                const id_xml = try allocPrint(allocator, " id=\"{}\"", .{ id_val });
+                defer allocator.free(id_xml);
+                _ = try writer.write(id_xml);
             }
-            defer sdf.allocator.free(top);
-            _ = try writer.write(top);
+
+            if (pd.priority) |priority| {
+                const xml = try allocPrint(allocator, " priority=\"{}\"", .{ priority });
+                defer allocator.free(xml);
+                _ = try writer.write(xml);
+            }
+
+            if (pd.budget) |budget| {
+                const xml = try allocPrint(allocator, " budget=\"{}\"", .{ budget });
+                defer allocator.free(xml);
+                _ = try writer.write(xml);
+            }
+
+            if (pd.passive) |passive| {
+                const xml = try allocPrint(allocator, " passive=\"{}\"", .{ passive });
+                defer allocator.free(xml);
+                _ = try writer.write(xml);
+            }
+
+            if (pd.stack_size) |stack_size| {
+                const xml = try allocPrint(allocator, " stack_size=\"0x{x}\"", .{ stack_size });
+                defer allocator.free(xml);
+                _ = try writer.write(xml);
+            }
+
+            if (pd.arm_smc) |smc| {
+                switch (sdf.arch) {
+                    .aarch64, .aarch32 => {},
+                    else => {
+                        std.log.err("set 'arm_smc' option when not targeting ARM\n", .{});
+                        return error.InvalidArmSmc;
+                    },
+                }
+
+                const smc_xml = try allocPrint(allocator, " smc=\"{}\"", .{ smc });
+                defer allocator.free(smc_xml);
+                _ = try writer.write(smc_xml);
+            }
+
+            _ = try writer.write(">\n");
 
             const child_separator = try allocPrint(sdf.allocator, "{s}    ", .{separator});
             defer sdf.allocator.free(child_separator);
