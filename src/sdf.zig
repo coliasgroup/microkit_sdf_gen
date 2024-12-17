@@ -587,6 +587,12 @@ pub const SystemDescription = struct {
                 _ = try writer.write(xml);
             }
 
+            if (pd.period) |period| {
+                const xml = try allocPrint(allocator, " period=\"{}\"", .{ period });
+                defer allocator.free(xml);
+                _ = try writer.write(xml);
+            }
+
             if (pd.passive) |passive| {
                 const xml = try allocPrint(allocator, " passive=\"{}\"", .{ passive });
                 defer allocator.free(xml);

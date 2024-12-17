@@ -34,9 +34,9 @@ libsdfgen.sdfgen_add_channel.argtypes = [c_void_p, c_void_p]
 libsdfgen.sdfgen_pd_set_priority.restype = None
 libsdfgen.sdfgen_pd_set_priority.argtypes = [c_void_p, c_uint8]
 libsdfgen.sdfgen_pd_set_budget.restype = None
-libsdfgen.sdfgen_pd_set_budget.argtypes = [c_void_p, c_uint8]
+libsdfgen.sdfgen_pd_set_budget.argtypes = [c_void_p, c_uint32]
 libsdfgen.sdfgen_pd_set_period.restype = None
-libsdfgen.sdfgen_pd_set_period.argtypes = [c_void_p, c_uint8]
+libsdfgen.sdfgen_pd_set_period.argtypes = [c_void_p, c_uint32]
 libsdfgen.sdfgen_pd_set_stack_size.restype = None
 libsdfgen.sdfgen_pd_set_stack_size.argtypes = [c_void_p, c_uint32]
 

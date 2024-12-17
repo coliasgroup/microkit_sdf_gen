@@ -46,8 +46,8 @@ void sdfgen_pd_destroy(void *pd);
 uint8_t *sdfgen_pd_add_child(void *sdf, void *child_pd, uint8_t *child_id);
 void sdfgen_pd_add_map(void *pd, void *map);
 void sdfgen_pd_set_priority(void *pd, uint8_t priority);
-void sdfgen_pd_set_budget(void *pd, uint8_t budget);
-void sdfgen_pd_set_period(void *pd, uint8_t period);
+void sdfgen_pd_set_budget(void *pd, uint32_t budget);
+void sdfgen_pd_set_period(void *pd, uint32_t period);
 void sdfgen_pd_set_stack_size(void *pd, uint32_t stack_size);
 bool sdfgen_pd_set_virtual_machine(void *pd, void *vm);
 

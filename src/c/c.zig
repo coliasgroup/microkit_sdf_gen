@@ -153,12 +153,12 @@ export fn sdfgen_pd_set_priority(c_pd: *align(8) anyopaque, priority: u8) void {
     pd.priority = priority;
 }
 
-export fn sdfgen_pd_set_budget(c_pd: *align(8) anyopaque, budget: u8) void {
+export fn sdfgen_pd_set_budget(c_pd: *align(8) anyopaque, budget: u32) void {
     const pd: *Pd = @ptrCast(c_pd);
     pd.budget = budget;
 }
 
-export fn sdfgen_pd_set_period(c_pd: *align(8) anyopaque, period: u8) void {
+export fn sdfgen_pd_set_period(c_pd: *align(8) anyopaque, period: u32) void {
     const pd: *Pd = @ptrCast(c_pd);
     pd.period = period;
 }
