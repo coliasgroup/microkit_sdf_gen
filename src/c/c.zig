@@ -57,6 +57,12 @@ export fn sdfgen_add_mr(c_sdf: *align(8) anyopaque, c_mr: *align(8) anyopaque) v
     sdf.addMemoryRegion(mr.*);
 }
 
+export fn sdfgen_add_channel(c_sdf: *align(8) anyopaque, c_ch: *align(8) anyopaque) void {
+    const sdf: *SystemDescription = @ptrCast(c_sdf);
+    const ch: *Channel = @ptrCast(c_ch);
+    sdf.addChannel(ch.*);
+}
+
 export fn sdfgen_to_xml(c_sdf: *align(8) anyopaque) [*c]u8 {
     const sdf: *SystemDescription = @ptrCast(c_sdf);
     const xml = sdf.toXml() catch @panic("Cannot convert to XML");
@@ -269,6 +275,16 @@ export fn sdfgen_channel_create(pd_a: *align(8) anyopaque, pd_b: *align(8) anyop
     ch.* = Channel.create(@ptrCast(pd_a), @ptrCast(pd_b), .{});
 
     return ch;
+}
+
+export fn sdfgen_channel_get_pd_a_id(c_ch: *align(8) anyopaque) u8 {
+    const ch: *Channel = @ptrCast(c_ch);
+    return ch.pd_a_id;
+}
+
+export fn sdfgen_channel_get_pd_b_id(c_ch: *align(8) anyopaque) u8 {
+    const ch: *Channel = @ptrCast(c_ch);
+    return ch.pd_b_id;
 }
 
 // export fn sdfgen_channel_set_options(c_ch: *align(8) anyopaque, pp_a: bool, pp_b: bool, notify_a: bool, notify_b: bool) void {

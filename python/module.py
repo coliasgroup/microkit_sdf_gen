@@ -28,6 +28,8 @@ libsdfgen.sdfgen_add_pd.restype = None
 libsdfgen.sdfgen_add_pd.argtypes = [c_void_p, c_void_p]
 libsdfgen.sdfgen_add_mr.restype = None
 libsdfgen.sdfgen_add_mr.argtypes = [c_void_p, c_void_p]
+libsdfgen.sdfgen_add_channel.restype = None
+libsdfgen.sdfgen_add_channel.argtypes = [c_void_p, c_void_p]
 
 libsdfgen.sdfgen_pd_set_priority.restype = None
 libsdfgen.sdfgen_pd_set_priority.argtypes = [c_void_p, c_uint8]
@@ -45,6 +47,10 @@ libsdfgen.sdfgen_channel_create.restype = c_void_p
 libsdfgen.sdfgen_channel_create.argtypes = [c_void_p, c_void_p]
 libsdfgen.sdfgen_channel_destroy.restype = None
 libsdfgen.sdfgen_channel_destroy.argtypes = [c_void_p]
+libsdfgen.sdfgen_channel_get_pd_a_id.restype = c_uint8
+libsdfgen.sdfgen_channel_get_pd_a_id.argtypes = [c_void_p]
+libsdfgen.sdfgen_channel_get_pd_b_id.restype = c_uint8
+libsdfgen.sdfgen_channel_get_pd_b_id.argtypes = [c_void_p]
 
 libsdfgen.sdfgen_map_create.restype = c_void_p
 libsdfgen.sdfgen_map_create.argtypes = [c_void_p, c_uint64, MapPermsType, c_bool]
@@ -324,7 +330,7 @@ class SystemDescription:
             vaddr: int,
             perms: Perms,
             *,
-            cached: bool,
+            cached: bool=True,
         ) -> None:
             self._obj = libsdfgen.sdfgen_map_create(mr._obj, vaddr, perms._to_c_bindings(), cached)
 
@@ -356,12 +362,21 @@ class SystemDescription:
             self,
             a: ProtectionDomain,
             b: ProtectionDomain,
+            *,
             pp_a=False,
             pp_b=False,
             notify_a=True,
             notify_b=True
         ) -> None:
             self._obj = libsdfgen.sdfgen_channel_create(a._obj, b._obj)
+
+        @property
+        def pd_a_id(self) -> int:
+            return libsdfgen.sdfgen_channel_get_pd_a_id(self._obj)
+
+        @property
+        def pd_b_id(self) -> int:
+            return libsdfgen.sdfgen_channel_get_pd_b_id(self._obj)
 
         def __del__(self):
             libsdfgen.sdfgen_channel_destroy(self._obj)
@@ -382,6 +397,9 @@ class SystemDescription:
 
     def add_mr(self, mr: MemoryRegion):
         libsdfgen.sdfgen_add_mr(self._obj, mr._obj)
+
+    def add_channel(self, ch: Channel):
+        libsdfgen.sdfgen_add_channel(self._obj, ch._obj)
 
     def xml(self) -> str:
         """Generate the XML view of the System Description Format for consumption by the Microkit."""

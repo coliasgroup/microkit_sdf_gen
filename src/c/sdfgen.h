@@ -37,6 +37,7 @@ void *sdfgen_dtb_node(void *blob, char *node);
 
 void *sdfgen_add_pd(void *sdf, void *pd);
 void *sdfgen_add_mr(void *sdf, void *mr);
+void *sdfgen_add_channel(void *sdf, void *ch);
 
 void *sdfgen_pd_create(char *name, char *elf);
 void sdfgen_pd_destroy(void *pd);
@@ -58,7 +59,8 @@ void sdfgen_vm_vcpu_destroy(void *vm);
 
 void *sdfgen_channel_create(void *pd_a, void *pd_b);
 void sdfgen_channel_destroy(void *ch);
-void *sdfgen_channel_add(void *sdf, void *ch);
+uint8_t sdfgen_channel_get_pd_a_id(void *ch);
+uint8_t sdfgen_channel_get_pd_b_id(void *ch);
 
 void *sdfgen_mr_create(char *name, uint64_t size);
 void *sdfgen_mr_create_physical(char *name, uint64_t size, uint64_t paddr);
