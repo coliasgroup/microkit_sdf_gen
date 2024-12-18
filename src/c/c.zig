@@ -259,7 +259,7 @@ export fn sdfgen_map_create(c_mr: *align(8) anyopaque, vaddr: u64, c_perms: bind
     const map = allocator.create(Map) catch @panic("OOM");
     // TODO: I think we got some memory problems if we're dereferencing this stuff since
     // we need MemoryRegion to still be valid the whole time since we depend on it
-    map.* = Map.create(mr.*, vaddr, perms, cached, .{});
+    map.* = Map.create(mr.*, vaddr, perms, .{ .cached = cached });
 
     return map;
 }

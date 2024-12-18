@@ -104,7 +104,7 @@ pub const VirtualMachineSystem = struct {
         if (sdf.arch == .aarch64) {
             const gic = ArmGic.fromDtb(system.guest_dtb);
             const gic_vcpu_mr = Mr.physical(allocator, sdf, "gic_vcpu", gic.vcpu_size, .{ .paddr = gic.vcpu_paddr });
-            const gic_guest_map = Map.create(gic_vcpu_mr, gic.cpu_paddr, .rw, false, .{});
+            const gic_guest_map = Map.create(gic_vcpu_mr, gic.cpu_paddr, .rw, .{ .cached = false });
             sdf.addMemoryRegion(gic_vcpu_mr);
             vm.addMap(gic_guest_map);
         }
@@ -129,8 +129,8 @@ pub const VirtualMachineSystem = struct {
         };
         sdf.addMemoryRegion(guest_ram_mr);
         // TODO: vaddr should come from the memory node from DTB
-        const vm_guest_ram_map = Map.create(guest_ram_mr, memory_paddr, .rwx, true, .{});
-        const vmm_guest_ram_map = Map.create(guest_ram_mr, memory_paddr, .rw, true, .{});
+        const vm_guest_ram_map = Map.create(guest_ram_mr, memory_paddr, .rwx, .{});
+        const vmm_guest_ram_map = Map.create(guest_ram_mr, memory_paddr, .rw, .{});
         vmm.addMap(vmm_guest_ram_map);
         vm.addMap(vm_guest_ram_map);
     }

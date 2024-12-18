@@ -595,14 +595,14 @@ pub const I2cSystem = struct {
         sdf.addMemoryRegion(mr_req);
         sdf.addMemoryRegion(mr_resp);
 
-        const driver_map_req = Map.create(mr_req, driver.getMapVaddr(&mr_req), .rw, true, .{});
+        const driver_map_req = Map.create(mr_req, driver.getMapVaddr(&mr_req), .rw, .{});
         driver.addMap(driver_map_req);
-        const driver_map_resp = Map.create(mr_resp, driver.getMapVaddr(&mr_resp), .rw, true, .{});
+        const driver_map_resp = Map.create(mr_resp, driver.getMapVaddr(&mr_resp), .rw, .{});
         driver.addMap(driver_map_resp);
 
-        const virt_map_req = Map.create(mr_req, virt.getMapVaddr(&mr_req), .rw, true, .{});
+        const virt_map_req = Map.create(mr_req, virt.getMapVaddr(&mr_req), .rw, .{});
         virt.addMap(virt_map_req);
-        const virt_map_resp = Map.create(mr_resp, virt.getMapVaddr(&mr_resp), .rw, true, .{});
+        const virt_map_resp = Map.create(mr_resp, virt.getMapVaddr(&mr_resp), .rw, .{});
         virt.addMap(virt_map_resp);
 
         system.driver_config.request_region = driver_map_req.vaddr;
@@ -628,19 +628,19 @@ pub const I2cSystem = struct {
         sdf.addMemoryRegion(mr_resp);
         sdf.addMemoryRegion(mr_data);
 
-        const driver_map_data = Map.create(mr_data, system.driver.getMapVaddr(&mr_data), .rw, true, .{});
+        const driver_map_data = Map.create(mr_data, system.driver.getMapVaddr(&mr_data), .rw, .{});
         driver.addMap(driver_map_data);
 
-        const virt_map_req = Map.create(mr_req, system.virt.getMapVaddr(&mr_req), .rw, true, .{});
+        const virt_map_req = Map.create(mr_req, system.virt.getMapVaddr(&mr_req), .rw, .{});
         virt.addMap(virt_map_req);
-        const virt_map_resp = Map.create(mr_resp, system.virt.getMapVaddr(&mr_resp), .rw, true, .{});
+        const virt_map_resp = Map.create(mr_resp, system.virt.getMapVaddr(&mr_resp), .rw, .{});
         virt.addMap(virt_map_resp);
 
-        const client_map_req = Map.create(mr_req, client.getMapVaddr(&mr_req), .rw, true, .{});
+        const client_map_req = Map.create(mr_req, client.getMapVaddr(&mr_req), .rw, .{});
         client.addMap(client_map_req);
-        const client_map_resp = Map.create(mr_resp, client.getMapVaddr(&mr_resp), .rw, true, .{});
+        const client_map_resp = Map.create(mr_resp, client.getMapVaddr(&mr_resp), .rw, .{});
         client.addMap(client_map_resp);
-        const client_map_data = Map.create(mr_data, client.getMapVaddr(&mr_data), .rw, true, .{});
+        const client_map_data = Map.create(mr_data, client.getMapVaddr(&mr_data), .rw, .{});
         client.addMap(client_map_data);
 
         system.virt_config.clients[i] = .{
@@ -775,8 +775,8 @@ pub const BlockSystem = struct {
         const virt = system.virt;
 
         const mr_storage_info = Mr.create(allocator, "blk_driver_config", STORAGE_INFO_REGION_SIZE, .{});
-        const map_storage_info_driver = Map.create(mr_storage_info, system.driver.getMapVaddr(&mr_storage_info), .rw, true, .{ .setvar_vaddr = "blk_storage_info" });
-        const map_storage_info_virt = Map.create(mr_storage_info, system.virt.getMapVaddr(&mr_storage_info), .r, true, .{});
+        const map_storage_info_driver = Map.create(mr_storage_info, system.driver.getMapVaddr(&mr_storage_info), .rw, .{ .setvar_vaddr = "blk_storage_info" });
+        const map_storage_info_virt = Map.create(mr_storage_info, system.virt.getMapVaddr(&mr_storage_info), .r, .{});
 
         sdf.addMemoryRegion(mr_storage_info);
         driver.addMap(map_storage_info_driver);
@@ -784,23 +784,23 @@ pub const BlockSystem = struct {
 
         // TODO: deal with size
         const mr_req = Mr.create(allocator, "blk_driver_request", 0x200_000, .{});
-        const map_req_driver = Map.create(mr_req, driver.getMapVaddr(&mr_req), .rw, true, .{ .setvar_vaddr = "blk_req_queue" });
-        const map_req_virt = Map.create(mr_req, virt.getMapVaddr(&mr_req), .rw, true, .{});
+        const map_req_driver = Map.create(mr_req, driver.getMapVaddr(&mr_req), .rw, .{ .setvar_vaddr = "blk_req_queue" });
+        const map_req_virt = Map.create(mr_req, virt.getMapVaddr(&mr_req), .rw, .{});
 
         sdf.addMemoryRegion(mr_req);
         driver.addMap(map_req_driver);
         virt.addMap(map_req_virt);
 
         const mr_resp = Mr.create(allocator, "blk_driver_response", 0x200_000, .{});
-        const map_resp_driver = Map.create(mr_resp, driver.getMapVaddr(&mr_resp), .rw, true, .{ .setvar_vaddr = "blk_resp_queue" });
-        const map_resp_virt = Map.create(mr_resp, virt.getMapVaddr(&mr_resp), .rw, true, .{});
+        const map_resp_driver = Map.create(mr_resp, driver.getMapVaddr(&mr_resp), .rw, .{ .setvar_vaddr = "blk_resp_queue" });
+        const map_resp_virt = Map.create(mr_resp, virt.getMapVaddr(&mr_resp), .rw, .{});
 
         sdf.addMemoryRegion(mr_resp);
         driver.addMap(map_resp_driver);
         virt.addMap(map_resp_virt);
 
         const mr_data = Mr.physical(allocator, sdf, "blk_driver_data", 0x200_000, .{});
-        const map_data_virt = Map.create(mr_data, virt.getMapVaddr(&mr_data), .rw, true, .{});
+        const map_data_virt = Map.create(mr_data, virt.getMapVaddr(&mr_data), .rw, .{});
 
         sdf.addMemoryRegion(mr_data);
         virt.addMap(map_data_virt);
@@ -824,32 +824,32 @@ pub const BlockSystem = struct {
         const queue_mr_size = system.queue_mr_size;
 
         const mr_storage_info = Mr.create(allocator, fmt(allocator, "blk_client_{s}_storage_info", .{client.name}), STORAGE_INFO_REGION_SIZE, .{});
-        const map_storage_info_virt = Map.create(mr_storage_info, system.virt.getMapVaddr(&mr_storage_info), .rw, true, .{});
-        const map_storage_info_client = Map.create(mr_storage_info, client.getMapVaddr(&mr_storage_info), .r, true, .{});
+        const map_storage_info_virt = Map.create(mr_storage_info, system.virt.getMapVaddr(&mr_storage_info), .rw, .{});
+        const map_storage_info_client = Map.create(mr_storage_info, client.getMapVaddr(&mr_storage_info), .r, .{});
 
         system.sdf.addMemoryRegion(mr_storage_info);
         system.virt.addMap(map_storage_info_virt);
         client.addMap(map_storage_info_client);
 
         const mr_req = Mr.create(allocator, fmt(allocator, "blk_client_{s}_request", .{client.name}), queue_mr_size, .{});
-        const map_req_virt = Map.create(mr_req, system.virt.getMapVaddr(&mr_req), .rw, true, .{});
-        const map_req_client = Map.create(mr_req, client.getMapVaddr(&mr_req), .rw, true, .{});
+        const map_req_virt = Map.create(mr_req, system.virt.getMapVaddr(&mr_req), .rw, .{});
+        const map_req_client = Map.create(mr_req, client.getMapVaddr(&mr_req), .rw, .{});
 
         system.sdf.addMemoryRegion(mr_req);
         system.virt.addMap(map_req_virt);
         client.addMap(map_req_client);
 
         const mr_resp = Mr.create(allocator, fmt(allocator, "blk_client_{s}_response", .{client.name}), queue_mr_size, .{});
-        const map_resp_virt = Map.create(mr_resp, system.virt.getMapVaddr(&mr_resp), .rw, true, .{});
-        const map_resp_client = Map.create(mr_resp, client.getMapVaddr(&mr_resp), .rw, true, .{});
+        const map_resp_virt = Map.create(mr_resp, system.virt.getMapVaddr(&mr_resp), .rw, .{});
+        const map_resp_client = Map.create(mr_resp, client.getMapVaddr(&mr_resp), .rw, .{});
 
         system.sdf.addMemoryRegion(mr_resp);
         system.virt.addMap(map_resp_virt);
         client.addMap(map_resp_client);
 
         const mr_data = Mr.physical(allocator, sdf, fmt(allocator, "blk_client_{s}_data", .{client.name}), queue_mr_size, .{});
-        const map_data_virt = Map.create(mr_data, system.virt.getMapVaddr(&mr_data), .rw, true, .{});
-        const map_data_client = Map.create(mr_data, client.getMapVaddr(&mr_data), .rw, true, .{});
+        const map_data_virt = Map.create(mr_data, system.virt.getMapVaddr(&mr_data), .rw, .{});
+        const map_data_client = Map.create(mr_data, client.getMapVaddr(&mr_data), .rw, .{});
 
         system.sdf.addMemoryRegion(mr_data);
         system.virt.addMap(map_data_virt);
@@ -977,11 +977,11 @@ pub const SerialSystem = struct {
         const queue_mr = Mr.create(system.allocator, queue_mr_name, system.queue_size, .{});
         system.sdf.addMemoryRegion(queue_mr);
 
-        const queue_mr_server_map = Map.create(queue_mr, server.getMapVaddr(&queue_mr), .rw, true, .{});
+        const queue_mr_server_map = Map.create(queue_mr, server.getMapVaddr(&queue_mr), .rw, .{});
         server.addMap(queue_mr_server_map);
         server_conn.queue = ConfigResources.Region.createFromMap(queue_mr_server_map);
 
-        const queue_mr_client_map = Map.create(queue_mr, client.getMapVaddr(&queue_mr), .rw, true, .{});
+        const queue_mr_client_map = Map.create(queue_mr, client.getMapVaddr(&queue_mr), .rw, .{});
         client.addMap(queue_mr_client_map);
         client_conn.queue = ConfigResources.Region.createFromMap(queue_mr_client_map);
 
@@ -990,11 +990,11 @@ pub const SerialSystem = struct {
         system.sdf.addMemoryRegion(data_mr);
 
         // TOOD: the permissions are incorrect, virtualisers should not have write access to the data
-        const data_mr_server_map = Map.create(data_mr, server.getMapVaddr(&data_mr), .rw, true, .{});
+        const data_mr_server_map = Map.create(data_mr, server.getMapVaddr(&data_mr), .rw, .{});
         server.addMap(data_mr_server_map);
         server_conn.data = ConfigResources.Region.createFromMap(data_mr_server_map);
 
-        const data_mr_client_map = Map.create(data_mr, client.getMapVaddr(&data_mr), .rw, true, .{});
+        const data_mr_client_map = Map.create(data_mr, client.getMapVaddr(&data_mr), .rw, .{});
         client.addMap(data_mr_client_map);
         client_conn.data = ConfigResources.Region.createFromMap(data_mr_client_map);
 
@@ -1196,11 +1196,11 @@ pub const NetworkSystem = struct {
         const free_mr = Mr.create(system.allocator, free_mr_name, queue_mr_size, .{});
         system.sdf.addMemoryRegion(free_mr);
 
-        const free_mr_server_map = Map.create(free_mr, server.getMapVaddr(&free_mr), .rw, true, .{});
+        const free_mr_server_map = Map.create(free_mr, server.getMapVaddr(&free_mr), .rw, .{});
         server.addMap(free_mr_server_map);
         server_conn.free_queue = ConfigResources.Region.createFromMap(free_mr_server_map);
 
-        const free_mr_client_map = Map.create(free_mr, client.getMapVaddr(&free_mr), .rw, true, .{});
+        const free_mr_client_map = Map.create(free_mr, client.getMapVaddr(&free_mr), .rw, .{});
         client.addMap(free_mr_client_map);
         client_conn.free_queue = ConfigResources.Region.createFromMap(free_mr_client_map);
 
@@ -1208,11 +1208,11 @@ pub const NetworkSystem = struct {
         const active_mr = Mr.create(system.allocator, active_mr_name, queue_mr_size, .{});
         system.sdf.addMemoryRegion(active_mr);
 
-        const active_mr_server_map = Map.create(active_mr, server.getMapVaddr(&active_mr), .rw, true, .{});
+        const active_mr_server_map = Map.create(active_mr, server.getMapVaddr(&active_mr), .rw, .{});
         server.addMap(active_mr_server_map);
         server_conn.active_queue = ConfigResources.Region.createFromMap(active_mr_server_map);
 
-        const active_mr_client_map = Map.create(active_mr, client.getMapVaddr(&active_mr), .rw, true, .{});
+        const active_mr_client_map = Map.create(active_mr, client.getMapVaddr(&active_mr), .rw, .{});
         client.addMap(active_mr_client_map);
         client_conn.active_queue = ConfigResources.Region.createFromMap(active_mr_client_map);
 
@@ -1229,7 +1229,7 @@ pub const NetworkSystem = struct {
         const rx_dma_mr_size = round_to_page(system.rx_buffers * BUFFER_SIZE);
         const rx_dma_mr = Mr.physical(system.allocator, system.sdf, rx_dma_mr_name, rx_dma_mr_size, .{});
         system.sdf.addMemoryRegion(rx_dma_mr);
-        const rx_dma_virt_map = Map.create(rx_dma_mr, system.virt_rx.getMapVaddr(&rx_dma_mr), .r, true, .{});
+        const rx_dma_virt_map = Map.create(rx_dma_mr, system.virt_rx.getMapVaddr(&rx_dma_mr), .r, .{});
         system.virt_rx.addMap(rx_dma_virt_map);
         system.virt_rx_config.data_region = ConfigResources.Device.Region.createFromMap(rx_dma_virt_map);
 
@@ -1237,7 +1237,7 @@ pub const NetworkSystem = struct {
         const virt_rx_metadata_mr_size = round_to_page(system.rx_buffers * 4);
         const virt_rx_metadata_mr = Mr.create(system.allocator, virt_rx_metadata_mr_name, virt_rx_metadata_mr_size, .{});
         system.sdf.addMemoryRegion(virt_rx_metadata_mr);
-        const virt_rx_metadata_map = Map.create(virt_rx_metadata_mr, system.virt_rx.getMapVaddr(&virt_rx_metadata_mr), .rw, true, .{});
+        const virt_rx_metadata_map = Map.create(virt_rx_metadata_mr, system.virt_rx.getMapVaddr(&virt_rx_metadata_mr), .rw, .{});
         system.virt_rx.addMap(virt_rx_metadata_map);
         system.virt_rx_config.buffer_metadata = ConfigResources.Region.createFromMap(virt_rx_metadata_map);
 
@@ -1264,7 +1264,7 @@ pub const NetworkSystem = struct {
         system.createConnection(system.virt_rx, copier, &virt_client_config.conn, &copier_config.virt_rx, system.rx_buffers);
         system.createConnection(copier, client, &copier_config.client, &client_config.rx, client_info.rx_buffers);
 
-        const rx_dma_copier_map = Map.create(rx_dma, copier.getMapVaddr(&rx_dma), .rw, true, .{});
+        const rx_dma_copier_map = Map.create(rx_dma, copier.getMapVaddr(&rx_dma), .rw, .{});
         copier.addMap(rx_dma_copier_map);
         copier_config.device_data = ConfigResources.Region.createFromMap(rx_dma_copier_map);
 
@@ -1273,11 +1273,11 @@ pub const NetworkSystem = struct {
         const client_data_mr = Mr.create(system.allocator, client_data_mr_name, client_data_mr_size, .{});
         system.sdf.addMemoryRegion(client_data_mr);
 
-        const client_data_client_map = Map.create(client_data_mr, client.getMapVaddr(&client_data_mr), .rw, true, .{});
+        const client_data_client_map = Map.create(client_data_mr, client.getMapVaddr(&client_data_mr), .rw, .{});
         client.addMap(client_data_client_map);
         client_config.rx_data = ConfigResources.Region.createFromMap(client_data_client_map);
 
-        const client_data_copier_map = Map.create(client_data_mr, copier.getMapVaddr(&client_data_mr), .rw, true, .{});
+        const client_data_copier_map = Map.create(client_data_mr, copier.getMapVaddr(&client_data_mr), .rw, .{});
         copier.addMap(client_data_copier_map);
         copier_config.client_data = ConfigResources.Region.createFromMap(client_data_copier_map);
     }
@@ -1295,11 +1295,11 @@ pub const NetworkSystem = struct {
         const data_mr = Mr.physical(system.allocator, system.sdf, data_mr_name, data_mr_size, .{});
         system.sdf.addMemoryRegion(data_mr);
 
-        const data_mr_virt_map = Map.create(data_mr, system.virt_tx.getMapVaddr(&data_mr), .r, true, .{});
+        const data_mr_virt_map = Map.create(data_mr, system.virt_tx.getMapVaddr(&data_mr), .r, .{});
         system.virt_tx.addMap(data_mr_virt_map);
         virt_client_config.data = ConfigResources.Device.Region.createFromMap(data_mr_virt_map);
 
-        const data_mr_client_map = Map.create(data_mr, client.getMapVaddr(&data_mr), .rw, true, .{});
+        const data_mr_client_map = Map.create(data_mr, client.getMapVaddr(&data_mr), .rw, .{});
         client.addMap(data_mr_client_map);
         client_config.tx_data = ConfigResources.Region.createFromMap(data_mr_client_map);
     }
@@ -1496,8 +1496,10 @@ pub fn createDriver(sdf: *SystemDescription, pd: *Pd, device: *dtb.Node, class: 
         }
 
         const perms = if (region_resource.perms != null) Map.Perms.fromString(region_resource.perms.?) else Map.Perms.rw;
-        const cached = if (region_resource.cached != null) region_resource.cached.? else false;
-        const map = Map.create(mr.?, pd.getMapVaddr(&mr.?), perms, cached, .{ .setvar_vaddr = region_resource.setvar_vaddr });
+        const map = Map.create(mr.?, pd.getMapVaddr(&mr.?), perms, .{
+            .cached = region_resource.cached.?,
+            .setvar_vaddr = region_resource.setvar_vaddr,
+        });
         pd.addMap(map);
         device_res.regions[device_res.num_regions] = ConfigResources.Device.Region.createFromMap(map);
         device_res.num_regions += 1;

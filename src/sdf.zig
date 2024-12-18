@@ -179,10 +179,11 @@ pub const SystemDescription = struct {
         mr: MemoryRegion,
         vaddr: u64,
         perms: Perms,
-        cached: bool,
+        cached: ?bool,
         setvar_vaddr: ?[]const u8,
 
         const Options = struct {
+            cached: ?bool = null,
             setvar_vaddr: ?[]const u8 = null,
         };
 
@@ -240,41 +241,42 @@ pub const SystemDescription = struct {
         };
 
         // TODO: make vaddr optional so its easier to allocate it automatically
-        // TODO: put cached in options and default to true
-        pub fn create(mr: MemoryRegion, vaddr: u64, perms: Perms, cached: bool, options: Options) Map {
+        pub fn create(mr: MemoryRegion, vaddr: u64, perms: Perms, options: Options) Map {
             // const vaddr = if (options.vaddr) |fixed_vaddr| fixed_vaddr else ;
             return Map{
                 .mr = mr,
                 .vaddr = vaddr,
                 .perms = perms,
-                .cached = cached,
+                .cached = options.cached,
                 .setvar_vaddr = options.setvar_vaddr,
             };
         }
 
         pub fn toXml(map: *const Map, sdf: *SystemDescription, writer: ArrayList(u8).Writer, separator: []const u8) !void {
-            const mr_str =
-                \\{s}<map mr="{s}" vaddr="0x{x}" perms="{s}" cached="{s}" />
-                \\
-            ;
-            const mr_str_with_setvar =
-                \\{s}<map mr="{s}" vaddr="0x{x}" perms="{s}" cached="{s}" setvar_vaddr="{s}" />
-                \\
-            ;
+            const allocator = sdf.allocator;
+
             // TODO: use null terminated pointer from Zig?
             var perms = [_]u8{0} ** 4;
             const i = map.perms.toString(&perms);
 
-            const cached = if (map.cached) "true" else "false";
-            var xml: []const u8 = undefined;
-            if (map.setvar_vaddr) |setvar_vaddr| {
-                xml = try allocPrint(sdf.allocator, mr_str_with_setvar, .{ separator, map.mr.name, map.vaddr, perms[0..i], cached, setvar_vaddr });
-            } else {
-                xml = try allocPrint(sdf.allocator, mr_str, .{ separator, map.mr.name, map.vaddr, perms[0..i], cached });
-            }
-            defer sdf.allocator.free(xml);
+            const map_xml = try allocPrint(allocator, "{s}<map mr=\"{s}\" vaddr=\"0x{x}\" perms=\"{s}\"", .{ separator, map.mr.name, map.vaddr, perms[0..i] });
+            defer allocator.free(map_xml);
+            _ = try writer.write(map_xml);
 
-            _ = try writer.write(xml);
+            if (map.setvar_vaddr) |setvar_vaddr| {
+                const xml = try allocPrint(allocator, " setvar_vaddr=\"{s}\"", .{ setvar_vaddr });
+                defer allocator.free(xml);
+                _ = try writer.write(xml);
+            }
+
+            if (map.cached) |cached| {
+                const cached_str = if (cached) "true" else "false";
+                const xml = try allocPrint(allocator, " cached=\"{s}\"", .{ cached_str });
+                defer allocator.free(xml);
+                _ = try writer.write(xml);
+            }
+
+            _ = try writer.write(" />\n");
         }
     };
 

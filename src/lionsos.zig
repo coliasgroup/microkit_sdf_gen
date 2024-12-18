@@ -71,19 +71,19 @@ pub const FileSystem = struct {
             }
         };
 
-        fs.addMap(.create(fs_command_queue, fs.getMapVaddr(&fs_command_queue), .rw, true, .{ .setvar_vaddr = "fs_command_queue" }));
-        fs.addMap(.create(fs_completion_queue, fs.getMapVaddr(&fs_completion_queue), .rw, true, .{ .setvar_vaddr = "fs_completion_queue" }));
-        fs.addMap(.create(fs_share, fs.getMapVaddr(&fs_share), .rw, true, .{ .setvar_vaddr = "fs_share" }));
+        fs.addMap(.create(fs_command_queue, fs.getMapVaddr(&fs_command_queue), .rw, .{ .setvar_vaddr = "fs_command_queue" }));
+        fs.addMap(.create(fs_completion_queue, fs.getMapVaddr(&fs_completion_queue), .rw, .{ .setvar_vaddr = "fs_completion_queue" }));
+        fs.addMap(.create(fs_share, fs.getMapVaddr(&fs_share), .rw, .{ .setvar_vaddr = "fs_share" }));
 
-        client.addMap(.create(fs_command_queue, client.getMapVaddr(&fs_command_queue), .rw, true, .{ .setvar_vaddr = "fs_command_queue" }));
-        client.addMap(.create(fs_completion_queue, client.getMapVaddr(&fs_completion_queue), .rw, true, .{ .setvar_vaddr = "fs_completion_queue" }));
-        client.addMap(.create(fs_share, client.getMapVaddr(&fs_share), .rw, true, .{ .setvar_vaddr = "fs_share" }));
+        client.addMap(.create(fs_command_queue, client.getMapVaddr(&fs_command_queue), .rw, .{ .setvar_vaddr = "fs_command_queue" }));
+        client.addMap(.create(fs_completion_queue, client.getMapVaddr(&fs_completion_queue), .rw, .{ .setvar_vaddr = "fs_completion_queue" }));
+        client.addMap(.create(fs_share, client.getMapVaddr(&fs_share), .rw, .{ .setvar_vaddr = "fs_share" }));
 
         system.sdf.addChannel(Channel.create(fs, client, .{}));
 
         // Special things for FATFS
         const fatfs_metadata = Mr.create(allocator, fmt(allocator, "{s}_metadata", .{fs.name}), 0x200_000, .{});
-        fs.addMap(Map.create(fatfs_metadata, 0x40_000_000, .rw, true, .{ .setvar_vaddr = "fs_metadata" }));
+        fs.addMap(Map.create(fatfs_metadata, 0x40_000_000, .rw, .{ .setvar_vaddr = "fs_metadata" }));
         system.sdf.addMemoryRegion(fatfs_metadata);
         const stack1 = Mr.create(allocator, fmt(allocator, "{s}_stack1", .{fs.name}), 0x40_000, .{});
         const stack2 = Mr.create(allocator, fmt(allocator, "{s}_stack2", .{fs.name}), 0x40_000, .{});
@@ -93,9 +93,9 @@ pub const FileSystem = struct {
         system.sdf.addMemoryRegion(stack2);
         system.sdf.addMemoryRegion(stack3);
         system.sdf.addMemoryRegion(stack4);
-        fs.addMap(.create(stack1, 0xA0_000_000, .rw, true, .{ .setvar_vaddr = "worker_thread_stack_one" }));
-        fs.addMap(.create(stack2, 0xB0_000_000, .rw, true, .{ .setvar_vaddr = "worker_thread_stack_two" }));
-        fs.addMap(.create(stack3, 0xC0_000_000, .rw, true, .{ .setvar_vaddr = "worker_thread_stack_three" }));
-        fs.addMap(.create(stack4, 0xD0_000_000, .rw, true, .{ .setvar_vaddr = "worker_thread_stack_four" }));
+        fs.addMap(.create(stack1, 0xA0_000_000, .rw, .{ .setvar_vaddr = "worker_thread_stack_one" }));
+        fs.addMap(.create(stack2, 0xB0_000_000, .rw, .{ .setvar_vaddr = "worker_thread_stack_two" }));
+        fs.addMap(.create(stack3, 0xC0_000_000, .rw, .{ .setvar_vaddr = "worker_thread_stack_three" }));
+        fs.addMap(.create(stack4, 0xD0_000_000, .rw, .{ .setvar_vaddr = "worker_thread_stack_four" }));
     }
 };
