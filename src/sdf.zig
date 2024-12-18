@@ -274,14 +274,14 @@ pub const SystemDescription = struct {
             _ = try writer.write(map_xml);
 
             if (map.setvar_vaddr) |setvar_vaddr| {
-                const xml = try allocPrint(allocator, " setvar_vaddr=\"{s}\"", .{ setvar_vaddr });
+                const xml = try allocPrint(allocator, " setvar_vaddr=\"{s}\"", .{setvar_vaddr});
                 defer allocator.free(xml);
                 _ = try writer.write(xml);
             }
 
             if (map.cached) |cached| {
                 const cached_str = if (cached) "true" else "false";
-                const xml = try allocPrint(allocator, " cached=\"{s}\"", .{ cached_str });
+                const xml = try allocPrint(allocator, " cached=\"{s}\"", .{cached_str});
                 defer allocator.free(xml);
                 _ = try writer.write(xml);
             }
@@ -351,19 +351,19 @@ pub const SystemDescription = struct {
             _ = try writer.write(vm_xml);
 
             if (vm.priority) |priority| {
-                const xml = try allocPrint(allocator, " priority=\"{}\"", .{ priority });
+                const xml = try allocPrint(allocator, " priority=\"{}\"", .{priority});
                 defer allocator.free(xml);
                 _ = try writer.write(xml);
             }
 
             if (vm.budget) |budget| {
-                const xml = try allocPrint(allocator, " budget=\"{}\"", .{ budget });
+                const xml = try allocPrint(allocator, " budget=\"{}\"", .{budget});
                 defer allocator.free(xml);
                 _ = try writer.write(xml);
             }
 
             if (vm.period) |period| {
-                const xml = try allocPrint(allocator, " period=\"{}\"", .{ period });
+                const xml = try allocPrint(allocator, " period=\"{}\"", .{period});
                 defer allocator.free(xml);
                 _ = try writer.write(xml);
             }
@@ -585,37 +585,37 @@ pub const SystemDescription = struct {
             _ = try writer.write(pd_xml);
 
             if (id) |id_val| {
-                const id_xml = try allocPrint(allocator, " id=\"{}\"", .{ id_val });
+                const id_xml = try allocPrint(allocator, " id=\"{}\"", .{id_val});
                 defer allocator.free(id_xml);
                 _ = try writer.write(id_xml);
             }
 
             if (pd.priority) |priority| {
-                const xml = try allocPrint(allocator, " priority=\"{}\"", .{ priority });
+                const xml = try allocPrint(allocator, " priority=\"{}\"", .{priority});
                 defer allocator.free(xml);
                 _ = try writer.write(xml);
             }
 
             if (pd.budget) |budget| {
-                const xml = try allocPrint(allocator, " budget=\"{}\"", .{ budget });
+                const xml = try allocPrint(allocator, " budget=\"{}\"", .{budget});
                 defer allocator.free(xml);
                 _ = try writer.write(xml);
             }
 
             if (pd.period) |period| {
-                const xml = try allocPrint(allocator, " period=\"{}\"", .{ period });
+                const xml = try allocPrint(allocator, " period=\"{}\"", .{period});
                 defer allocator.free(xml);
                 _ = try writer.write(xml);
             }
 
             if (pd.passive) |passive| {
-                const xml = try allocPrint(allocator, " passive=\"{}\"", .{ passive });
+                const xml = try allocPrint(allocator, " passive=\"{}\"", .{passive});
                 defer allocator.free(xml);
                 _ = try writer.write(xml);
             }
 
             if (pd.stack_size) |stack_size| {
-                const xml = try allocPrint(allocator, " stack_size=\"0x{x}\"", .{ stack_size });
+                const xml = try allocPrint(allocator, " stack_size=\"0x{x}\"", .{stack_size});
                 defer allocator.free(xml);
                 _ = try writer.write(xml);
             }
@@ -626,7 +626,7 @@ pub const SystemDescription = struct {
                     return error.InvalidArmSmc;
                 }
 
-                const smc_xml = try allocPrint(allocator, " smc=\"{}\"", .{ smc });
+                const smc_xml = try allocPrint(allocator, " smc=\"{}\"", .{smc});
                 defer allocator.free(smc_xml);
                 _ = try writer.write(smc_xml);
             }

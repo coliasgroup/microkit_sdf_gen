@@ -90,7 +90,7 @@ pub const FileSystem = struct {
 
         pub fn init(allocator: Allocator, sdf: *SystemDescription, fs: *Pd, client: *Pd, net: *NetworkSystem, net_copier: *Pd, options: Options) !Nfs {
             try net.addClientWithCopier(fs, net_copier, .{});
-            return  .{
+            return .{
                 .fs = FileSystem.init(allocator, sdf, fs, client, options),
             };
         }
@@ -104,7 +104,7 @@ pub const FileSystem = struct {
         fs: FileSystem,
 
         pub fn init(allocator: Allocator, sdf: *SystemDescription, fs: *Pd, client: *Pd, options: Options) Fat {
-            return  .{
+            return .{
                 .fs = FileSystem.init(allocator, sdf, fs, client, options),
             };
         }

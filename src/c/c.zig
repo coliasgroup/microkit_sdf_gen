@@ -200,7 +200,7 @@ export fn sdfgen_vm_destroy(c_vm: *align(8) anyopaque) void {
 
 export fn sdfgen_vm_vcpu_create(id: u8, cpu: u16) *anyopaque {
     const vcpu: *Vm.Vcpu = allocator.create(Vm.Vcpu) catch @panic("OOM");
-    vcpu.* = Vm.Vcpu { .id = id, .cpu = cpu };
+    vcpu.* = Vm.Vcpu{ .id = id, .cpu = cpu };
 
     return vcpu;
 }

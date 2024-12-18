@@ -356,7 +356,7 @@ pub const DeviceTree = struct {
         /// Whether or not the GIC's CPU/vCPU interface is via MMIO
         pub fn hasMmioCpuInterface(gic: ArmGic) bool {
             std.debug.assert((gic.cpu_paddr == null and gic.vcpu_paddr == null and gic.vcpu_size == null) or
-                             (gic.cpu_paddr != null and gic.vcpu_paddr != null and gic.vcpu_size != null));
+                (gic.cpu_paddr != null and gic.vcpu_paddr != null and gic.vcpu_size != null));
 
             return gic.cpu_paddr != null;
         }
@@ -558,8 +558,8 @@ pub const TimerSystem = struct {
     pub fn serialiseConfig(system: *TimerSystem, prefix: []const u8) !void {
         const allocator = system.allocator;
 
-        const device_res_data_name = fmt(system.allocator, "{s}_device_resources.data", .{ system.driver.name });
-        const device_res_json_name = fmt(system.allocator, "{s}_device_resources.json", .{ system.driver.name });
+        const device_res_data_name = fmt(system.allocator, "{s}_device_resources.data", .{system.driver.name});
+        const device_res_json_name = fmt(system.allocator, "{s}_device_resources.json", .{system.driver.name});
         try data.serialize(system.device_res, try std.fs.path.join(system.allocator, &.{ prefix, device_res_data_name }));
         try data.jsonify(system.device_res, try std.fs.path.join(system.allocator, &.{ prefix, device_res_json_name }), .{ .whitespace = .indent_4 });
 
@@ -724,8 +724,8 @@ pub const I2cSystem = struct {
     pub fn serialiseConfig(system: *I2cSystem, prefix: []const u8) !void {
         const allocator = system.allocator;
 
-        const device_res_data_name = fmt(system.allocator, "{s}_device_resources.data", .{ system.driver.name });
-        const device_res_json_name = fmt(system.allocator, "{s}_device_resources.json", .{ system.driver.name });
+        const device_res_data_name = fmt(system.allocator, "{s}_device_resources.data", .{system.driver.name});
+        const device_res_json_name = fmt(system.allocator, "{s}_device_resources.json", .{system.driver.name});
         try data.serialize(system.device_res, try std.fs.path.join(system.allocator, &.{ prefix, device_res_data_name }));
         try data.jsonify(system.device_res, try std.fs.path.join(system.allocator, &.{ prefix, device_res_json_name }), .{ .whitespace = .indent_4 });
 
@@ -930,8 +930,8 @@ pub const BlockSystem = struct {
 
         const allocator = system.allocator;
 
-        const device_res_data_name = fmt(system.allocator, "{s}_device_resources.data", .{ system.driver.name });
-        const device_res_json_name = fmt(system.allocator, "{s}_device_resources.json", .{ system.driver.name });
+        const device_res_data_name = fmt(system.allocator, "{s}_device_resources.data", .{system.driver.name});
+        const device_res_json_name = fmt(system.allocator, "{s}_device_resources.json", .{system.driver.name});
         try data.serialize(system.device_res, try std.fs.path.join(system.allocator, &.{ prefix, device_res_data_name }));
         try data.jsonify(system.device_res, try std.fs.path.join(system.allocator, &.{ prefix, device_res_json_name }), .{ .whitespace = .indent_4 });
 
@@ -940,8 +940,8 @@ pub const BlockSystem = struct {
         try data.jsonify(virt_config, try fs.path.join(allocator, &.{ prefix, "blk_virt.json" }), .{ .whitespace = .indent_4 });
 
         for (system.config.clients.items, 0..) |config, i| {
-            const client_data = fmt(allocator, "blk_client_{s}.data", .{ system.clients.items[i].name });
-            const client_json = fmt(allocator, "blk_client_{s}.json", .{ system.clients.items[i].name });
+            const client_data = fmt(allocator, "blk_client_{s}.data", .{system.clients.items[i].name});
+            const client_json = fmt(allocator, "blk_client_{s}.json", .{system.clients.items[i].name});
             try data.serialize(config, try fs.path.join(allocator, &.{ prefix, client_data }));
             try data.jsonify(config, try fs.path.join(allocator, &.{ prefix, client_json }), .{ .whitespace = .indent_4 });
         }
@@ -1006,7 +1006,7 @@ pub const SerialSystem = struct {
     }
 
     fn createConnection(system: *SerialSystem, server: *Pd, client: *Pd, server_conn: *ConfigResources.Serial.Connection, client_conn: *ConfigResources.Serial.Connection) void {
-        const queue_mr_name = fmt(system.allocator, "{s}/serial/queue/{s}/{s}", .{system.device.name, server.name, client.name});
+        const queue_mr_name = fmt(system.allocator, "{s}/serial/queue/{s}/{s}", .{ system.device.name, server.name, client.name });
         const queue_mr = Mr.create(system.allocator, queue_mr_name, system.queue_size, .{});
         system.sdf.addMemoryRegion(queue_mr);
 
@@ -1018,7 +1018,7 @@ pub const SerialSystem = struct {
         client.addMap(queue_mr_client_map);
         client_conn.queue = ConfigResources.Region.createFromMap(queue_mr_client_map);
 
-        const data_mr_name = fmt(system.allocator, "{s}/serial/data/{s}/{s}", .{system.device.name, server.name, client.name});
+        const data_mr_name = fmt(system.allocator, "{s}/serial/data/{s}/{s}", .{ system.device.name, server.name, client.name });
         const data_mr = Mr.create(system.allocator, data_mr_name, system.data_size, .{});
         system.sdf.addMemoryRegion(data_mr);
 
@@ -1082,13 +1082,13 @@ pub const SerialSystem = struct {
     pub fn serialiseConfig(system: *SerialSystem, prefix: []const u8) !void {
         const allocator = system.allocator;
 
-        const device_res_data_name = fmt(system.allocator, "{s}_device_resources.data", .{ system.driver.name });
-        const device_res_json_name = fmt(system.allocator, "{s}_device_resources.json", .{ system.driver.name });
+        const device_res_data_name = fmt(system.allocator, "{s}_device_resources.data", .{system.driver.name});
+        const device_res_json_name = fmt(system.allocator, "{s}_device_resources.json", .{system.driver.name});
         try data.serialize(system.device_res, try std.fs.path.join(system.allocator, &.{ prefix, device_res_data_name }));
         try data.jsonify(system.device_res, try std.fs.path.join(system.allocator, &.{ prefix, device_res_json_name }), .{ .whitespace = .indent_4 });
 
         try data.serialize(system.driver_config, try fs.path.join(allocator, &.{ prefix, "serial_driver_config.data" }));
-        try data.jsonify(system.driver_config, try fs.path.join(allocator, &.{ prefix, "serial_driver_config.json"}), .{ .whitespace = .indent_4 });
+        try data.jsonify(system.driver_config, try fs.path.join(allocator, &.{ prefix, "serial_driver_config.json" }), .{ .whitespace = .indent_4 });
 
         try data.serialize(system.virt_rx_config, try fs.path.join(allocator, &.{ prefix, "serial_virt_rx.data" }));
         try data.jsonify(system.virt_rx_config, try fs.path.join(allocator, &.{ prefix, "serial_virt_rx.json" }), .{ .whitespace = .indent_4 });
@@ -1225,7 +1225,7 @@ pub const NetworkSystem = struct {
         server_conn.num_buffers = @intCast(num_buffers);
         client_conn.num_buffers = @intCast(num_buffers);
 
-        const free_mr_name = fmt(system.allocator, "{s}/net/queue/{s}/{s}/free", .{system.device.name, server.name, client.name});
+        const free_mr_name = fmt(system.allocator, "{s}/net/queue/{s}/{s}/free", .{ system.device.name, server.name, client.name });
         const free_mr = Mr.create(system.allocator, free_mr_name, queue_mr_size, .{});
         system.sdf.addMemoryRegion(free_mr);
 
@@ -1237,7 +1237,7 @@ pub const NetworkSystem = struct {
         client.addMap(free_mr_client_map);
         client_conn.free_queue = ConfigResources.Region.createFromMap(free_mr_client_map);
 
-        const active_mr_name = fmt(system.allocator, "{s}/net/queue/{s}/{s}/active", .{system.device.name, server.name, client.name});
+        const active_mr_name = fmt(system.allocator, "{s}/net/queue/{s}/{s}/active", .{ system.device.name, server.name, client.name });
         const active_mr = Mr.create(system.allocator, active_mr_name, queue_mr_size, .{});
         system.sdf.addMemoryRegion(active_mr);
 
@@ -1302,7 +1302,7 @@ pub const NetworkSystem = struct {
         copier_config.device_data = ConfigResources.Region.createFromMap(rx_dma_copier_map);
 
         const client_data_mr_size = round_to_page(system.rx_buffers * BUFFER_SIZE);
-        const client_data_mr_name = fmt(system.allocator, "{s}/net/rx/data/client/{s}", .{system.device.name, client.name});
+        const client_data_mr_name = fmt(system.allocator, "{s}/net/rx/data/client/{s}", .{ system.device.name, client.name });
         const client_data_mr = Mr.create(system.allocator, client_data_mr_name, client_data_mr_size, .{});
         system.sdf.addMemoryRegion(client_data_mr);
 
@@ -1324,7 +1324,7 @@ pub const NetworkSystem = struct {
         system.createConnection(system.virt_tx, client, &virt_client_config.conn, &client_config.tx, client_info.tx_buffers);
 
         const data_mr_size = round_to_page(client_info.tx_buffers * BUFFER_SIZE);
-        const data_mr_name = fmt(system.allocator, "{s}/net/tx/data/client/{s}", .{system.device.name, client.name});
+        const data_mr_name = fmt(system.allocator, "{s}/net/tx/data/client/{s}", .{ system.device.name, client.name });
         const data_mr = Mr.physical(system.allocator, system.sdf, data_mr_name, data_mr_size, .{});
         system.sdf.addMemoryRegion(data_mr);
 
@@ -1383,13 +1383,13 @@ pub const NetworkSystem = struct {
     pub fn serialiseConfig(system: *NetworkSystem, prefix: []const u8) !void {
         const allocator = system.allocator;
 
-        const device_res_data_name = fmt(allocator, "{s}_device_resources.data", .{ system.driver.name });
+        const device_res_data_name = fmt(allocator, "{s}_device_resources.data", .{system.driver.name});
         try data.serialize(system.device_res, try std.fs.path.join(allocator, &.{ prefix, device_res_data_name }));
-        const device_res_json_name = fmt(allocator, "{s}_device_resources.json", .{ system.driver.name });
+        const device_res_json_name = fmt(allocator, "{s}_device_resources.json", .{system.driver.name});
         try data.jsonify(system.device_res, try std.fs.path.join(allocator, &.{ prefix, device_res_json_name }), .{ .whitespace = .indent_4 });
 
         try data.serialize(system.driver_config, try fs.path.join(allocator, &.{ prefix, "net_driver.data" }));
-        try data.jsonify(system.driver_config, try fs.path.join(allocator, &.{ prefix, "net_driver.json"}), .{ .whitespace = .indent_4 });
+        try data.jsonify(system.driver_config, try fs.path.join(allocator, &.{ prefix, "net_driver.json" }), .{ .whitespace = .indent_4 });
 
         try data.serialize(system.virt_rx_config, try fs.path.join(allocator, &.{ prefix, "net_virt_rx.data" }));
         try data.jsonify(system.virt_rx_config, try fs.path.join(allocator, &.{ prefix, "net_virt_rx.json" }), .{ .whitespace = .indent_4 });

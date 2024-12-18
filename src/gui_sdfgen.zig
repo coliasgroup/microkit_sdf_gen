@@ -48,8 +48,7 @@ const MicrokitBoard = enum {
 };
 
 fn parseVMFromJson(sdf: *SystemDescription, node_config: anytype) !*Vm {
-
-    var vm_new = Vm.create(sdf.allocator, node_config.get("name").?.string, &.{ .{ .id = 0, .cpu = 0 } });
+    var vm_new = Vm.create(sdf.allocator, node_config.get("name").?.string, &.{.{ .id = 0, .cpu = 0 }});
     vm_new.budget = @intCast(node_config.get("budget").?.integer);
     vm_new.priority = @intCast(node_config.get("priority").?.integer);
     vm_new.period = @intCast(node_config.get("period").?.integer);
