@@ -51,7 +51,7 @@ jobs:
     - name: Download wheel artifacts
       uses: actions/download-artifact@v4
       with:
-        name: cibw-wheels-*
+        pattern: cibw-wheels-*
         # publish action will look in dist/ for what to upload to PyPI
         path: dist/
     - name: list artifacts
