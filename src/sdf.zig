@@ -533,15 +533,14 @@ pub const SystemDescription = struct {
         }
 
         // TODO: get rid of this extra arg?
-        // tODO: should be u64 not usize
-        pub fn getMapVaddr(pd: *ProtectionDomain, mr: *const MemoryRegion) usize {
+        pub fn getMapVaddr(pd: *ProtectionDomain, mr: *const MemoryRegion) u64 {
             // TODO: should make sure we don't have a way of giving an invalid vaddr back (e.g on 32-bit systems this is more of a concern)
 
             // The approach for this is fairly simple and naive, we just loop
             // over all the maps and find the largest next available address.
             // We could extend this in the future to actually look for space
             // between mappings in the case they are not just sorted.
-            var next_vaddr: usize = 0x20_000_000;
+            var next_vaddr: u64 = 0x20_000_000;
             for (pd.maps.items) |map| {
                 if (map.vaddr >= next_vaddr) {
                     next_vaddr = map.vaddr + map.mr.size;
