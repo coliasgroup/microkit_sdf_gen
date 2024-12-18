@@ -58,3 +58,6 @@ jobs:
       run: ls dist/
     - name: Publish
       uses: pypa/gh-action-pypi-publish@release/v1
+      # Action defaults to PyPI so we set repository-url manually for test PyPi
+      with:
+        repository-url: https://test.pypi.org/legacy/
