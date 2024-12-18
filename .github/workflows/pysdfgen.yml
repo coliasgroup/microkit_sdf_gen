@@ -53,6 +53,7 @@ jobs:
         name: cibw-wheels-*
         # publish action will look in dist/ for what to upload to PyPI
         path: dist/
-      run: ls
+    - name: list artifacts
+      run: ls dist/
     - name: Publish
       uses: pypa/gh-action-pypi-publish@release/v1
