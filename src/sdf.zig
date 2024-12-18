@@ -4,7 +4,6 @@ const Allocator = std.mem.Allocator;
 const allocPrint = std.fmt.allocPrint;
 const log = @import("log.zig");
 
-// TODO: for addresses should we use the word size of the *target* machine, rather than 'usize' for everything?
 // TODO: indent stuff could be done better
 
 pub const SystemDescription = struct {
@@ -59,7 +58,7 @@ pub const SystemDescription = struct {
     pub const MemoryRegion = struct {
         allocator: Allocator,
         name: []const u8,
-        size: usize,
+        size: u64,
         paddr: ?u64,
         page_size: ?PageSize,
 
@@ -86,7 +85,7 @@ pub const SystemDescription = struct {
         }
 
         /// Creates a memory region at a specific physical address. Allocates the physical address automatically.
-        pub fn physical(allocator: Allocator, sdf: *SystemDescription, name: []const u8, size: usize, options: OptionsPhysical) MemoryRegion {
+        pub fn physical(allocator: Allocator, sdf: *SystemDescription, name: []const u8, size: u64, options: OptionsPhysical) MemoryRegion {
             const paddr = if (options.paddr) |fixed_paddr| fixed_paddr else sdf.paddr_top - size;
             // TODO: handle alignment if people specify a page size.
             if (options.paddr == null) {
@@ -165,7 +164,7 @@ pub const SystemDescription = struct {
                 }
             }
 
-            pub fn optimal(arch: Arch, region_size: usize) PageSize {
+            pub fn optimal(arch: Arch, region_size: u64) PageSize {
                 // TODO would be better if we did some meta programming in case the
                 // number of elements in PageSize change
                 // if (region_size % PageSize.huge.toSize(sdf.arch) == 0) return .huge;
@@ -178,10 +177,9 @@ pub const SystemDescription = struct {
 
     pub const Map = struct {
         mr: MemoryRegion,
-        vaddr: usize,
+        vaddr: u64,
         perms: Perms,
         cached: bool,
-        // TODO: could make this a type?
         setvar_vaddr: ?[]const u8,
 
         const Options = struct {
@@ -540,12 +538,12 @@ pub const SystemDescription = struct {
             // over all the maps and find the largest next available address.
             // We could extend this in the future to actually look for space
             // between mappings in the case they are not just sorted.
+            // TODO: fix this
+            const page_size = MemoryRegion.PageSize.optimal(.aarch64, mr.size).toInt(.aarch64);
             var next_vaddr: u64 = 0x20_000_000;
             for (pd.maps.items) |map| {
                 if (map.vaddr >= next_vaddr) {
                     next_vaddr = map.vaddr + map.mr.size;
-                    // TODO: fix this
-                    const page_size = MemoryRegion.PageSize.optimal(.aarch64, mr.size).toInt(.aarch64);
                     // TODO: Use builtins like @rem
                     const diff = next_vaddr % page_size;
                     if (diff != 0) {
@@ -559,7 +557,7 @@ pub const SystemDescription = struct {
             return next_vaddr;
         }
 
-        pub fn toXml(pd: *ProtectionDomain, sdf: *SystemDescription, writer: ArrayList(u8).Writer, separator: []const u8, id: ?usize) !void {
+        pub fn toXml(pd: *ProtectionDomain, sdf: *SystemDescription, writer: ArrayList(u8).Writer, separator: []const u8, id: ?u8) !void {
             // If we are given an ID, this PD is in fact a child PD and we have to
             // specify the ID for the root PD to use when referring to this child PD.
             const allocator = sdf.allocator;
@@ -710,14 +708,14 @@ pub const SystemDescription = struct {
         /// IRQ number that will be registered with seL4. That means that this
         /// number needs to map onto what seL4 observes (e.g the numbers in the
         /// device tree do not necessarily map onto what seL4 sees on ARM).
-        irq: usize,
+        irq: u32,
         // TODO: there is a potential edge-case. There exist platforms
         // supported by seL4 that do not allow for an IRQ trigger to be set.
         trigger: Trigger,
 
         pub const Trigger = enum { edge, level };
 
-        pub fn create(irq: usize, trigger: Trigger, id: ?u8) Interrupt {
+        pub fn create(irq: u32, trigger: Trigger, id: ?u8) Interrupt {
             return Interrupt{ .irq = irq, .trigger = trigger, .id = id };
         }
 

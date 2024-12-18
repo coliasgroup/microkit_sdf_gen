@@ -393,7 +393,7 @@ pub const DeviceTree = struct {
         };
     }
 
-    pub fn armGicIrqNumber(number: usize, irq_type: ArmGicIrqType) usize {
+    pub fn armGicIrqNumber(number: u32, irq_type: ArmGicIrqType) u32 {
         return switch (irq_type) {
             .spi => number + 32,
             .ppi => number + 16,
