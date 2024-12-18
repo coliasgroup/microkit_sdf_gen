@@ -989,6 +989,7 @@ pub const SerialSystem = struct {
         const data_mr = Mr.create(system.allocator, data_mr_name, system.data_size, .{});
         system.sdf.addMemoryRegion(data_mr);
 
+        // TOOD: the permissions are incorrect, virtualisers should not have write access to the data
         const data_mr_server_map = Map.create(data_mr, server.getMapVaddr(&data_mr), .rw, true, .{});
         server.addMap(data_mr_server_map);
         server_conn.data = ConfigResources.Region.createFromMap(data_mr_server_map);
@@ -1228,7 +1229,7 @@ pub const NetworkSystem = struct {
         const rx_dma_mr_size = round_to_page(system.rx_buffers * BUFFER_SIZE);
         const rx_dma_mr = Mr.physical(system.allocator, system.sdf, rx_dma_mr_name, rx_dma_mr_size, .{});
         system.sdf.addMemoryRegion(rx_dma_mr);
-        const rx_dma_virt_map = Map.create(rx_dma_mr, system.virt_rx.getMapVaddr(&rx_dma_mr), .rw, true, .{});
+        const rx_dma_virt_map = Map.create(rx_dma_mr, system.virt_rx.getMapVaddr(&rx_dma_mr), .r, true, .{});
         system.virt_rx.addMap(rx_dma_virt_map);
         system.virt_rx_config.data_region = ConfigResources.Device.Region.createFromMap(rx_dma_virt_map);
 
@@ -1276,7 +1277,7 @@ pub const NetworkSystem = struct {
         client.addMap(client_data_client_map);
         client_config.rx_data = ConfigResources.Region.createFromMap(client_data_client_map);
 
-        const client_data_copier_map = Map.create(client_data_mr, copier.getMapVaddr(&client_data_mr), .rw, true, .{});
+        const client_data_copier_map = Map.create(client_data_mr, copier.getMapVaddr(&client_data_mr), .r, true, .{});
         copier.addMap(client_data_copier_map);
         copier_config.client_data = ConfigResources.Region.createFromMap(client_data_copier_map);
     }
@@ -1294,7 +1295,7 @@ pub const NetworkSystem = struct {
         const data_mr = Mr.physical(system.allocator, system.sdf, data_mr_name, data_mr_size, .{});
         system.sdf.addMemoryRegion(data_mr);
 
-        const data_mr_virt_map = Map.create(data_mr, system.virt_tx.getMapVaddr(&data_mr), .rw, true, .{});
+        const data_mr_virt_map = Map.create(data_mr, system.virt_tx.getMapVaddr(&data_mr), .r, true, .{});
         system.virt_tx.addMap(data_mr_virt_map);
         virt_client_config.data = ConfigResources.Device.Region.createFromMap(data_mr_virt_map);
 
