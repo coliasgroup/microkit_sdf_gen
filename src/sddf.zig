@@ -1277,7 +1277,7 @@ pub const NetworkSystem = struct {
         client.addMap(client_data_client_map);
         client_config.rx_data = ConfigResources.Region.createFromMap(client_data_client_map);
 
-        const client_data_copier_map = Map.create(client_data_mr, copier.getMapVaddr(&client_data_mr), .r, true, .{});
+        const client_data_copier_map = Map.create(client_data_mr, copier.getMapVaddr(&client_data_mr), .rw, true, .{});
         copier.addMap(client_data_copier_map);
         copier_config.client_data = ConfigResources.Region.createFromMap(client_data_copier_map);
     }
