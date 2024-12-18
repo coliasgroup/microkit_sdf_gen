@@ -1,5 +1,6 @@
 const std = @import("std");
 const mod_sdf = @import("sdf.zig");
+const mod_sddf = @import("sddf.zig");
 const Allocator = std.mem.Allocator;
 
 const SystemDescription = mod_sdf.SystemDescription;
@@ -7,6 +8,8 @@ const Pd = SystemDescription.ProtectionDomain;
 const Mr = SystemDescription.MemoryRegion;
 const Map = SystemDescription.Map;
 const Channel = SystemDescription.Channel;
+
+const NetworkSystem = mod_sddf.NetworkSystem;
 
 fn fmt(allocator: Allocator, comptime s: []const u8, args: anytype) []u8 {
     return std.fmt.allocPrint(allocator, s, args) catch @panic("OOM");
@@ -80,22 +83,55 @@ pub const FileSystem = struct {
         client.addMap(.create(fs_share, client.getMapVaddr(&fs_share), .rw, .{ .setvar_vaddr = "fs_share" }));
 
         system.sdf.addChannel(Channel.create(fs, client, .{}));
-
-        // Special things for FATFS
-        const fatfs_metadata = Mr.create(allocator, fmt(allocator, "{s}_metadata", .{fs.name}), 0x200_000, .{});
-        fs.addMap(Map.create(fatfs_metadata, 0x40_000_000, .rw, .{ .setvar_vaddr = "fs_metadata" }));
-        system.sdf.addMemoryRegion(fatfs_metadata);
-        const stack1 = Mr.create(allocator, fmt(allocator, "{s}_stack1", .{fs.name}), 0x40_000, .{});
-        const stack2 = Mr.create(allocator, fmt(allocator, "{s}_stack2", .{fs.name}), 0x40_000, .{});
-        const stack3 = Mr.create(allocator, fmt(allocator, "{s}_stack3", .{fs.name}), 0x40_000, .{});
-        const stack4 = Mr.create(allocator, fmt(allocator, "{s}_stack4", .{fs.name}), 0x40_000, .{});
-        system.sdf.addMemoryRegion(stack1);
-        system.sdf.addMemoryRegion(stack2);
-        system.sdf.addMemoryRegion(stack3);
-        system.sdf.addMemoryRegion(stack4);
-        fs.addMap(.create(stack1, 0xA0_000_000, .rw, .{ .setvar_vaddr = "worker_thread_stack_one" }));
-        fs.addMap(.create(stack2, 0xB0_000_000, .rw, .{ .setvar_vaddr = "worker_thread_stack_two" }));
-        fs.addMap(.create(stack3, 0xC0_000_000, .rw, .{ .setvar_vaddr = "worker_thread_stack_three" }));
-        fs.addMap(.create(stack4, 0xD0_000_000, .rw, .{ .setvar_vaddr = "worker_thread_stack_four" }));
     }
+
+    pub const Nfs = struct {
+        fs: FileSystem,
+
+        pub fn init(allocator: Allocator, sdf: *SystemDescription, fs: *Pd, client: *Pd, net: *NetworkSystem, net_copier: *Pd, options: Options) !Nfs {
+            try net.addClientWithCopier(fs, net_copier, .{});
+            return  .{
+                .fs = FileSystem.init(allocator, sdf, fs, client, options),
+            };
+        }
+
+        pub fn connect(nfs: *Nfs) void {
+            nfs.fs.connect();
+        }
+    };
+
+    pub const Fat = struct {
+        fs: FileSystem,
+
+        pub fn init(allocator: Allocator, sdf: *SystemDescription, fs: *Pd, client: *Pd, options: Options) Fat {
+            return  .{
+                .fs = FileSystem.init(allocator, sdf, fs, client, options),
+            };
+        }
+
+        pub fn connect(fat: *Fat) void {
+            fat.fs.connect();
+
+            const allocator = fat.fs.allocator;
+            const sdf = fat.fs.sdf;
+            const fs = fat.fs.fs;
+
+            // Special things for FATFS
+            const fatfs_metadata = Mr.create(allocator, fmt(allocator, "{s}_metadata", .{fs.name}), 0x200_000, .{});
+            fs.addMap(Map.create(fatfs_metadata, 0x40_000_000, .rw, .{ .setvar_vaddr = "fs_metadata" }));
+            sdf.addMemoryRegion(fatfs_metadata);
+            const stack1 = Mr.create(allocator, fmt(allocator, "{s}_stack1", .{fs.name}), 0x40_000, .{});
+            const stack2 = Mr.create(allocator, fmt(allocator, "{s}_stack2", .{fs.name}), 0x40_000, .{});
+            const stack3 = Mr.create(allocator, fmt(allocator, "{s}_stack3", .{fs.name}), 0x40_000, .{});
+            const stack4 = Mr.create(allocator, fmt(allocator, "{s}_stack4", .{fs.name}), 0x40_000, .{});
+            sdf.addMemoryRegion(stack1);
+            sdf.addMemoryRegion(stack2);
+            sdf.addMemoryRegion(stack3);
+            sdf.addMemoryRegion(stack4);
+            fs.addMap(.create(stack1, 0xA0_000_000, .rw, .{ .setvar_vaddr = "worker_thread_stack_one" }));
+            fs.addMap(.create(stack2, 0xB0_000_000, .rw, .{ .setvar_vaddr = "worker_thread_stack_two" }));
+            fs.addMap(.create(stack3, 0xC0_000_000, .rw, .{ .setvar_vaddr = "worker_thread_stack_three" }));
+            fs.addMap(.create(stack4, 0xD0_000_000, .rw, .{ .setvar_vaddr = "worker_thread_stack_four" }));
+        }
+    };
 };

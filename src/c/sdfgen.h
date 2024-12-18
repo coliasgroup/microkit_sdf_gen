@@ -111,5 +111,7 @@ bool sdfgen_sddf_net_serialise_config(void *system, char *output_dir);
 
 /*** LionsOS ***/
 
-void *sdfgen_lionsos_fs(void *sdf, void *fs, void *client);
-bool sdfgen_lionsos_fs_connect(void *fs_system);
+void *sdfgen_lionsos_fs_fat(void *sdf, void *fs, void *client);
+bool sdfgen_lionsos_fs_fat_connect(void *system);
+void *sdfgen_lionsos_fs_nfs(void *sdf, void *fs, void *client, void *net, void *net_copier);
+bool sdfgen_lionsos_fs_fat_connect(void *system);

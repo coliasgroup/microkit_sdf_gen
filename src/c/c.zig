@@ -479,15 +479,30 @@ export fn sdfgen_sddf_net_destroy(system: *align(8) anyopaque) void {
     allocator.destroy(net);
 }
 
-export fn sdfgen_lionsos_fs(c_sdf: *align(8) anyopaque, c_fs: *align(8) anyopaque, c_client: *align(8) anyopaque) *anyopaque {
+export fn sdfgen_lionsos_fs_fat(c_sdf: *align(8) anyopaque, c_fs: *align(8) anyopaque, c_client: *align(8) anyopaque) *anyopaque {
     const sdf: *SystemDescription = @ptrCast(c_sdf);
-    const fs = allocator.create(lionsos.FileSystem) catch @panic("OOM");
-    fs.* = lionsos.FileSystem.init(allocator, sdf, @ptrCast(c_fs), @ptrCast(c_client), .{});
+    const fs = allocator.create(lionsos.FileSystem.Fat) catch @panic("OOM");
+    fs.* = lionsos.FileSystem.Fat.init(allocator, sdf, @ptrCast(c_fs), @ptrCast(c_client), .{});
 
     return fs;
 }
 
-export fn sdfgen_lionsos_fs_connect(system: *align(8) anyopaque) bool {
+export fn sdfgen_lionsos_fs_fat_connect(system: *align(8) anyopaque) bool {
+    const fs: *lionsos.FileSystem = @ptrCast(system);
+    fs.connect();
+
+    return true;
+}
+
+export fn sdfgen_lionsos_fs_nfs(c_sdf: *align(8) anyopaque, c_fs: *align(8) anyopaque, c_client: *align(8) anyopaque, c_net: *align(8) anyopaque, c_net_copier: *align(8) anyopaque) *anyopaque {
+    const sdf: *SystemDescription = @ptrCast(c_sdf);
+    const fs = allocator.create(lionsos.FileSystem.Nfs) catch @panic("OOM");
+    fs.* = lionsos.FileSystem.Nfs.init(allocator, sdf, @ptrCast(c_fs), @ptrCast(c_client), @ptrCast(c_net), @ptrCast(c_net_copier), .{}) catch @panic("TODO");
+
+    return fs;
+}
+
+export fn sdfgen_lionsos_fs_nfs_connect(system: *align(8) anyopaque) bool {
     const fs: *lionsos.FileSystem = @ptrCast(system);
     fs.connect();
 
