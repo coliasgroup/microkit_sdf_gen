@@ -210,10 +210,11 @@ export fn sdfgen_vm_vcpu_destroy(c_vcpu: *align(8) anyopaque) void {
     allocator.destroy(vcpu);
 }
 
-// TODO
-// export fn sdfgen_vm_add_map(c_vm: *align(8) anyopaque, c_map: *align(8) anyopaque) void {
-//     const 
-// }
+export fn sdfgen_vm_add_map(c_vm: *align(8) anyopaque, c_map: *align(8) anyopaque) void {
+    const vm: *Vm = @ptrCast(c_vm);
+    const map: *Map = @ptrCast(c_map);
+    vm.addMap(map.*);
+}
 
 export fn sdfgen_sddf_init(path: [*c]u8) bool {
     sddf.probe(allocator, std.mem.span(path)) catch return false;

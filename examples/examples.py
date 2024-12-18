@@ -1,5 +1,8 @@
 import argparse
-from sdfgen import SystemDescription, ProtectionDomain, Sddf, DeviceTree, LionsOS, Channel
+from sdfgen import SystemDescription, Sddf, DeviceTree
+
+ProtectionDomain = SystemDescription.ProtectionDomain
+Channel = SystemDescription.Channel
 
 PLATFORM = "qemu_virt_aarch64"
 
@@ -33,21 +36,21 @@ def generate_sdf():
     blk_node = dtb.node("virtio_mmio@a003e00")
     assert blk_node is not None
     blk_system = Sddf.Block(sdf, blk_node, blk_driver, blk_virt)
-    blk_system.add_client(fatfs)
-    blk_system.add_client(web_fatfs)
+    blk_system.add_client(fatfs, partition=0)
+    blk_system.add_client(web_fatfs, partition=1)
 
     timer_system = Sddf.Timer(sdf, dtb.node("timer"), timer_driver)
     timer_system.add_client(reactor_client)
     timer_system.add_client(micropython)
 
-    net_node = dtb.node("virtio_mmio@a003c00")
+    net_node = dtb.node("virtio_mmio@a003e00")
     assert net_node is not None
     net_system = Sddf.Network(sdf, net_node, net_driver, net_virt_rx, net_virt_tx)
     net_system.add_client_with_copier(micropython, net_mp_copier)
 
-    fs = LionsOS.FileSystem(sdf, fatfs, reactor_client)
+    # fs = LionsOS.FileSystem(sdf, fatfs, reactor_client)
 
-    web_fs = LionsOS.FileSystem(sdf, web_fatfs, micropython)
+    # web_fs = LionsOS.FileSystem(sdf, web_fatfs, micropython)
 
     pds = [
         reactor_client,
@@ -71,8 +74,8 @@ def generate_sdf():
     timer_system.connect()
     blk_system.connect()
     net_system.connect()
-    fs.connect()
-    web_fs.connect()
+    # fs.connect()
+    # web_fs.connect()
 
     sdf.add_channel(Channel(reactor_client, micropython))
 
@@ -86,7 +89,7 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    sdf = SystemDescription(0xa_000_000)
+    sdf = SystemDescription(arch=SystemDescription.Arch.AARCH64, paddr_top=0xa_000_000)
     sddf = Sddf(args.sddf)
 
     with open(args.dtb + f"/{PLATFORM}.dtb", "rb") as f:

@@ -61,16 +61,17 @@ pub const VirtualMachineSystem = struct {
             }
         }
 
+        // Necessary to know for IRQ parsing/determining
+        const device_arm_gic_controller = DeviceTree.hasGicInterruptParent(device);
+
         if (irqs) {
             const maybe_interrupts = device.prop(.Interrupts);
             if (maybe_interrupts) |interrupts| {
                 for (interrupts) |interrupt| {
                     // Determine the IRQ trigger and (software-observable) number based on the device tree.
-                    const irq_type = try sddf.DeviceTree.armGicIrqType(interrupt[0]);
+                    const irq_type = sddf.DeviceTree.armGicIrqType(interrupt[0]);
                     const irq_number = sddf.DeviceTree.armGicIrqNumber(interrupt[1], irq_type);
-                    // Assume trigger is level if we are dealing with an IRQ that is not an SPI.
-                    // TODO: come back to this, do we need to care about the trigger for non-SPIs?
-                    const irq_trigger = if (irq_type == .spi) try sddf.DeviceTree.armGicSpiTrigger(interrupt[2]) else .level;
+                    const irq_trigger = if (device_arm_gic_controller) DeviceTree.armGicTrigger(interrupt[2]) else .level;
                     try system.vmm.addInterrupt(.create(irq_number, irq_trigger, null));
                 }
             }
@@ -101,12 +102,15 @@ pub const VirtualMachineSystem = struct {
         try vmm.setVirtualMachine(vm);
 
         // On ARM, map in the GIC vCPU device as the GIC CPU device in the guest's memory.
-        if (sdf.arch == .aarch64) {
+        if (sdf.arch.isArm()) {
             const gic = ArmGic.fromDtb(system.guest_dtb);
-            const gic_vcpu_mr = Mr.physical(allocator, sdf, "gic_vcpu", gic.vcpu_size, .{ .paddr = gic.vcpu_paddr });
-            const gic_guest_map = Map.create(gic_vcpu_mr, gic.cpu_paddr, .rw, .{ .cached = false });
-            sdf.addMemoryRegion(gic_vcpu_mr);
-            vm.addMap(gic_guest_map);
+
+            if (gic.hasMmioCpuInterface()) {
+                const gic_vcpu_mr = Mr.physical(allocator, sdf, "gic_vcpu", gic.vcpu_size.?, .{ .paddr = gic.vcpu_paddr.? });
+                const gic_guest_map = Map.create(gic_vcpu_mr, gic.cpu_paddr.?, .rw, .{ .cached = false });
+                sdf.addMemoryRegion(gic_vcpu_mr);
+                vm.addMap(gic_guest_map);
+            }
         }
 
         const memory_node = DeviceTree.memory(system.guest_dtb).?;
@@ -114,10 +118,8 @@ pub const VirtualMachineSystem = struct {
         // TODO
         std.debug.assert(memory_reg.len == 1);
         const memory_paddr: usize = @intCast(memory_reg[0][0]);
-        // TODO: should free the name at some point....
         const guest_mr_name = std.fmt.allocPrint(allocator, "guest_ram_{s}", .{vm.name}) catch @panic("OOM");
         defer allocator.free(guest_mr_name);
-        // TODO: get RAM size from the memory node from DTB
         const guest_ram_size: usize = @intCast(memory_reg[0][1]);
 
         const guest_ram_mr = blk: {
@@ -128,7 +130,6 @@ pub const VirtualMachineSystem = struct {
             }
         };
         sdf.addMemoryRegion(guest_ram_mr);
-        // TODO: vaddr should come from the memory node from DTB
         const vm_guest_ram_map = Map.create(guest_ram_mr, memory_paddr, .rwx, .{});
         const vmm_guest_ram_map = Map.create(guest_ram_mr, memory_paddr, .rw, .{});
         vmm.addMap(vmm_guest_ram_map);

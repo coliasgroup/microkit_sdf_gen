@@ -115,13 +115,13 @@ pub fn probe(allocator: Allocator, path: []const u8) !void {
         // to iterate through each directory and find the config file
         // TODO: handle this gracefully
         for (@as(Config.DeviceClass.Class, @enumFromInt(device_class.value)).dirs()) |dir| {
-            const driver_dir = std.fmt.allocPrint(allocator, "drivers/{s}", .{dir}) catch @panic("OOM");
+            const driver_dir = fmt(allocator, "drivers/{s}", .{dir});
             var device_class_dir = try sddf.openDir(driver_dir, .{ .iterate = true });
             defer device_class_dir.close();
             var iter = device_class_dir.iterate();
             while (try iter.next()) |entry| {
                 // Under this directory, we should find the configuration file
-                const config_path = std.fmt.allocPrint(allocator, "{s}/config.json", .{entry.name}) catch @panic("OOM");
+                const config_path = fmt(allocator, "{s}/config.json", .{entry.name});
                 defer allocator.free(config_path);
                 // Attempt to open the configuration file. It is realistic to not
                 // have every driver to have a configuration file associated with
@@ -303,6 +303,16 @@ pub const DeviceTree = struct {
         return false;
     }
 
+    pub fn hasGicInterruptParent(node: *dtb.Node) bool {
+        if (node.interruptParent()) |interrupt_parent| {
+            if (ArmGic.nodeIsCompatible(interrupt_parent)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     pub fn memory(d: *dtb.Node) ?*dtb.Node {
         for (d.children) |child| {
             const device_type = child.prop(.DeviceType);
@@ -331,31 +341,45 @@ pub const DeviceTree = struct {
     pub const ArmGic = struct {
         const Version = enum { two, three };
 
-        cpu_paddr: u64,
-        vcpu_paddr: u64,
-        vcpu_size: u64,
         version: Version,
+        // While every GIC on an ARM platform that supports virtualisation
+        // will have a CPU and vCPU interface interface, they might be via
+        // system registers instead of MMIO which is why these fields are optional.
+        cpu_paddr: ?u64 = null,
+        vcpu_paddr: ?u64 = null,
+        vcpu_size: ?u64 = null,
 
         const compatible = compatible_v2 ++ compatible_v3;
         const compatible_v2 = [_][]const u8{ "arm,gic-v2", "arm,cortex-a15-gic", "arm,gic-400" };
         const compatible_v3 = [_][]const u8{"arm,gic-v3"};
 
-        pub fn fromDtb(d: *dtb.Node) ArmGic {
-            // Find the GIC with any compatible string, regardless of version.
-            const maybe_gic_node = DeviceTree.findCompatible(d, &ArmGic.compatible);
-            if (maybe_gic_node == null) {
-                @panic("Cannot find ARM GIC device in device tree");
+        /// Whether or not the GIC's CPU/vCPU interface is via MMIO
+        pub fn hasMmioCpuInterface(gic: ArmGic) bool {
+            std.debug.assert((gic.cpu_paddr == null and gic.vcpu_paddr == null and gic.vcpu_size == null) or
+                             (gic.cpu_paddr != null and gic.vcpu_paddr != null and gic.vcpu_size != null));
+
+            return gic.cpu_paddr != null;
+        }
+
+        pub fn nodeIsCompatible(node: *dtb.Node) bool {
+            const node_compatible = node.prop(.Compatible).?;
+            if (isCompatible(node_compatible, &compatible_v2) or isCompatible(node_compatible, &compatible_v3)) {
+                return true;
+            } else {
+                return false;
             }
-            const gic_node = maybe_gic_node.?;
+        }
+
+        pub fn create(node: *dtb.Node) ArmGic {
             // Get the GIC version first.
-            const node_compatible = gic_node.prop(.Compatible).?;
+            const node_compatible = node.prop(.Compatible).?;
             const version = blk: {
                 if (isCompatible(node_compatible, &compatible_v2)) {
                     break :blk Version.two;
                 } else if (isCompatible(node_compatible, &compatible_v3)) {
                     break :blk Version.three;
                 } else {
-                    unreachable;
+                    @panic("invalid GIC version");
                 }
             };
 
@@ -367,29 +391,38 @@ pub const DeviceTree = struct {
                 .two => 1,
                 .three => 2,
             };
-            // TODO: need to check indexes are valid
-            const gic_reg = gic_node.prop(.Reg).?;
-            const vcpu_paddr = DeviceTree.regToPaddr(gic_node, gic_reg[vcpu_dt_index][0]);
-            const vcpu_size = gic_reg[vcpu_dt_index][1];
-            const cpu_paddr = DeviceTree.regToPaddr(gic_node, gic_reg[cpu_dt_index][0]);
+            const gic_reg = node.prop(.Reg).?;
+            const vcpu_paddr = if (vcpu_dt_index < gic_reg.len) DeviceTree.regToPaddr(node, gic_reg[vcpu_dt_index][0]) else null;
+            // Cast should be safe as vCPU should never be larger than u64
+            const vcpu_size: ?u64 = if (vcpu_dt_index < gic_reg.len) @intCast(gic_reg[vcpu_dt_index][1]) else null;
+            const cpu_paddr = if (cpu_dt_index < gic_reg.len) DeviceTree.regToPaddr(node, gic_reg[cpu_dt_index][0]) else null;
 
             return .{
                 .cpu_paddr = cpu_paddr,
                 .vcpu_paddr = vcpu_paddr,
-                // TODO: down cast
-                .vcpu_size = @intCast(vcpu_size),
+                .vcpu_size = vcpu_size,
                 .version = version,
             };
         }
+
+        pub fn fromDtb(d: *dtb.Node) ArmGic {
+            // Find the GIC with any compatible string, regardless of version.
+            const maybe_gic_node = DeviceTree.findCompatible(d, &ArmGic.compatible);
+            if (maybe_gic_node == null) {
+                @panic("Cannot find ARM GIC device in device tree");
+            }
+
+            return ArmGic.create(maybe_gic_node.?);
+        }
     };
 
-    pub fn armGicIrqType(irq_type: usize) !ArmGicIrqType {
+    pub fn armGicIrqType(irq_type: usize) ArmGicIrqType {
         return switch (irq_type) {
             0x0 => .spi,
             0x1 => .ppi,
             0x2 => .extended_spi,
             0x3 => .extended_ppi,
-            else => return error.InvalidArmIrqTypeValue,
+            else => @panic("unexpected IRQ type"),
         };
     }
 
@@ -397,15 +430,15 @@ pub const DeviceTree = struct {
         return switch (irq_type) {
             .spi => number + 32,
             .ppi => number + 16,
-            .extended_spi, .extended_ppi => @panic("Unexpected IRQ type"),
+            .extended_spi, .extended_ppi => @panic("unexpected IRQ type"),
         };
     }
 
-    pub fn armGicSpiTrigger(trigger: usize) !Interrupt.Trigger {
+    pub fn armGicTrigger(trigger: usize) Interrupt.Trigger {
         return switch (trigger) {
             0x1 => return .edge,
             0x4 => return .level,
-            else => return error.InvalidTriggerValue,
+            else => @panic("unexpected trigger value"),
         };
     }
 
@@ -436,7 +469,8 @@ pub const DeviceTree = struct {
     // particular bus the address is on. We also align to the smallest page size;
     // Assumes smallest page size is 0x1000;
     pub fn regToPaddr(device: *dtb.Node, paddr: u128) u64 {
-        // TODO: casting from u128 to u64
+        // We have to case here because any mappable address in seL4 must be a
+        // 64-bit address or smaller.
         var device_paddr: u64 = @intCast((paddr >> 12) << 12);
         // TODO: doesn't work on the maaxboard
         var parent_node_maybe: ?*dtb.Node = device.parent;
@@ -524,14 +558,14 @@ pub const TimerSystem = struct {
     pub fn serialiseConfig(system: *TimerSystem, prefix: []const u8) !void {
         const allocator = system.allocator;
 
-        const device_res_data_name = std.fmt.allocPrint(system.allocator, "{s}_device_resources.data", .{ system.driver.name }) catch @panic("OOM");
-        const device_res_json_name = std.fmt.allocPrint(system.allocator, "{s}_device_resources.json", .{ system.driver.name }) catch @panic("OOM");
+        const device_res_data_name = fmt(system.allocator, "{s}_device_resources.data", .{ system.driver.name });
+        const device_res_json_name = fmt(system.allocator, "{s}_device_resources.json", .{ system.driver.name });
         try data.serialize(system.device_res, try std.fs.path.join(system.allocator, &.{ prefix, device_res_data_name }));
         try data.jsonify(system.device_res, try std.fs.path.join(system.allocator, &.{ prefix, device_res_json_name }), .{ .whitespace = .indent_4 });
 
         for (system.clients.items, 0..) |client, i| {
-            const data_name = std.fmt.allocPrint(system.allocator, "timer_client_{s}.data", .{client.name}) catch @panic("OOM");
-            const json_name = std.fmt.allocPrint(system.allocator, "timer_client_{s}.json", .{client.name}) catch @panic("OOM");
+            const data_name = fmt(system.allocator, "timer_client_{s}.data", .{client.name});
+            const json_name = fmt(system.allocator, "timer_client_{s}.json", .{client.name});
             try data.serialize(system.client_configs.items[i], try fs.path.join(allocator, &.{ prefix, data_name }));
             try data.jsonify(system.client_configs.items[i], try fs.path.join(allocator, &.{ prefix, json_name }), .{ .whitespace = .indent_4 });
         }
@@ -619,7 +653,6 @@ pub const I2cSystem = struct {
 
         system.virt_config.num_clients += 1;
 
-        // TODO: use optimal size
         const mr_req = Mr.create(allocator, fmt(allocator, "i2c_client_request_{s}", .{client.name}), system.region_req_size, .{});
         const mr_resp = Mr.create(allocator, fmt(allocator, "i2c_client_response_{s}", .{client.name}), system.region_resp_size, .{});
         const mr_data = Mr.create(allocator, fmt(allocator, "i2c_client_data_{s}", .{client.name}), system.region_data_size, .{});
@@ -691,8 +724,8 @@ pub const I2cSystem = struct {
     pub fn serialiseConfig(system: *I2cSystem, prefix: []const u8) !void {
         const allocator = system.allocator;
 
-        const device_res_data_name = std.fmt.allocPrint(system.allocator, "{s}_device_resources.data", .{ system.driver.name }) catch @panic("OOM");
-        const device_res_json_name = std.fmt.allocPrint(system.allocator, "{s}_device_resources.json", .{ system.driver.name }) catch @panic("OOM");
+        const device_res_data_name = fmt(system.allocator, "{s}_device_resources.data", .{ system.driver.name });
+        const device_res_json_name = fmt(system.allocator, "{s}_device_resources.json", .{ system.driver.name });
         try data.serialize(system.device_res, try std.fs.path.join(system.allocator, &.{ prefix, device_res_data_name }));
         try data.jsonify(system.device_res, try std.fs.path.join(system.allocator, &.{ prefix, device_res_json_name }), .{ .whitespace = .indent_4 });
 
@@ -703,8 +736,8 @@ pub const I2cSystem = struct {
         try data.jsonify(system.virt_config, try fs.path.join(allocator, &.{ prefix, "i2c_virt.json" }), .{ .whitespace = .indent_4 });
 
         for (system.clients.items, 0..) |client, i| {
-            const data_name = std.fmt.allocPrint(allocator, "i2c_client_{s}.data", .{client.name}) catch @panic("OOM");
-            const json_name = std.fmt.allocPrint(allocator, "i2c_client_{s}.json", .{client.name}) catch @panic("OOM");
+            const data_name = fmt(allocator, "i2c_client_{s}.data", .{client.name});
+            const json_name = fmt(allocator, "i2c_client_{s}.json", .{client.name});
             try data.serialize(system.client_configs.items[i], try fs.path.join(allocator, &.{ prefix, data_name }));
             try data.jsonify(system.client_configs.items[i], try fs.path.join(allocator, &.{ prefix, json_name }), .{ .whitespace = .indent_4 });
         }
@@ -897,8 +930,8 @@ pub const BlockSystem = struct {
 
         const allocator = system.allocator;
 
-        const device_res_data_name = std.fmt.allocPrint(system.allocator, "{s}_device_resources.data", .{ system.driver.name }) catch @panic("OOM");
-        const device_res_json_name = std.fmt.allocPrint(system.allocator, "{s}_device_resources.json", .{ system.driver.name }) catch @panic("OOM");
+        const device_res_data_name = fmt(system.allocator, "{s}_device_resources.data", .{ system.driver.name });
+        const device_res_json_name = fmt(system.allocator, "{s}_device_resources.json", .{ system.driver.name });
         try data.serialize(system.device_res, try std.fs.path.join(system.allocator, &.{ prefix, device_res_data_name }));
         try data.jsonify(system.device_res, try std.fs.path.join(system.allocator, &.{ prefix, device_res_json_name }), .{ .whitespace = .indent_4 });
 
@@ -973,7 +1006,7 @@ pub const SerialSystem = struct {
     }
 
     fn createConnection(system: *SerialSystem, server: *Pd, client: *Pd, server_conn: *ConfigResources.Serial.Connection, client_conn: *ConfigResources.Serial.Connection) void {
-        const queue_mr_name = std.fmt.allocPrint(system.allocator, "{s}/serial/queue/{s}/{s}", .{system.device.name, server.name, client.name}) catch @panic("OOM");
+        const queue_mr_name = fmt(system.allocator, "{s}/serial/queue/{s}/{s}", .{system.device.name, server.name, client.name});
         const queue_mr = Mr.create(system.allocator, queue_mr_name, system.queue_size, .{});
         system.sdf.addMemoryRegion(queue_mr);
 
@@ -985,7 +1018,7 @@ pub const SerialSystem = struct {
         client.addMap(queue_mr_client_map);
         client_conn.queue = ConfigResources.Region.createFromMap(queue_mr_client_map);
 
-        const data_mr_name = std.fmt.allocPrint(system.allocator, "{s}/serial/data/{s}/{s}", .{system.device.name, server.name, client.name}) catch @panic("OOM");
+        const data_mr_name = fmt(system.allocator, "{s}/serial/data/{s}/{s}", .{system.device.name, server.name, client.name});
         const data_mr = Mr.create(system.allocator, data_mr_name, system.data_size, .{});
         system.sdf.addMemoryRegion(data_mr);
 
@@ -1049,8 +1082,8 @@ pub const SerialSystem = struct {
     pub fn serialiseConfig(system: *SerialSystem, prefix: []const u8) !void {
         const allocator = system.allocator;
 
-        const device_res_data_name = std.fmt.allocPrint(system.allocator, "{s}_device_resources.data", .{ system.driver.name }) catch @panic("OOM");
-        const device_res_json_name = std.fmt.allocPrint(system.allocator, "{s}_device_resources.json", .{ system.driver.name }) catch @panic("OOM");
+        const device_res_data_name = fmt(system.allocator, "{s}_device_resources.data", .{ system.driver.name });
+        const device_res_json_name = fmt(system.allocator, "{s}_device_resources.json", .{ system.driver.name });
         try data.serialize(system.device_res, try std.fs.path.join(system.allocator, &.{ prefix, device_res_data_name }));
         try data.jsonify(system.device_res, try std.fs.path.join(system.allocator, &.{ prefix, device_res_json_name }), .{ .whitespace = .indent_4 });
 
@@ -1064,8 +1097,8 @@ pub const SerialSystem = struct {
         try data.jsonify(system.virt_tx_config, try fs.path.join(allocator, &.{ prefix, "serial_virt_tx.json" }), .{ .whitespace = .indent_4 });
 
         for (system.clients.items, 0..) |client, i| {
-            const data_name = std.fmt.allocPrint(system.allocator, "serial_client_{s}.data", .{client.name}) catch @panic("OOM");
-            const json_name = std.fmt.allocPrint(system.allocator, "serial_client_{s}.json", .{client.name}) catch @panic("OOM");
+            const data_name = fmt(system.allocator, "serial_client_{s}.data", .{client.name});
+            const json_name = fmt(system.allocator, "serial_client_{s}.json", .{client.name});
             try data.serialize(system.client_configs.items[i], try fs.path.join(allocator, &.{ prefix, data_name }));
             try data.jsonify(system.client_configs.items[i], try fs.path.join(allocator, &.{ prefix, json_name }), .{ .whitespace = .indent_4 });
         }
@@ -1192,7 +1225,7 @@ pub const NetworkSystem = struct {
         server_conn.num_buffers = @intCast(num_buffers);
         client_conn.num_buffers = @intCast(num_buffers);
 
-        const free_mr_name = std.fmt.allocPrint(system.allocator, "{s}/net/queue/{s}/{s}/free", .{system.device.name, server.name, client.name}) catch @panic("OOM");
+        const free_mr_name = fmt(system.allocator, "{s}/net/queue/{s}/{s}/free", .{system.device.name, server.name, client.name});
         const free_mr = Mr.create(system.allocator, free_mr_name, queue_mr_size, .{});
         system.sdf.addMemoryRegion(free_mr);
 
@@ -1204,7 +1237,7 @@ pub const NetworkSystem = struct {
         client.addMap(free_mr_client_map);
         client_conn.free_queue = ConfigResources.Region.createFromMap(free_mr_client_map);
 
-        const active_mr_name = std.fmt.allocPrint(system.allocator, "{s}/net/queue/{s}/{s}/active", .{system.device.name, server.name, client.name}) catch @panic("OOM");
+        const active_mr_name = fmt(system.allocator, "{s}/net/queue/{s}/{s}/active", .{system.device.name, server.name, client.name});
         const active_mr = Mr.create(system.allocator, active_mr_name, queue_mr_size, .{});
         system.sdf.addMemoryRegion(active_mr);
 
@@ -1225,7 +1258,7 @@ pub const NetworkSystem = struct {
     fn rxConnectDriver(system: *NetworkSystem) Mr {
         system.createConnection(system.driver, system.virt_rx, &system.driver_config.virt_rx, &system.virt_rx_config.driver, system.rx_buffers);
 
-        const rx_dma_mr_name = std.fmt.allocPrint(system.allocator, "{s}/net/rx/data/device", .{system.device.name}) catch @panic("OOM");
+        const rx_dma_mr_name = fmt(system.allocator, "{s}/net/rx/data/device", .{system.device.name});
         const rx_dma_mr_size = round_to_page(system.rx_buffers * BUFFER_SIZE);
         const rx_dma_mr = Mr.physical(system.allocator, system.sdf, rx_dma_mr_name, rx_dma_mr_size, .{});
         system.sdf.addMemoryRegion(rx_dma_mr);
@@ -1233,7 +1266,7 @@ pub const NetworkSystem = struct {
         system.virt_rx.addMap(rx_dma_virt_map);
         system.virt_rx_config.data_region = ConfigResources.Device.Region.createFromMap(rx_dma_virt_map);
 
-        const virt_rx_metadata_mr_name = std.fmt.allocPrint(system.allocator, "{s}/net/rx/virt_metadata", .{system.device.name}) catch @panic("OOM");
+        const virt_rx_metadata_mr_name = fmt(system.allocator, "{s}/net/rx/virt_metadata", .{system.device.name});
         const virt_rx_metadata_mr_size = round_to_page(system.rx_buffers * 4);
         const virt_rx_metadata_mr = Mr.create(system.allocator, virt_rx_metadata_mr_name, virt_rx_metadata_mr_size, .{});
         system.sdf.addMemoryRegion(virt_rx_metadata_mr);
@@ -1269,7 +1302,7 @@ pub const NetworkSystem = struct {
         copier_config.device_data = ConfigResources.Region.createFromMap(rx_dma_copier_map);
 
         const client_data_mr_size = round_to_page(system.rx_buffers * BUFFER_SIZE);
-        const client_data_mr_name = std.fmt.allocPrint(system.allocator, "{s}/net/rx/data/client/{s}", .{system.device.name, client.name}) catch @panic("OOM");
+        const client_data_mr_name = fmt(system.allocator, "{s}/net/rx/data/client/{s}", .{system.device.name, client.name});
         const client_data_mr = Mr.create(system.allocator, client_data_mr_name, client_data_mr_size, .{});
         system.sdf.addMemoryRegion(client_data_mr);
 
@@ -1291,7 +1324,7 @@ pub const NetworkSystem = struct {
         system.createConnection(system.virt_tx, client, &virt_client_config.conn, &client_config.tx, client_info.tx_buffers);
 
         const data_mr_size = round_to_page(client_info.tx_buffers * BUFFER_SIZE);
-        const data_mr_name = std.fmt.allocPrint(system.allocator, "{s}/net/tx/data/client/{s}", .{system.device.name, client.name}) catch @panic("OOM");
+        const data_mr_name = fmt(system.allocator, "{s}/net/tx/data/client/{s}", .{system.device.name, client.name});
         const data_mr = Mr.physical(system.allocator, system.sdf, data_mr_name, data_mr_size, .{});
         system.sdf.addMemoryRegion(data_mr);
 
@@ -1350,9 +1383,9 @@ pub const NetworkSystem = struct {
     pub fn serialiseConfig(system: *NetworkSystem, prefix: []const u8) !void {
         const allocator = system.allocator;
 
-        const device_res_data_name = std.fmt.allocPrint(allocator, "{s}_device_resources.data", .{ system.driver.name }) catch @panic("OOM");
+        const device_res_data_name = fmt(allocator, "{s}_device_resources.data", .{ system.driver.name });
         try data.serialize(system.device_res, try std.fs.path.join(allocator, &.{ prefix, device_res_data_name }));
-        const device_res_json_name = std.fmt.allocPrint(allocator, "{s}_device_resources.json", .{ system.driver.name }) catch @panic("OOM");
+        const device_res_json_name = fmt(allocator, "{s}_device_resources.json", .{ system.driver.name });
         try data.jsonify(system.device_res, try std.fs.path.join(allocator, &.{ prefix, device_res_json_name }), .{ .whitespace = .indent_4 });
 
         try data.serialize(system.driver_config, try fs.path.join(allocator, &.{ prefix, "net_driver.data" }));
@@ -1365,16 +1398,16 @@ pub const NetworkSystem = struct {
         try data.jsonify(system.virt_tx_config, try fs.path.join(allocator, &.{ prefix, "net_virt_tx.json" }), .{ .whitespace = .indent_4 });
 
         for (system.copiers.items, 0..) |copier, i| {
-            const data_name = std.fmt.allocPrint(allocator, "net_copy_{s}.data", .{copier.name}) catch @panic("OOM");
+            const data_name = fmt(allocator, "net_copy_{s}.data", .{copier.name});
             try data.serialize(system.copy_configs.items[i], try fs.path.join(allocator, &.{ prefix, data_name }));
-            const json_name = std.fmt.allocPrint(allocator, "net_copy_{s}.json", .{copier.name}) catch @panic("OOM");
+            const json_name = fmt(allocator, "net_copy_{s}.json", .{copier.name});
             try data.jsonify(system.copy_configs.items[i], try fs.path.join(allocator, &.{ prefix, json_name }), .{ .whitespace = .indent_4 });
         }
 
         for (system.clients.items, 0..) |client, i| {
-            const data_name = std.fmt.allocPrint(allocator, "net_client_{s}.data", .{client.name}) catch @panic("OOM");
+            const data_name = fmt(allocator, "net_client_{s}.data", .{client.name});
             try data.serialize(system.client_configs.items[i], try fs.path.join(allocator, &.{ prefix, data_name }));
-            const json_name = std.fmt.allocPrint(allocator, "net_client_{s}.json", .{client.name}) catch @panic("OOM");
+            const json_name = fmt(allocator, "net_client_{s}.json", .{client.name});
             try data.jsonify(system.client_configs.items[i], try fs.path.join(allocator, &.{ prefix, json_name }), .{ .whitespace = .indent_4 });
         }
     }
@@ -1410,8 +1443,6 @@ pub fn createDriver(sdf: *SystemDescription, pd: *Pd, device: *dtb.Node, class: 
     // The way we do that is by searching for the compatible string described in the DTB node.
     const compatible = device.prop(.Compatible).?;
 
-    // TODO: It is expected for a lot of devices to have multiple compatible strings,
-    // we need to deal with that here.
     log.debug("Creating driver for device: '{s}'", .{device.name});
     log.debug("Compatible with:", .{});
     for (compatible) |c| {
@@ -1435,17 +1466,24 @@ pub fn createDriver(sdf: *SystemDescription, pd: *Pd, device: *dtb.Node, class: 
 
     const interrupts = device.prop(.Interrupts).?;
 
+    // Necessary to know for IRQ parsing/determining
+    const device_arm_gic_controller = DeviceTree.hasGicInterruptParent(device);
+    if (device_arm_gic_controller) {
+        std.debug.assert(sdf.arch.isArm());
+    }
+
     // TODO: check for duplicate dt index on irqs and regions
     for (driver.resources.regions) |region_resource| {
         if (region_resource.dt_index == null and region_resource.size == null) {
             log.err("driver '{s}' has region resource '{s}'' which specifies neither dt_index nor size: one or both must be specified", .{ driver.name, region_resource.name });
         }
 
+        // TODO: huh?
         if (region_resource.dt_index != null and region_resource.cached != null and region_resource.cached.? == true) {
             log.err("driver '{s}' has region resource '{s}' which tries to map MMIO region as cached", .{ driver.name, region_resource.name });
         }
 
-        const mr_name = std.fmt.allocPrint(sdf.allocator, "{s}/{s}/{s}", .{ device.name, driver.name, region_resource.name }) catch @panic("OOM");
+        const mr_name = fmt(sdf.allocator, "{s}/{s}/{s}", .{ device.name, driver.name, region_resource.name });
 
         var mr: ?Mr = null;
         if (region_resource.dt_index != null) {
@@ -1497,7 +1535,7 @@ pub fn createDriver(sdf: *SystemDescription, pd: *Pd, device: *dtb.Node, class: 
 
         const perms = if (region_resource.perms != null) Map.Perms.fromString(region_resource.perms.?) else Map.Perms.rw;
         const map = Map.create(mr.?, pd.getMapVaddr(&mr.?), perms, .{
-            .cached = region_resource.cached.?,
+            .cached = region_resource.cached,
             .setvar_vaddr = region_resource.setvar_vaddr,
         });
         pd.addMap(map);
@@ -1514,25 +1552,25 @@ pub fn createDriver(sdf: *SystemDescription, pd: *Pd, device: *dtb.Node, class: 
         }
         const dt_irq = interrupts[driver_irq.dt_index];
 
-        const irq = blk: switch (sdf.arch) {
-            .aarch64, .aarch32 => {
+        const irq = blk: {
+            if (sdf.arch.isArm()) {
                 std.debug.assert(dt_irq.len == 3);
                 // Determine the IRQ trigger and (software-observable) number based on the device tree.
-                const irq_type = try DeviceTree.armGicIrqType(dt_irq[0]);
+                const irq_type = DeviceTree.armGicIrqType(dt_irq[0]);
                 const irq_number = DeviceTree.armGicIrqNumber(dt_irq[1], irq_type);
-                // Assume trigger is level if we are dealing with an IRQ that is not an SPI.
-                // TODO: come back to this, do we need to care about the trigger for non-SPIs?
-                const irq_trigger = if (irq_type == .spi) try DeviceTree.armGicSpiTrigger(dt_irq[2]) else .level;
+                // Only try to get the interrupt trigger via the device tree if the interrupt-parent
+                // for this device is the GIC
+                const irq_trigger = if (device_arm_gic_controller) DeviceTree.armGicTrigger(dt_irq[2]) else .level;
 
                 break :blk SystemDescription.Interrupt.create(irq_number, irq_trigger, driver_irq.channel_id);
-            },
-            .riscv64, .riscv32 => {
+            } else if (sdf.arch.isRiscv()) {
                 std.debug.assert(dt_irq.len == 1);
                 const irq_number = dt_irq[0];
                 const irq_trigger = .level;
                 break :blk SystemDescription.Interrupt.create(irq_number, irq_trigger, driver_irq.channel_id);
-            },
-            else => @panic("device driver IRQ handling is unimplemented for given arch"),
+            } else {
+                @panic("device driver IRQ handling is unimplemented for given arch");
+            }
         };
 
         const irq_channel = try pd.addInterrupt(irq);

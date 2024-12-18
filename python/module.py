@@ -1,8 +1,10 @@
 from __future__ import annotations
 import ctypes
 import importlib.util
-from ctypes import c_void_p, c_char_p, c_uint8, c_uint16, c_uint32, c_uint64, c_bool, POINTER, byref
-from typing import Optional, Tuple
+from ctypes import (
+    cast, c_void_p, c_char_p, c_uint8, c_uint16, c_uint32, c_uint64, c_bool, POINTER, byref
+)
+from typing import Optional, List, Tuple
 from enum import IntEnum
 
 # TOOD: double check
@@ -68,6 +70,9 @@ libsdfgen.sdfgen_vm_create.restype = c_void_p
 libsdfgen.sdfgen_vm_create.argtypes = [c_char_p, POINTER(c_void_p), c_uint32]
 libsdfgen.sdfgen_vm_destroy.restype = None
 libsdfgen.sdfgen_vm_destroy.argtypes = [c_void_p]
+
+libsdfgen.sdfgen_vm_add_map.restype = None
+libsdfgen.sdfgen_vm_add_map.argtypes = [c_void_p, c_void_p]
 
 libsdfgen.sdfgen_vm_vcpu_create.restype = c_void_p
 libsdfgen.sdfgen_vm_vcpu_create.argtypes = [c_uint8, c_uint16]
@@ -157,6 +162,7 @@ libsdfgen.sdfgen_sddf_net_connect.argtypes = [c_void_p]
 libsdfgen.sdfgen_sddf_net_serialise_config.restype = c_bool
 libsdfgen.sdfgen_sddf_net_serialise_config.argtypes = [c_void_p, c_char_p]
 
+
 class DeviceTree:
     """
     This class exists to allow other layers to be generic to boards or architectures
@@ -240,7 +246,7 @@ class SystemDescription:
         name: str
         _obj: c_void_p
         # We need to hold references to the PDs in case they get GC'd.
-        _child_pds: List[ProtectionDomain]
+        _child_pds: List[SystemDescription.ProtectionDomain]
 
         def __init__(
             self,
@@ -267,7 +273,7 @@ class SystemDescription:
             if stack_size is not None:
                 libsdfgen.sdfgen_pd_set_stack_size(self._obj, stack_size)
 
-        def add_child_pd(self, child_pd: ProtectionDomain, child_id=None) -> int:
+        def add_child_pd(self, child_pd: SystemDescription.ProtectionDomain, child_id=None) -> int:
             """
             Returns allocated ID for the child.
             """
@@ -281,14 +287,14 @@ class SystemDescription:
 
             return returned_id
 
-        def add_map(self, map: Map):
+        def add_map(self, map: SystemDescription.Map):
             libsdfgen.sdfgen_pd_add_map(self._obj, map._obj)
 
-        def set_virtual_machine(self, vm: VirtualMachine):
+        def set_virtual_machine(self, vm: SystemDescription.VirtualMachine):
             ret = libsdfgen.sdfgen_pd_set_virtual_machine(self._obj, vm._obj)
             if not ret:
                 # TODO: improve error message
-                raise Exception(f"ProtectionDomain already has VirtualMachine")
+                raise Exception("ProtectionDomain already has VirtualMachine")
 
         def __del__(self):
             libsdfgen.sdfgen_pd_destroy(self._obj)
@@ -297,18 +303,23 @@ class SystemDescription:
         _obj: c_void_p
 
         class VirtualCpu:
-            def __init__(self, *, id: int, cpu: Optional[int]=0):
+            def __init__(self, *, id: int, cpu: Optional[int] = 0):
                 # TODO: error checking
                 self._obj = libsdfgen.sdfgen_vm_vcpu_create(id, cpu)
 
         def __init__(self, name: str, vcpus: List[VirtualCpu]):
-            self._obj = libsfdgen.sdfgen_vm_create(name, VirtualCpuListType([vcpu._obj for vcpu in vcpus]))
+            vcpus_tuple: Tuple[c_void_p] = tuple([vcpu._obj for vcpu in vcpus])
+            c_vcpus = (c_void_p * len(vcpus))(vcpus_tuple)
+            self._obj = libsdfgen.sdfgen_vm_create(name, cast(c_vcpus, POINTER(c_void_p)))
+
+        def add_map(self, map: SystemDescription.Map):
+            libsdfgen.sdfgen_vm_add_map(self._obj, map._obj)
 
     class Map:
         _obj: c_void_p
 
         class Perms:
-            def __init__(self, *, r: bool=False, w: bool=False, x: bool=False):
+            def __init__(self, *, r: bool = False, w: bool = False, x: bool = False):
                 self.read = r
                 self.write = w
                 self.execute = x
@@ -326,11 +337,11 @@ class SystemDescription:
 
         def __init__(
             self,
-            mr: MemoryRegion,
+            mr: SystemDescription.MemoryRegion,
             vaddr: int,
             perms: Perms,
             *,
-            cached: bool=True,
+            cached: bool = True,
         ) -> None:
             self._obj = libsdfgen.sdfgen_map_create(mr._obj, vaddr, perms._to_c_bindings(), cached)
 
@@ -343,7 +354,7 @@ class SystemDescription:
             name: str,
             size: int,
             *,
-            paddr: Optional[int]=None
+            paddr: Optional[int] = None
         ) -> None:
             c_name = c_char_p(name.encode("utf-8"))
             if paddr:
@@ -360,8 +371,8 @@ class SystemDescription:
         # TODO: handle options
         def __init__(
             self,
-            a: ProtectionDomain,
-            b: ProtectionDomain,
+            a: SystemDescription.ProtectionDomain,
+            b: SystemDescription.ProtectionDomain,
             *,
             pp_a=False,
             pp_b=False,
@@ -402,7 +413,9 @@ class SystemDescription:
         libsdfgen.sdfgen_add_channel(self._obj, ch._obj)
 
     def xml(self) -> str:
-        """Generate the XML view of the System Description Format for consumption by the Microkit."""
+        """
+        Generate the XML view of the System Description Format for consumption by the Microkit.
+        """
         return libsdfgen.sdfgen_to_xml(self._obj).decode("utf-8")
 
 
@@ -434,10 +447,10 @@ class Sddf:
             self,
             sdf: SystemDescription,
             device: Optional[DeviceTree.Node],
-            driver: ProtectionDomain,
-            virt_tx: ProtectionDomain,
+            driver: SystemDescription.ProtectionDomain,
+            virt_tx: SystemDescription.ProtectionDomain,
             *,
-            virt_rx: Optional[ProtectionDomain]=None
+            virt_rx: Optional[SystemDescription.ProtectionDomain] = None
         ) -> None:
             if device is None:
                 device_obj = None
@@ -453,13 +466,14 @@ class Sddf:
                 sdf._obj, device_obj, driver._obj, virt_tx._obj, virt_rx_obj
             )
 
-        def add_client(self, client: ProtectionDomain):
+        def add_client(self, client: SystemDescription.ProtectionDomain):
             """Add a new client connection to the serial system."""
             libsdfgen.sdfgen_sddf_serial_add_client(self._obj, client._obj)
 
         def connect(self) -> bool:
             """
-            Construct and all resources to the associated SystemDescription, returns whether successful.
+            Construct and all resources to the associated SystemDescription,
+            returns whether successful.
 
             Must have all clients and options set before calling.
 
@@ -481,8 +495,8 @@ class Sddf:
             self,
             sdf: SystemDescription,
             device: Optional[DeviceTree.Node],
-            driver: ProtectionDomain,
-            virt: ProtectionDomain
+            driver: SystemDescription.ProtectionDomain,
+            virt: SystemDescription.ProtectionDomain
         ) -> None:
             if device is None:
                 device_obj = None
@@ -491,7 +505,7 @@ class Sddf:
 
             self._obj = libsdfgen.sdfgen_sddf_i2c(sdf._obj, device_obj, driver._obj, virt._obj)
 
-        def add_client(self, client: ProtectionDomain):
+        def add_client(self, client: SystemDescription.ProtectionDomain):
             libsdfgen.sdfgen_sddf_i2c_add_client(self._obj, client._obj)
 
         def connect(self) -> bool:
@@ -511,8 +525,8 @@ class Sddf:
             self,
             sdf: SystemDescription,
             device: Optional[DeviceTree.Node],
-            driver: ProtectionDomain,
-            virt: ProtectionDomain
+            driver: SystemDescription.ProtectionDomain,
+            virt: SystemDescription.ProtectionDomain
         ) -> None:
             if device is None:
                 device_obj = None
@@ -521,7 +535,7 @@ class Sddf:
 
             self._obj = libsdfgen.sdfgen_sddf_block(sdf._obj, device_obj, driver._obj, virt._obj)
 
-        def add_client(self, client: ProtectionDomain, *, partition: int):
+        def add_client(self, client: SystemDescription.ProtectionDomain, *, partition: int):
             libsdfgen.sdfgen_sddf_block_add_client(self._obj, client._obj, partition)
 
         def connect(self) -> bool:
@@ -541,9 +555,9 @@ class Sddf:
             self,
             sdf: SystemDescription,
             device: Optional[DeviceTree.Node],
-            driver: ProtectionDomain,
-            virt_tx: ProtectionDomain,
-            virt_rx: ProtectionDomain
+            driver: SystemDescription.ProtectionDomain,
+            virt_tx: SystemDescription.ProtectionDomain,
+            virt_rx: SystemDescription.ProtectionDomain
         ) -> None:
             if device is None:
                 device_obj = None
@@ -556,8 +570,8 @@ class Sddf:
 
         def add_client_with_copier(
             self,
-            client: ProtectionDomain,
-            copier: ProtectionDomain,
+            client: SystemDescription.ProtectionDomain,
+            copier: SystemDescription.ProtectionDomain,
             *,
             mac_addr: Optional[str] = None
         ) -> None:
@@ -604,7 +618,7 @@ class Sddf:
             self,
             sdf: SystemDescription,
             device: Optional[DeviceTree.Node],
-            driver: ProtectionDomain
+            driver: SystemDescription.ProtectionDomain
         ) -> None:
             if device is None:
                 device_obj = None
@@ -613,7 +627,7 @@ class Sddf:
 
             self._obj: c_void_p = libsdfgen.sdfgen_sddf_timer(sdf._obj, device_obj, driver._obj)
 
-        def add_client(self, client: ProtectionDomain):
+        def add_client(self, client: SystemDescription.ProtectionDomain):
             libsdfgen.sdfgen_sddf_timer_add_client(self._obj, client._obj)
 
         def connect(self) -> bool:

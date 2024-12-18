@@ -4,8 +4,6 @@ const Allocator = std.mem.Allocator;
 const allocPrint = std.fmt.allocPrint;
 const log = @import("log.zig");
 
-// TODO: indent stuff could be done better
-
 pub const SystemDescription = struct {
     /// Store the allocator used when creating the SystemDescirption so we
     /// can later deinit everything
@@ -34,6 +32,18 @@ pub const SystemDescription = struct {
         riscv64 = 3,
         x86 = 4,
         x86_64 = 5,
+
+        pub fn isArm(arch: Arch) bool {
+            return arch == .aarch32 or arch == .aarch64;
+        }
+
+        pub fn isRiscv(arch: Arch) bool {
+            return arch == .riscv32 or arch == .riscv64;
+        }
+
+        pub fn isX86(arch: Arch) bool {
+            return arch == .x86 or arch == .x86_64;
+        }
     };
 
     pub const SetVar = struct {
@@ -556,6 +566,12 @@ pub const SystemDescription = struct {
                 }
             }
 
+            // const padding: u64 = switch (page_size) {
+            //     0x1000 => 0x1000,
+            //     0x200_000 => 0x200_000,
+            //     else => @panic("TODO"),
+            // };
+
             return next_vaddr;
         }
 
@@ -605,12 +621,9 @@ pub const SystemDescription = struct {
             }
 
             if (pd.arm_smc) |smc| {
-                switch (sdf.arch) {
-                    .aarch64, .aarch32 => {},
-                    else => {
-                        std.log.err("set 'arm_smc' option when not targeting ARM\n", .{});
-                        return error.InvalidArmSmc;
-                    },
+                if (!sdf.arch.isArm()) {
+                    std.log.err("set 'arm_smc' option when not targeting ARM\n", .{});
+                    return error.InvalidArmSmc;
                 }
 
                 const smc_xml = try allocPrint(allocator, " smc=\"{}\"", .{ smc });
@@ -655,7 +668,6 @@ pub const SystemDescription = struct {
         }
     };
 
-    // TODO: add options for fixed channel ID
     pub const Channel = struct {
         pd_a: *ProtectionDomain,
         pd_b: *ProtectionDomain,
@@ -711,8 +723,6 @@ pub const SystemDescription = struct {
         /// number needs to map onto what seL4 observes (e.g the numbers in the
         /// device tree do not necessarily map onto what seL4 sees on ARM).
         irq: u32,
-        // TODO: there is a potential edge-case. There exist platforms
-        // supported by seL4 that do not allow for an IRQ trigger to be set.
         trigger: Trigger,
 
         pub const Trigger = enum { edge, level };

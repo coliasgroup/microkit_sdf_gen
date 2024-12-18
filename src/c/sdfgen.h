@@ -53,6 +53,7 @@ bool sdfgen_pd_set_virtual_machine(void *pd, void *vm);
 
 void *sdfgen_vm_create(char *name, void **vcpus, uint32_t num_vcpus);
 void sdfgen_vm_destroy(void *vm);
+void sdfgen_vm_add_map(void *vm, void *map);
 
 void *sdfgen_vm_vcpu_create(uint8_t id, uint16_t cpu);
 void sdfgen_vm_vcpu_destroy(void *vm);

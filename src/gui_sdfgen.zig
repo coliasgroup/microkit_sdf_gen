@@ -342,7 +342,6 @@ export fn jsonToXml(input_ptr: [*]const u8, input_len: usize, result_ptr: [*]u8)
     var blob = dtb.parse(allocator, dtb_bytes.items) catch {
         return printMsg(result_ptr, "DTB parsing error");
     };
-    // TODO: the allocator should already be known by the DTB...
     defer blob.deinit(allocator);
 
     var sdf = SystemDescription.create(allocator, board.arch(), 0x100_000_000);
