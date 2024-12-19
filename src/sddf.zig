@@ -191,7 +191,8 @@ pub const Config = struct {
         perms: ?[]const u8 = null,
         setvar_vaddr: ?[]const u8 = null,
         size: ?usize = null,
-        cached: ?bool = null,
+        /// Since we're often talking about device memory, default to false
+        cached: ?bool = false,
         // Index into 'reg' property of the device tree
         dt_index: ?DeviceTreeIndex = null,
     };
