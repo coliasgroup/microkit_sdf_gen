@@ -162,6 +162,15 @@ libsdfgen.sdfgen_sddf_net_connect.argtypes = [c_void_p]
 libsdfgen.sdfgen_sddf_net_serialise_config.restype = c_bool
 libsdfgen.sdfgen_sddf_net_serialise_config.argtypes = [c_void_p, c_char_p]
 
+libsdfgen.sdfgen_lionsos_fs_fat.restype = None
+libsdfgen.sdfgen_lionsos_fs_fat.argtypes = [c_void_p, c_void_p, c_void_p]
+libsdfgen.sdfgen_lionsos_fs_fat_connect.restype = c_bool
+libsdfgen.sdfgen_lionsos_fs_fat_connect.argtypes = [c_void_p]
+libsdfgen.sdfgen_lionsos_fs_nfs.restype = None
+libsdfgen.sdfgen_lionsos_fs_nfs.argtypes = [c_void_p, c_void_p, c_void_p, c_void_p, c_void_p]
+libsdfgen.sdfgen_lionsos_fs_nfs_connect.restype = c_bool
+libsdfgen.sdfgen_lionsos_fs_nfs_connect.argtypes = [c_void_p]
+
 
 class DeviceTree:
     """
@@ -639,3 +648,35 @@ class Sddf:
 
         def __del__(self):
             libsdfgen.sdfgen_sddf_timer_destroy(self._obj)
+
+class LionsOs:
+    class FileSystem:
+        class Fat:
+            _obj: c_void_p
+
+            def __init__(
+                self,
+                sdf: SystemDescription,
+                fs: SystemDescription.ProtectionDomain,
+                client: SystemDescription.ProtectionDomain
+            ):
+                self._obj = libsdfgen.sdfgen_lionsos_fs_fat(sdf._obj, fs._obj, client._obj)
+
+            def connect(self) -> bool:
+                return libsdfgen.sdfgen_lionsos_fs_fat_connect(self._obj)
+
+        class Nfs:
+            _obj: c_void_p
+
+            def __init__(
+                self,
+                sdf: SystemDescription,
+                fs: SystemDescription.ProtectionDomain,
+                client: SystemDescription.ProtectionDomain,
+                net: Sddf.Network,
+                net_copier: SystemDescription.ProtectionDomain
+            ):
+                self._obj = libsdfgen.sdfgen_lionsos_fs_nfs(sdf._obj, fs._obj, client._obj, net._obj, net_copier._obj)
+
+            def connect(self) -> bool:
+                return libsdfgen.sdfgen_lionsos_fs_fat_connect(self._obj)
