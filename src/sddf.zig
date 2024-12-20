@@ -473,16 +473,21 @@ pub const DeviceTree = struct {
         // We have to case here because any mappable address in seL4 must be a
         // 64-bit address or smaller.
         var device_paddr: u64 = @intCast((paddr >> 12) << 12);
-        // TODO: doesn't work on the maaxboard
         var parent_node_maybe: ?*dtb.Node = device.parent;
         while (parent_node_maybe) |parent_node| : (parent_node_maybe = parent_node.parent) {
             const parent_node_compatible = parent_node.prop(.Compatible);
             if (parent_node_compatible) |compatible| {
-                // TODO: this is the only pattern I can notice for when this behaviour is necessary on the odroidc4
                 if (isCompatible(compatible, &.{"simple-bus"})) {
                     const parent_node_reg = parent_node.prop(.Reg);
-                    if (parent_node_reg) |reg| {
-                        device_paddr += @intCast(reg[0][0]);
+                    const parent_node_ranges = parent_node.prop(.Ranges);
+                    if (parent_node_ranges == null) {
+                        std.log.err("missing 'ranges' property on device '{s}'", .{ device });
+                        std.posix.exit(1);
+                    }
+                    if (parent_node_ranges.?.len != 0) {
+                        if (parent_node_reg) |reg| {
+                            device_paddr += @intCast(reg[0][0]);
+                        }
                     }
                 }
             }
