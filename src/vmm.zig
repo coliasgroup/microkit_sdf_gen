@@ -61,9 +61,6 @@ pub const VirtualMachineSystem = struct {
             }
         }
 
-        // Necessary to know for IRQ parsing/determining
-        const device_arm_gic_controller = DeviceTree.hasGicInterruptParent(device);
-
         if (irqs) {
             const maybe_interrupts = device.prop(.Interrupts);
             if (maybe_interrupts) |interrupts| {
@@ -71,7 +68,7 @@ pub const VirtualMachineSystem = struct {
                     // Determine the IRQ trigger and (software-observable) number based on the device tree.
                     const irq_type = sddf.DeviceTree.armGicIrqType(interrupt[0]);
                     const irq_number = sddf.DeviceTree.armGicIrqNumber(interrupt[1], irq_type);
-                    const irq_trigger = if (device_arm_gic_controller) DeviceTree.armGicTrigger(interrupt[2]) else .level;
+                    const irq_trigger = DeviceTree.armGicTrigger(interrupt[2]);
                     try system.vmm.addInterrupt(.create(irq_number, irq_trigger, null));
                 }
             }

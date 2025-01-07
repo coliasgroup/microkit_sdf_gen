@@ -304,15 +304,16 @@ pub const DeviceTree = struct {
         return false;
     }
 
-    pub fn hasGicInterruptParent(node: *dtb.Node) bool {
-        if (node.interruptParent()) |interrupt_parent| {
-            if (ArmGic.nodeIsCompatible(interrupt_parent)) {
-                return true;
-            }
-        }
+    // TODO: deal with
+    // pub fn hasGicInterruptParent(node: *dtb.Node) bool {
+    //     if (node.interruptParent()) |interrupt_parent| {
+    //         if (ArmGic.nodeIsCompatible(interrupt_parent)) {
+    //             return true;
+    //         }
+    //     }
 
-        return false;
-    }
+    //     return false;
+    // }
 
     pub fn memory(d: *dtb.Node) ?*dtb.Node {
         for (d.children) |child| {
@@ -1472,12 +1473,6 @@ pub fn createDriver(sdf: *SystemDescription, pd: *Pd, device: *dtb.Node, class: 
 
     const interrupts = device.prop(.Interrupts).?;
 
-    // Necessary to know for IRQ parsing/determining
-    const device_arm_gic_controller = DeviceTree.hasGicInterruptParent(device);
-    if (device_arm_gic_controller) {
-        std.debug.assert(sdf.arch.isArm());
-    }
-
     // TODO: check for duplicate dt index on irqs and regions
     for (driver.resources.regions) |region_resource| {
         if (region_resource.dt_index == null and region_resource.size == null) {
@@ -1566,7 +1561,7 @@ pub fn createDriver(sdf: *SystemDescription, pd: *Pd, device: *dtb.Node, class: 
                 const irq_number = DeviceTree.armGicIrqNumber(dt_irq[1], irq_type);
                 // Only try to get the interrupt trigger via the device tree if the interrupt-parent
                 // for this device is the GIC
-                const irq_trigger = if (device_arm_gic_controller) DeviceTree.armGicTrigger(dt_irq[2]) else .level;
+                const irq_trigger = DeviceTree.armGicTrigger(dt_irq[2]);
 
                 break :blk SystemDescription.Interrupt.create(irq_number, irq_trigger, driver_irq.channel_id);
             } else if (sdf.arch.isRiscv()) {
