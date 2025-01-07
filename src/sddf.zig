@@ -1487,6 +1487,7 @@ pub fn createDriver(sdf: *SystemDescription, pd: *Pd, device: *dtb.Node, class: 
         const mr_name = fmt(sdf.allocator, "{s}/{s}/{s}", .{ device.name, driver.name, region_resource.name });
 
         var mr: ?Mr = null;
+        var device_reg_offset: u64 = 0;
         if (region_resource.dt_index != null) {
             const dt_reg = device.prop(.Reg).?;
             assert(region_resource.dt_index.? < dt_reg.len);
@@ -1514,6 +1515,7 @@ pub fn createDriver(sdf: *SystemDescription, pd: *Pd, device: *dtb.Node, class: 
             const mr_size = if (region_resource.size != null) region_resource.size.? else dt_reg_size;
 
             const device_paddr = DeviceTree.regToPaddr(device, dt_reg_paddr);
+            device_reg_offset = @intCast(dt_reg_paddr % 0x1000);
 
             // TODO: hack when we have multiple virtIO devices. Need to come up with
             // a proper solution.
@@ -1540,7 +1542,17 @@ pub fn createDriver(sdf: *SystemDescription, pd: *Pd, device: *dtb.Node, class: 
             .setvar_vaddr = region_resource.setvar_vaddr,
         });
         pd.addMap(map);
-        device_res.regions[device_res.num_regions] = ConfigResources.Device.Region.createFromMap(map);
+        device_res.regions[device_res.num_regions] = .{
+            .region = .{
+                // The driver that is consuming the device region wants to know about the
+                // region that is specifeid in the DTB node, rather than the start of the region that
+                // is mapped. While uncommon, sometimes the device region is not page-aligned unlike
+                // the mapping.
+                .vaddr = map.vaddr + device_reg_offset,
+                .size = map.mr.size,
+            },
+            .io_addr = map.mr.paddr.?,
+        };
         device_res.num_regions += 1;
     }
 
