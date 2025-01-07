@@ -12,6 +12,7 @@ MapPermsType = c_uint32
 
 libsdfgen = ctypes.CDLL(importlib.util.find_spec("csdfgen").origin)
 
+libsdfgen.sdfgen_create.argtypes = [c_uint32, c_uint64]
 libsdfgen.sdfgen_create.restype = c_void_p
 
 libsdfgen.sdfgen_destroy.restype = None
