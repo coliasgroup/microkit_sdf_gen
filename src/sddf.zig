@@ -333,6 +333,7 @@ pub const DeviceTree = struct {
     }
 
     /// Functionality relating the the ARM Generic Interrupt Controller.
+    // TODO: add functionality for PPI CPU mask handling?
     const ArmGicIrqType = enum {
         spi,
         ppi,
@@ -437,7 +438,8 @@ pub const DeviceTree = struct {
     }
 
     pub fn armGicTrigger(trigger: usize) Interrupt.Trigger {
-        return switch (trigger) {
+        // Only bits 0-3 of the DT IRQ type are for the trigger
+        return switch (trigger & 0b111) {
             0x1 => return .edge,
             0x4 => return .level,
             else => @panic("unexpected trigger value"),
@@ -1571,8 +1573,6 @@ pub fn createDriver(sdf: *SystemDescription, pd: *Pd, device: *dtb.Node, class: 
                 // Determine the IRQ trigger and (software-observable) number based on the device tree.
                 const irq_type = DeviceTree.armGicIrqType(dt_irq[0]);
                 const irq_number = DeviceTree.armGicIrqNumber(dt_irq[1], irq_type);
-                // Only try to get the interrupt trigger via the device tree if the interrupt-parent
-                // for this device is the GIC
                 const irq_trigger = DeviceTree.armGicTrigger(dt_irq[2]);
 
                 break :blk SystemDescription.Interrupt.create(irq_number, irq_trigger, driver_irq.channel_id);
