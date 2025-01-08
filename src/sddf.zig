@@ -469,7 +469,7 @@ pub const DeviceTree = struct {
     // mappable MMIO address. This involves traversing any higher-level busses
     // to find the CPU visible address rather than some address relative to the
     // particular bus the address is on. We also align to the smallest page size;
-    // Assumes smallest page size is 0x1000;
+    // Assumes smallest page size is 0x1000.
     pub fn regToPaddr(device: *dtb.Node, paddr: u128) u64 {
         // We have to case here because any mappable address in seL4 must be a
         // 64-bit address or smaller.
