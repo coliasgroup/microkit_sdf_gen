@@ -82,7 +82,9 @@ pub const FileSystem = struct {
         client.addMap(.create(fs_completion_queue, client.getMapVaddr(&fs_completion_queue), .rw, .{ .setvar_vaddr = "fs_completion_queue" }));
         client.addMap(.create(fs_share, client.getMapVaddr(&fs_share), .rw, .{ .setvar_vaddr = "fs_share" }));
 
-        system.sdf.addChannel(Channel.create(fs, client, .{}));
+        system.sdf.addChannel(Channel.create(fs, client, .{
+            .pd_a_id = 10,
+        }));
     }
 
     pub const Nfs = struct {
