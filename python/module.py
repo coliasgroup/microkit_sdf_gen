@@ -592,7 +592,7 @@ class Sddf:
             :param mac_addr: must be unique to the Network system.
             """
             if mac_addr is not None and len(mac_addr) != 17:
-                raise Exception("invalid MAC address length")
+                raise Exception(f"invalid MAC address length for client '{client.name}', {mac_addr}")
 
             c_mac_addr = c_char_p(0)
             if mac_addr is not None:
