@@ -239,7 +239,6 @@ export fn sdfgen_mr_create_physical(name: [*c]u8, size: u64, paddr: u64) *anyopa
 
 export fn sdfgen_mr_destroy(c_mr: *align(8) anyopaque) void {
     const mr: *Mr = @ptrCast(c_mr);
-    mr.destroy();
     allocator.destroy(mr);
 }
 
