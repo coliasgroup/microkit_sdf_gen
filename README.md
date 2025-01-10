@@ -146,7 +146,8 @@ for various architectures/operating systems.
 The CI runs on every commit and produces GitHub action artefacts that contain all the wheels (`*.whl`).
 
 For any new tags to the repository, the CI also uploads a new version of the package to PyPI automatically.
-Note that each tag should have a new version in the `VERSION` file at the root of the source.
+Note that each tag should have a new version in the `VERSION` file at the root of the source. See
+[scripts/README.md](scripts/README.md) for doing this.
 
 The publishing job works by authenticating the repository's GitHub workflow with the package on PyPI, there
 are no tokens etc stored on GitHub.
