@@ -25,27 +25,7 @@
 
         zig = zig-overlay.packages.${system}.master;
 
-        pysdfgen = with pkgs.python312Packages;
-          buildPythonPackage rec {
-            pname = "sdfgen";
-            version = "0.2.0";
-            # TODO: fix this
-            src = ./.;
-
-            build-system = [ setuptools ];
-
-            meta = with lib; {
-              homepage = "https://github.com/au-ts/microkit_sdf_gen";
-              maintainers = with maintainers; [ au-ts ];
-            };
-
-            preBuild = ''
-              export ZIG_LOCAL_CACHE_DIR=$(mktemp -d)
-              export ZIG_GLOBAL_CACHE_DIR=$(mktemp -d)
-            '';
-
-            nativeBuildInputs = [ zig ];
-          };
+        pysdfgen = pkgs.callPackage ./package.nix { zig = zig; pythonPackages = pkgs.python312Packages; };
       in
       {
         devShells.default = pkgs.mkShell rec {
@@ -54,7 +34,7 @@
           nativeBuildInputs = with pkgs; [
             dtc
             zig
-            python313
+            python312
             sphinx
           ];
         };
