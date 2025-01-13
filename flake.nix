@@ -29,6 +29,7 @@
           buildPythonPackage rec {
             pname = "sdfgen";
             version = "0.2.0";
+            # TODO: fix this
             src = ./.;
 
             build-system = [ setuptools ];
@@ -38,8 +39,10 @@
               maintainers = with maintainers; [ au-ts ];
             };
 
-            ZIG_LOCAL_CACHE_DIR="/zig-cache-local";
-            ZIG_GLOBAL_CACHE_DIR="/zig-cache-global";
+            preBuild = ''
+              export ZIG_LOCAL_CACHE_DIR=$(mktemp -d)
+              export ZIG_GLOBAL_CACHE_DIR=$(mktemp -d)
+            '';
 
             nativeBuildInputs = [ zig ];
           };
