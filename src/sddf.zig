@@ -770,6 +770,7 @@ pub const BlockSystem = struct {
     config: SerialiseConfig,
 
     const SerialiseConfig = struct {
+        driver: ConfigResources.Block.Driver = undefined,
         virt_driver: ConfigResources.Block.Virt.Driver = undefined,
         virt_clients: std.ArrayList(ConfigResources.Block.Virt.Client),
         clients: std.ArrayList(ConfigResources.Block.Client),
@@ -817,7 +818,7 @@ pub const BlockSystem = struct {
         const virt = system.virt;
 
         const mr_storage_info = Mr.create(allocator, "blk_driver_config", STORAGE_INFO_REGION_SIZE, .{});
-        const map_storage_info_driver = Map.create(mr_storage_info, system.driver.getMapVaddr(&mr_storage_info), .rw, .{ .setvar_vaddr = "blk_storage_info" });
+        const map_storage_info_driver = Map.create(mr_storage_info, system.driver.getMapVaddr(&mr_storage_info), .rw, .{});
         const map_storage_info_virt = Map.create(mr_storage_info, system.virt.getMapVaddr(&mr_storage_info), .r, .{});
 
         sdf.addMemoryRegion(mr_storage_info);
@@ -826,7 +827,7 @@ pub const BlockSystem = struct {
 
         // TODO: deal with size
         const mr_req = Mr.create(allocator, "blk_driver_request", 0x200_000, .{});
-        const map_req_driver = Map.create(mr_req, driver.getMapVaddr(&mr_req), .rw, .{ .setvar_vaddr = "blk_req_queue" });
+        const map_req_driver = Map.create(mr_req, driver.getMapVaddr(&mr_req), .rw, .{});
         const map_req_virt = Map.create(mr_req, virt.getMapVaddr(&mr_req), .rw, .{});
 
         sdf.addMemoryRegion(mr_req);
@@ -834,7 +835,7 @@ pub const BlockSystem = struct {
         virt.addMap(map_req_virt);
 
         const mr_resp = Mr.create(allocator, "blk_driver_response", 0x200_000, .{});
-        const map_resp_driver = Map.create(mr_resp, driver.getMapVaddr(&mr_resp), .rw, .{ .setvar_vaddr = "blk_resp_queue" });
+        const map_resp_driver = Map.create(mr_resp, driver.getMapVaddr(&mr_resp), .rw, .{});
         const map_resp_virt = Map.create(mr_resp, virt.getMapVaddr(&mr_resp), .rw, .{});
 
         sdf.addMemoryRegion(mr_resp);
@@ -848,6 +849,12 @@ pub const BlockSystem = struct {
         virt.addMap(map_data_virt);
 
         system.sdf.addChannel(.create(system.virt, system.driver, .{}));
+
+        system.config.driver = .{
+            .storage_info = map_storage_info_driver.vaddr,
+            .req_queue = map_req_driver.vaddr,
+            .resp_queue = map_resp_driver.vaddr,
+        };
 
         system.config.virt_driver = .{
             .storage_info = map_storage_info_virt.vaddr,
@@ -943,6 +950,9 @@ pub const BlockSystem = struct {
         const device_res_json_name = fmt(system.allocator, "{s}_device_resources.json", .{system.driver.name});
         try data.serialize(system.device_res, try std.fs.path.join(system.allocator, &.{ prefix, device_res_data_name }));
         try data.jsonify(system.device_res, try std.fs.path.join(system.allocator, &.{ prefix, device_res_json_name }), .{ .whitespace = .indent_4 });
+
+        try data.serialize(system.config.driver, try fs.path.join(allocator, &.{ prefix, "blk_driver.data" }));
+        try data.jsonify(system.config.driver, try fs.path.join(allocator, &.{ prefix, "blk_driver.json" }), .{ .whitespace = .indent_4 });
 
         const virt_config = ConfigResources.Block.Virt.create(system.config.virt_driver, system.config.virt_clients.items);
         try data.serialize(virt_config, try fs.path.join(allocator, &.{ prefix, "blk_virt.data" }));
