@@ -478,19 +478,13 @@ pub const DeviceTree = struct {
         var device_paddr: u64 = @intCast((paddr >> 12) << 12);
         var parent_node_maybe: ?*dtb.Node = device.parent;
         while (parent_node_maybe) |parent_node| : (parent_node_maybe = parent_node.parent) {
-            const parent_node_compatible = parent_node.prop(.Compatible);
-            if (parent_node_compatible) |compatible| {
-                if (isCompatible(compatible, &.{"simple-bus"})) {
-                    const parent_node_reg = parent_node.prop(.Reg);
-                    const parent_node_ranges = parent_node.prop(.Ranges);
-                    if (parent_node_ranges == null) {
-                        std.log.err("missing 'ranges' property on device '{s}'", .{ device });
-                        std.posix.exit(1);
-                    }
-                    if (parent_node_ranges.?.len != 0) {
-                        if (parent_node_reg) |reg| {
-                            device_paddr += @intCast(reg[0][0]);
-                        }
+            if (parent_node.prop(.Ranges)) |ranges| {
+                if (ranges.len != 0) {
+                    // TODO: I need to revisit the spec. I am not confident in this behaviour.
+                    const parent_addr = ranges[0][1];
+                    const size = ranges[0][2];
+                    if (paddr + size <= parent_addr) {
+                        device_paddr += @intCast(parent_addr);
                     }
                 }
             }
