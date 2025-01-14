@@ -510,6 +510,10 @@ pub const DeviceTree = struct {
     }
 };
 
+const SystemError = error{
+    DuplicateClient,
+};
+
 pub const TimerSystem = struct {
     allocator: Allocator,
     sdf: *SystemDescription,
@@ -521,6 +525,8 @@ pub const TimerSystem = struct {
     /// Client PDs serviced by the timer driver
     clients: std.ArrayList(*Pd),
     client_configs: std.ArrayList(ConfigResources.Timer.Client),
+
+    pub const Error = SystemError;
 
     pub fn init(allocator: Allocator, sdf: *SystemDescription, device: *dtb.Node, driver: *Pd) TimerSystem {
         // First we have to set some properties on the driver. It is currently our policy that every timer
@@ -542,7 +548,13 @@ pub const TimerSystem = struct {
         system.clients.deinit();
     }
 
-    pub fn addClient(system: *TimerSystem, client: *Pd) void {
+    pub fn addClient(system: *TimerSystem, client: *Pd) Error!void {
+        // Check that the client does not already exist
+        for (system.clients.items) |existing_client| {
+            if (std.mem.eql(u8, existing_client.name, client.name)) {
+                return Error.DuplicateClient;
+            }
+        }
         system.clients.append(client) catch @panic("Could not add client to TimerSystem");
         system.client_configs.append(std.mem.zeroes(ConfigResources.Timer.Client)) catch @panic("Could not add client to TimerSystem");
     }
@@ -596,6 +608,8 @@ pub const I2cSystem = struct {
     virt_config: ConfigResources.I2c.Virt,
     client_configs: std.ArrayList(ConfigResources.I2c.Client),
 
+    pub const Error = SystemError;
+
     pub const Options = struct {
         region_req_size: usize = 0x1000,
         region_resp_size: usize = 0x1000,
@@ -620,7 +634,13 @@ pub const I2cSystem = struct {
         };
     }
 
-    pub fn addClient(system: *I2cSystem, client: *Pd) void {
+    pub fn addClient(system: *I2cSystem, client: *Pd) Error!void {
+        // Check that the client does not already exist
+        for (system.clients.items) |existing_client| {
+            if (std.mem.eql(u8, existing_client.name, client.name)) {
+                return Error.DuplicateClient;
+            }
+        }
         system.clients.append(client) catch @panic("Could not add client to I2cSystem");
         system.client_configs.append(std.mem.zeroes(ConfigResources.I2c.Client)) catch @panic("Could not add client to I2cSystem");
     }
@@ -776,6 +796,8 @@ pub const BlockSystem = struct {
         clients: std.ArrayList(ConfigResources.Block.Client),
     };
 
+    pub const Error = SystemError;
+
     pub const Options = struct {};
 
     const STORAGE_INFO_REGION_SIZE: usize = 0x1000;
@@ -793,8 +815,8 @@ pub const BlockSystem = struct {
             // TODO: make configurable
             .queue_mr_size = 0x200_000,
             .config = .{
-                .virt_clients = std.ArrayList(ConfigResources.Block.Virt.Client).init(allocator),
-                .clients = std.ArrayList(ConfigResources.Block.Client).init(allocator),
+                .virt_clients = .init(allocator),
+                .clients = .init(allocator),
             },
         };
     }
@@ -806,7 +828,13 @@ pub const BlockSystem = struct {
         system.config.clients.deinit();
     }
 
-    pub fn addClient(system: *BlockSystem, client: *Pd, partition: u32) void {
+    pub fn addClient(system: *BlockSystem, client: *Pd, partition: u32) Error!void {
+        // Check that the client does not already exist
+        for (system.clients.items) |existing_client| {
+            if (std.mem.eql(u8, existing_client.name, client.name)) {
+                return Error.DuplicateClient;
+            }
+        }
         system.clients.append(client) catch @panic("Could not add client to BlockSystem");
         system.client_partitions.append(partition) catch @panic("Could not add client to BlockSystem");
     }
@@ -985,6 +1013,8 @@ pub const SerialSystem = struct {
     virt_tx_config: ConfigResources.Serial.VirtTx,
     client_configs: std.ArrayList(ConfigResources.Serial.Client),
 
+    pub const Error = SystemError;
+
     pub const Options = struct {
         data_size: usize = 0x10000,
         queue_size: usize = 0x1000,
@@ -1011,11 +1041,17 @@ pub const SerialSystem = struct {
         };
     }
 
-    pub fn deinit(_: *SerialSystem) void {
-        // TODO
+    pub fn deinit(system: *SerialSystem) void {
+        system.clients.deinit();
     }
 
-    pub fn addClient(system: *SerialSystem, client: *Pd) void {
+    pub fn addClient(system: *SerialSystem, client: *Pd) Error!void {
+        // Check that the client does not already exist
+        for (system.clients.items) |existing_client| {
+            if (std.mem.eql(u8, existing_client.name, client.name)) {
+                return Error.DuplicateClient;
+            }
+        }
         system.clients.append(client) catch @panic("Could not add client to SerialSystem");
         system.client_configs.append(std.mem.zeroes(ConfigResources.Serial.Client)) catch @panic("Could not add client to SerialSystem");
     }
@@ -1127,6 +1163,12 @@ pub const SerialSystem = struct {
 pub const NetworkSystem = struct {
     const BUFFER_SIZE = 2048;
 
+    pub const Error = SystemError || error{
+        DuplicateCopier,
+        DuplicateMacAddr,
+        InvalidMacAddr,
+    };
+
     pub const Options = struct {
         rx_buffers: usize = 512,
     };
@@ -1195,7 +1237,7 @@ pub const NetworkSystem = struct {
         return mac_arr;
     }
 
-    pub fn addClientWithCopier(system: *NetworkSystem, client: *Pd, copier: *Pd, options: ClientOptions) !void {
+    pub fn addClientWithCopier(system: *NetworkSystem, client: *Pd, copier: *Pd, options: ClientOptions) Error!void {
         const client_idx = system.clients.items.len;
 
         // Check that the MAC address isn't present already
@@ -1203,7 +1245,7 @@ pub const NetworkSystem = struct {
             for (0..client_idx) |i| {
                 if (system.client_info.items[i].mac_addr) |b| {
                     if (std.mem.eql(u8, a, &b)) {
-                        return error.DuplicateMacAddr;
+                        return Error.DuplicateMacAddr;
                     }
                 }
             }
@@ -1211,13 +1253,13 @@ pub const NetworkSystem = struct {
         // Check that the client does not already exist
         for (system.clients.items) |existing_client| {
             if (std.mem.eql(u8, existing_client.name, client.name)) {
-                return error.DuplicateClient;
+                return Error.DuplicateClient;
             }
         }
         // Check that the copier does not already exist
         for (system.copiers.items) |existing_copier| {
             if (std.mem.eql(u8, existing_copier.name, copier.name)) {
-                return error.DuplicateCopier;
+                return Error.DuplicateCopier;
             }
         }
 
@@ -1228,7 +1270,7 @@ pub const NetworkSystem = struct {
 
         system.client_info.append(std.mem.zeroes(ClientInfo)) catch @panic("Could not add client with copier to NetworkSystem");
         if (options.mac_addr) |mac_addr| {
-            system.client_info.items[client_idx].mac_addr = parseMacAddr(mac_addr) catch return error.InvalidMacAddr;
+            system.client_info.items[client_idx].mac_addr = parseMacAddr(mac_addr) catch return Error.InvalidMacAddr;
         }
         system.client_info.items[client_idx].rx_buffers = options.rx_buffers;
         system.client_info.items[client_idx].tx_buffers = options.tx_buffers;

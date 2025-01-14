@@ -1,8 +1,7 @@
 const std = @import("std");
 const modsdf = @import("sdf");
 // Because this is intended to be used in the context of C, we always
-// use the C allocator, even though it is not the most efficient for this
-// kind of program,
+// use the C allocator, even though it might not be the most efficient.
 const allocator = std.heap.c_allocator;
 
 const bindings = @cImport({
@@ -20,7 +19,6 @@ const Mr = SystemDescription.MemoryRegion;
 const Map = SystemDescription.Map;
 const Arch = SystemDescription.Arch;
 
-// TODO: do proper error logging
 // TODO: handle passing options to sDDF systems
 
 export fn sdfgen_create(c_arch: bindings.sdfgen_arch_t, paddr_top: u64) *anyopaque {
@@ -320,9 +318,15 @@ export fn sdfgen_sddf_timer_destroy(system: *align(8) anyopaque) void {
     allocator.destroy(timer);
 }
 
-export fn sdfgen_sddf_timer_add_client(system: *align(8) anyopaque, client: *align(8) anyopaque) void {
+export fn sdfgen_sddf_timer_add_client(system: *align(8) anyopaque, client: *align(8) anyopaque) bindings.sdfgen_sddf_status_t {
     const timer: *sddf.TimerSystem = @ptrCast(system);
-    timer.addClient(@ptrCast(client));
+    timer.addClient(@ptrCast(client)) catch |e| {
+        switch (e) {
+            sddf.TimerSystem.Error.DuplicateClient => return 1,
+        }
+    };
+
+    return 0;
 }
 
 export fn sdfgen_sddf_timer_connect(system: *align(8) anyopaque) bool {
@@ -352,9 +356,15 @@ export fn sdfgen_sddf_serial_destroy(system: *align(8) anyopaque) void {
     serial.deinit();
 }
 
-export fn sdfgen_sddf_serial_add_client(system: *align(8) anyopaque, client: *align(8) anyopaque) void {
+export fn sdfgen_sddf_serial_add_client(system: *align(8) anyopaque, client: *align(8) anyopaque) bindings.sdfgen_sddf_status_t {
     const serial: *sddf.SerialSystem = @ptrCast(system);
-    serial.addClient(@ptrCast(client));
+    serial.addClient(@ptrCast(client)) catch |e| {
+        switch (e) {
+            sddf.SerialSystem.Error.DuplicateClient => return 1,
+        }
+    };
+
+    return 0;
 }
 
 export fn sdfgen_sddf_serial_connect(system: *align(8) anyopaque) bool {
@@ -383,9 +393,15 @@ export fn sdfgen_sddf_i2c_destroy(system: *align(8) anyopaque) void {
     allocator.destroy(i2c);
 }
 
-export fn sdfgen_sddf_i2c_add_client(system: *align(8) anyopaque, client: *align(8) anyopaque) void {
+export fn sdfgen_sddf_i2c_add_client(system: *align(8) anyopaque, client: *align(8) anyopaque) bindings.sdfgen_sddf_status_t {
     const i2c: *sddf.I2cSystem = @ptrCast(system);
-    i2c.addClient(@ptrCast(client));
+    i2c.addClient(@ptrCast(client)) catch |e| {
+        switch (e) {
+            sddf.I2cSystem.Error.DuplicateClient => return 1,
+        }
+    };
+
+    return 0;
 }
 
 export fn sdfgen_sddf_i2c_connect(system: *align(8) anyopaque) bool {
@@ -415,9 +431,15 @@ export fn sdfgen_sddf_block_destroy(system: *align(8) anyopaque) void {
     allocator.destroy(block);
 }
 
-export fn sdfgen_sddf_block_add_client(system: *align(8) anyopaque, client: *align(8) anyopaque, partition: u32) void {
+export fn sdfgen_sddf_block_add_client(system: *align(8) anyopaque, client: *align(8) anyopaque, partition: u32) bindings.sdfgen_sddf_status_t {
     const block: *sddf.BlockSystem = @ptrCast(system);
-    block.addClient(@ptrCast(client), partition);
+    block.addClient(@ptrCast(client), partition) catch |e| {
+        switch (e) {
+            sddf.BlockSystem.Error.DuplicateClient => return 1,
+        }
+    };
+
+    return 0;
 }
 
 export fn sdfgen_sddf_block_connect(system: *align(8) anyopaque) bool {
@@ -442,7 +464,7 @@ export fn sdfgen_sddf_net(c_sdf: *align(8) anyopaque, c_device: *align(8) anyopa
     return net;
 }
 
-export fn sdfgen_sddf_net_add_client_with_copier(system: *align(8) anyopaque, client: *align(8) anyopaque, copier: *align(8) anyopaque, mac_addr: [*c]u8) bindings.sdfgen_sddf_error_t {
+export fn sdfgen_sddf_net_add_client_with_copier(system: *align(8) anyopaque, client: *align(8) anyopaque, copier: *align(8) anyopaque, mac_addr: [*c]u8) bindings.sdfgen_sddf_status_t {
     const net: *sddf.NetworkSystem = @ptrCast(system);
     var options: sddf.NetworkSystem.ClientOptions = .{};
     if (mac_addr) |a| {
@@ -450,10 +472,10 @@ export fn sdfgen_sddf_net_add_client_with_copier(system: *align(8) anyopaque, cl
     }
     net.addClientWithCopier(@ptrCast(client), @ptrCast(copier), options) catch |e| {
         switch (e) {
-            error.DuplicateMacAddr => return 1,
-            error.DuplicateClient => return 2,
-            error.DuplicateCopier => return 3,
-            error.InvalidMacAddr => return 4,
+            sddf.NetworkSystem.Error.DuplicateClient => return 1,
+            sddf.NetworkSystem.Error.DuplicateCopier => return 100,
+            sddf.NetworkSystem.Error.DuplicateMacAddr => return 101,
+            sddf.NetworkSystem.Error.InvalidMacAddr => return 102,
         }
     };
 

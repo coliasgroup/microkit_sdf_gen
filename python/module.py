@@ -7,6 +7,12 @@ from ctypes import (
 from typing import Optional, List, Tuple
 from enum import IntEnum
 
+class SddfStatus(IntEnum):
+    OK = 0,
+    DUPLICATE_CLIENT = 1,
+    NET_DUPLICATE_COPIER = 100,
+    NET_DUPLICATE_MAC_ADDR = 101,
+
 # TOOD: double check
 MapPermsType = c_uint32
 
@@ -95,7 +101,7 @@ libsdfgen.sdfgen_sddf_timer.argtypes = [c_void_p, c_void_p, c_void_p]
 libsdfgen.sdfgen_sddf_timer_destroy.restype = None
 libsdfgen.sdfgen_sddf_timer_destroy.argtypes = [c_void_p]
 
-libsdfgen.sdfgen_sddf_timer_add_client.restype = None
+libsdfgen.sdfgen_sddf_timer_add_client.restype = c_uint32
 libsdfgen.sdfgen_sddf_timer_add_client.argtypes = [c_void_p, c_void_p]
 
 libsdfgen.sdfgen_sddf_timer_connect.restype = c_bool
@@ -108,7 +114,7 @@ libsdfgen.sdfgen_sddf_i2c.argtypes = [c_void_p, c_void_p, c_void_p, c_void_p]
 libsdfgen.sdfgen_sddf_i2c_destroy.restype = None
 libsdfgen.sdfgen_sddf_i2c_destroy.argtypes = [c_void_p]
 
-libsdfgen.sdfgen_sddf_i2c_add_client.restype = None
+libsdfgen.sdfgen_sddf_i2c_add_client.restype = c_uint32
 libsdfgen.sdfgen_sddf_i2c_add_client.argtypes = [c_void_p, c_void_p]
 
 libsdfgen.sdfgen_sddf_i2c_connect.restype = c_bool
@@ -121,7 +127,7 @@ libsdfgen.sdfgen_sddf_block.argtypes = [c_void_p, c_void_p, c_void_p, c_void_p]
 libsdfgen.sdfgen_sddf_block_destroy.restype = None
 libsdfgen.sdfgen_sddf_block_destroy.argtypes = [c_void_p]
 
-libsdfgen.sdfgen_sddf_block_add_client.restype = None
+libsdfgen.sdfgen_sddf_block_add_client.restype = c_uint32
 libsdfgen.sdfgen_sddf_block_add_client.argtypes = [c_void_p, c_void_p, c_uint32]
 
 libsdfgen.sdfgen_sddf_block_connect.restype = c_bool
@@ -135,7 +141,7 @@ libsdfgen.sdfgen_sddf_serial.argtypes = [c_void_p, c_void_p, c_void_p, c_void_p,
 libsdfgen.sdfgen_sddf_serial_destroy.restype = None
 libsdfgen.sdfgen_sddf_serial_destroy.argtypes = [c_void_p]
 
-libsdfgen.sdfgen_sddf_serial_add_client.restype = None
+libsdfgen.sdfgen_sddf_serial_add_client.restype = c_uint32
 libsdfgen.sdfgen_sddf_serial_add_client.argtypes = [c_void_p, c_void_p]
 
 libsdfgen.sdfgen_sddf_serial_connect.restype = c_bool
@@ -309,6 +315,9 @@ class SystemDescription:
         def __del__(self):
             libsdfgen.sdfgen_pd_destroy(self._obj)
 
+        def __repr__(self) -> str:
+            return f"ProtectionDomain({self.name})"
+
     class VirtualMachine:
         _obj: c_void_p
 
@@ -478,7 +487,13 @@ class Sddf:
 
         def add_client(self, client: SystemDescription.ProtectionDomain):
             """Add a new client connection to the serial system."""
-            libsdfgen.sdfgen_sddf_serial_add_client(self._obj, client._obj)
+            ret = libsdfgen.sdfgen_sddf_serial_add_client(self._obj, client._obj)
+            if ret == SddfStatus.OK:
+                return
+            elif ret == SddfStatus.DUPLICATE_CLIENT:
+                raise Exception(f"duplicate client given '{client}'")
+            else:
+                raise Exception(f"internal error: {ret}")
 
         def connect(self) -> bool:
             """
@@ -516,7 +531,13 @@ class Sddf:
             self._obj = libsdfgen.sdfgen_sddf_i2c(sdf._obj, device_obj, driver._obj, virt._obj)
 
         def add_client(self, client: SystemDescription.ProtectionDomain):
-            libsdfgen.sdfgen_sddf_i2c_add_client(self._obj, client._obj)
+            ret = libsdfgen.sdfgen_sddf_i2c_add_client(self._obj, client._obj)
+            if ret == SddfStatus.OK:
+                return
+            elif ret == SddfStatus.DUPLICATE_CLIENT:
+                raise Exception(f"duplicate client given '{client}'")
+            else:
+                raise Exception(f"internal error: {ret}")
 
         def connect(self) -> bool:
             return libsdfgen.sdfgen_sddf_i2c_connect(self._obj)
@@ -546,7 +567,13 @@ class Sddf:
             self._obj = libsdfgen.sdfgen_sddf_block(sdf._obj, device_obj, driver._obj, virt._obj)
 
         def add_client(self, client: SystemDescription.ProtectionDomain, *, partition: int):
-            libsdfgen.sdfgen_sddf_block_add_client(self._obj, client._obj, partition)
+            ret = libsdfgen.sdfgen_sddf_block_add_client(self._obj, client._obj, partition)
+            if ret == SddfStatus.OK:
+                return
+            elif ret == SddfStatus.DUPLICATE_CLIENT:
+                raise Exception(f"duplicate client given '{client}'")
+            else:
+                raise Exception(f"internal error: {ret}")
 
         def connect(self) -> bool:
             return libsdfgen.sdfgen_sddf_block_connect(self._obj)
@@ -600,16 +627,16 @@ class Sddf:
             ret = libsdfgen.sdfgen_sddf_net_add_client_with_copier(
                 self._obj, client._obj, copier._obj, c_mac_addr
             )
-            if ret == 0:
+            if ret == SddfStatus.OK:
                 return
-            elif ret == 1:
-                raise Exception(f"duplicate MAC address given '{mac_addr}'")
-            elif ret == 2:
+            elif ret == SddfStatus.DUPLICATE_CLIENT:
                 raise Exception(f"duplicate client given '{client}'")
-            elif ret == 3:
+            elif ret == SddfStatus.NET_DUPLICATE_COPIER:
                 raise Exception(f"duplicate copier given '{copier}'")
+            elif ret == SddfStatus.NET_DUPLICATE_MAC_ADDR:
+                raise Exception(f"duplicate MAC address given '{mac_addr}'")
             else:
-                raise Exception("internal error")
+                raise Exception(f"internal error: {ret}")
 
         def connect(self) -> bool:
             return libsdfgen.sdfgen_sddf_net_connect(self._obj)
@@ -638,7 +665,13 @@ class Sddf:
             self._obj: c_void_p = libsdfgen.sdfgen_sddf_timer(sdf._obj, device_obj, driver._obj)
 
         def add_client(self, client: SystemDescription.ProtectionDomain):
-            libsdfgen.sdfgen_sddf_timer_add_client(self._obj, client._obj)
+            ret = libsdfgen.sdfgen_sddf_timer_add_client(self._obj, client._obj)
+            if ret == SddfStatus.OK:
+                return
+            elif ret == SddfStatus.DUPLICATE_CLIENT:
+                raise Exception(f"duplicate client given '{client}'")
+            else:
+                raise Exception(f"internal error: {ret}")
 
         def connect(self) -> bool:
             return libsdfgen.sdfgen_sddf_timer_connect(self._obj)

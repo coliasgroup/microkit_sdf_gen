@@ -73,39 +73,41 @@ void *sdfgen_map_destroy(void *map);
 /*** sDDF ***/
 
 typedef enum {
-    SDDF_ERROR_NET_DUPLICATE_MAC_ADDR = 1,
-    SDDF_ERROR_NET_DUPLICATE_CLIENT = 2,
-    SDDF_ERROR_NET_DUPLICATE_COPIER = 3,
-} sdfgen_sddf_error_t;
+    SDDF_OK = 0,
+    SDDF_ERROR_DUPLICATE_CLIENT = 1,
+    SDDF_ERROR_NET_DUPLICATE_COPIER = 100,
+    SDDF_ERROR_NET_DUPLICATE_MAC_ADDR = 101,
+    SDDF_ERROR_NET_INVALID_MAC_ADDR = 102,
+} sdfgen_sddf_status_t;
 
 void *sdfgen_sddf_init(char *path);
 
 void *sdfgen_sddf_timer(void *sdf, void *device, void *driver);
 void sdfgen_sddf_timer_destroy(void *system);
-void sdfgen_sddf_timer_add_client(void *system, void *client);
+sdfgen_sddf_status_t sdfgen_sddf_timer_add_client(void *system, void *client);
 bool sdfgen_sddf_timer_connect(void *system);
 bool sdfgen_sddf_timer_serialise_config(void *system, char *output_dir);
 
 void *sdfgen_sddf_serial(void *sdf, void *device, void *driver, void *virt_tx, void *virt_rx);
-void sdfgen_sddf_serial_add_client(void *system, void *client);
+sdfgen_sddf_status_t sdfgen_sddf_serial_add_client(void *system, void *client);
 bool sdfgen_sddf_serial_connect(void *system);
 bool sdfgen_sddf_serial_serialise_config(void *system, char *output_dir);
 
 void *sdfgen_sddf_i2c(void *sdf, void *device, void *driver, void *virt);
 void sdfgen_sddf_i2c_destroy(void *system);
-void sdfgen_sddf_i2c_add_client(void *system, void *client);
+sdfgen_sddf_status_t sdfgen_sddf_i2c_add_client(void *system, void *client);
 bool sdfgen_sddf_i2c_connect(void *system);
 bool sdfgen_sddf_i2c_serialise_config(void *system, char *output_dir);
 
 void *sdfgen_sddf_block(void *sdf, void *device, void *driver, void *virt);
 void sdfgen_sddf_block_destroy(void *system);
-void sdfgen_sddf_block_add_client(void *system, void *client);
+sdfgen_sddf_status_t sdfgen_sddf_block_add_client(void *system, void *client);
 bool sdfgen_sddf_block_connect(void *system);
 bool sdfgen_sddf_block_serialise_config(void *system, char *output_dir);
 
 void *sdfgen_sddf_net(void *sdf, void *device, void *driver, void *virt_rx, void *virt_tx);
 void sdfgen_sddf_net_destroy(void *system);
-sdfgen_sddf_error_t sdfgen_sddf_net_add_client_with_copier(void *system, void *client, void *copier, uint8_t mac_addr[6]);
+sdfgen_sddf_status_t sdfgen_sddf_net_add_client_with_copier(void *system, void *client, void *copier, uint8_t mac_addr[6]);
 bool sdfgen_sddf_net_connect(void *system);
 bool sdfgen_sddf_net_serialise_config(void *system, char *output_dir);
 
