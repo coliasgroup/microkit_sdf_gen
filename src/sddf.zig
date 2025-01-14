@@ -607,6 +607,7 @@ pub const I2cSystem = struct {
     driver_config: ConfigResources.I2c.Driver,
     virt_config: ConfigResources.I2c.Virt,
     client_configs: std.ArrayList(ConfigResources.I2c.Client),
+    num_buffers: u16,
 
     pub const Error = SystemError;
 
@@ -631,6 +632,8 @@ pub const I2cSystem = struct {
             .driver_config = std.mem.zeroes(ConfigResources.I2c.Driver),
             .virt_config = std.mem.zeroes(ConfigResources.I2c.Virt),
             .client_configs = std.ArrayList(ConfigResources.I2c.Client).init(allocator),
+            // TODO: handle properly
+            .num_buffers = 128,
         };
     }
 
@@ -668,10 +671,28 @@ pub const I2cSystem = struct {
         const virt_map_resp = Map.create(mr_resp, virt.getMapVaddr(&mr_resp), .rw, .{});
         virt.addMap(virt_map_resp);
 
-        system.driver_config.request_region = driver_map_req.vaddr;
-        system.driver_config.response_region = driver_map_resp.vaddr;
-        system.virt_config.driver_request_queue = virt_map_req.vaddr;
-        system.virt_config.driver_response_queue = virt_map_resp.vaddr;
+        const ch = Channel.create(system.driver, system.virt, .{});
+        sdf.addChannel(ch);
+
+        system.driver_config = .{
+            .virt = .{
+                // Will be set in connectClient
+                .data = undefined,
+                .req_queue = .createFromMap(driver_map_req),
+                .resp_queue = .createFromMap(driver_map_resp),
+                .num_buffers = system.num_buffers,
+                .id = ch.pd_a_id,
+            },
+        };
+
+        system.virt_config.driver = .{
+            // Will be set in connectClient
+            .data = undefined,
+            .req_queue = .createFromMap(virt_map_req),
+            .resp_queue = .createFromMap(virt_map_resp),
+            .num_buffers = system.num_buffers,
+            .id = ch.pd_b_id,
+        };
     }
 
     pub fn connectClient(system: *I2cSystem, client: *Pd, i: usize) void {
@@ -705,24 +726,36 @@ pub const I2cSystem = struct {
         const client_map_data = Map.create(mr_data, client.getMapVaddr(&mr_data), .rw, .{});
         client.addMap(client_map_data);
 
-        system.virt_config.clients[i] = .{
-            .driver_data_offset = i * system.region_data_size,
-            .request_queue = virt_map_req.vaddr,
-            .response_queue = virt_map_resp.vaddr,
-            .data_size = system.region_data_size,
-        };
-        if (i == 0) {
-            system.driver_config.data_region = driver_map_data.vaddr;
-        }
         // Create a channel between the virtualiser and client
         const ch = Channel.create(virt, client, .{ .pp = .b });
         sdf.addChannel(ch);
 
+        system.virt_config.clients[i] = .{
+            .conn = .{
+                .data = .{
+                    // TODO: absolute hack
+                    .vaddr = 0,
+                    .size = system.region_data_size,
+                },
+                .req_queue = .createFromMap(virt_map_req),
+                .resp_queue = .createFromMap(virt_map_resp),
+                .num_buffers = system.num_buffers,
+                .id = ch.pd_a_id,
+            },
+            .driver_data_offset = i * system.region_data_size,
+        };
+        if (i == 0) {
+            system.driver_config.virt.data = .createFromMap(driver_map_data);
+        }
+
         system.client_configs.items[i] = .{
-            .request_region = client_map_req.vaddr,
-            .response_region = client_map_resp.vaddr,
-            .data_region = client_map_data.vaddr,
-            .virt_id = ch.pd_b_id,
+            .virt = .{
+                .data = .createFromMap(client_map_data),
+                .req_queue = .createFromMap(client_map_req),
+                .resp_queue = .createFromMap(client_map_resp),
+                .num_buffers = system.num_buffers,
+                .id = ch.pd_b_id,
+            }
         };
     }
 
@@ -735,13 +768,8 @@ pub const I2cSystem = struct {
         }
         // 2. Connect the driver to the virtualiser
         system.connectDriver();
-        // 3. Create a channel between the driver and virtualiser for notifications
-        const driver_virt_ch = Channel.create(system.driver, system.virt, .{});
-        sdf.addChannel(driver_virt_ch);
-        // TODO: don't put this here, do it in connectDriver?
-        system.driver_config.virt_id = driver_virt_ch.pd_a_id;
-        system.virt_config.driver_id = driver_virt_ch.pd_b_id;
-        // 4. Connect each client to the virtualiser
+
+        // 3. Connect each client to the virtualiser
         for (system.clients.items, 0..) |client, i| {
             system.connectClient(client, i);
         }

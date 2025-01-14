@@ -153,36 +153,33 @@ pub const Resources = struct {
     };
 
     pub const I2c = struct {
+        pub const Connection = extern struct {
+            data: Region,
+            req_queue: Region,
+            resp_queue: Region,
+            num_buffers: u16,
+            id: u8,
+        };
+
         pub const Virt = extern struct {
             const MAX_NUM_CLIENTS = 61;
 
-            pub const VirtClient = extern struct {
-                request_queue: u64,
-                response_queue: u64,
+            pub const Client = extern struct {
+                conn: Connection,
                 driver_data_offset: u64,
-                data_size: u64,
             };
 
-            driver_request_queue: u64,
-            driver_response_queue: u64,
-            driver_id: u8,
             num_clients: u64,
-            clients: [MAX_NUM_CLIENTS]VirtClient,
+            driver: Connection,
+            clients: [MAX_NUM_CLIENTS]Virt.Client,
         };
 
         pub const Driver = extern struct {
-            bus_num: u64,
-            request_region: u64,
-            response_region: u64,
-            data_region: u64,
-            virt_id: u8,
+            virt: Connection,
         };
 
         pub const Client = extern struct {
-            request_region: u64,
-            response_region: u64,
-            data_region: u64,
-            virt_id: u8,
+            virt: Connection,
         };
     };
 
