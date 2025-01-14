@@ -876,12 +876,14 @@ pub const BlockSystem = struct {
         sdf.addMemoryRegion(mr_data);
         virt.addMap(map_data_virt);
 
-        system.sdf.addChannel(.create(system.virt, system.driver, .{}));
+        const ch = Channel.create(system.virt, system.driver, .{});
+        system.sdf.addChannel(ch);
 
         system.config.driver = .{
             .storage_info = map_storage_info_driver.vaddr,
             .req_queue = map_req_driver.vaddr,
             .resp_queue = map_resp_driver.vaddr,
+            .virt_id = ch.pd_b_id,
         };
 
         system.config.virt_driver = .{
@@ -932,7 +934,8 @@ pub const BlockSystem = struct {
         system.virt.addMap(map_data_virt);
         client.addMap(map_data_client);
 
-        system.sdf.addChannel(.create(system.virt, client, .{}));
+        const ch = Channel.create(system.virt, client, .{});
+        system.sdf.addChannel(ch);
 
         system.config.virt_clients.append(.{
             .req_queue = map_req_virt.vaddr,
@@ -951,6 +954,7 @@ pub const BlockSystem = struct {
             .resp_queue = map_resp_client.vaddr,
             .data_vaddr = map_data_client.vaddr,
             .queue_capacity = system.queue_capacity,
+            .virt_id = ch.pd_b_id,
         }) catch @panic("could not add client config");
     }
 

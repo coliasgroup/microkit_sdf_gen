@@ -61,6 +61,7 @@ pub const Resources = struct {
             resp_queue: u64,
             data_vaddr: u64,
             queue_capacity: u64,
+            virt_id: u8,
         };
 
         pub const Virt = extern struct {
@@ -107,6 +108,7 @@ pub const Resources = struct {
             storage_info: u64,
             req_queue: u64,
             resp_queue: u64,
+            virt_id: u8,
         };
     };
 
