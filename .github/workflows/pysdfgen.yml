@@ -44,7 +44,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: pypi
-      url: https://test.pypi.org/p/sdfgen
+      url: https://pypi.org/p/microkit_sdfgen
     permissions:
       id-token: write  # IMPORTANT: mandatory for trusted publishing
     steps:
@@ -59,6 +59,3 @@ jobs:
         ls -l dist/
     - name: Publish
       uses: pypa/gh-action-pypi-publish@release/v1
-      # Action defaults to PyPI so we set repository-url manually for test PyPi
-      with:
-        repository-url: https://test.pypi.org/legacy/
