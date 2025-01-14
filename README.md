@@ -118,7 +118,7 @@ Now you should be able to import and use the bindings:
 #### Publishing Python packages
 
 Binary releases of the Python package (known as 'wheels' in the Python universe) are published to
-[PyPI](https://pypi.org/project/microkit_sdfgen/).
+[PyPI](https://pypi.org/project/sdfgen/).
 
 Unlike most Python packages, ours is a bit more complicated because:
 1. We depend on an external C library.
