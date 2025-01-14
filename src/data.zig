@@ -55,17 +55,21 @@ pub const Resources = struct {
     /// Three regions for each client:
     /// request, response, configuration
     pub const Block = struct {
+        pub const Connection = extern struct {
+            storage_info: Region,
+            req_queue: Region,
+            resp_queue: Region,
+            num_buffers: u16,
+            id: u8,
+        };
+
         pub const Client = extern struct {
-            storage_info: u64,
-            req_queue: u64,
-            resp_queue: u64,
-            data_vaddr: u64,
-            queue_capacity: u64,
-            virt_id: u8,
+            virt: Connection,
+            data: Region,
         };
 
         pub const Virt = extern struct {
-            const MAX_NUM_CLIENTS = 62;
+            const MAX_NUM_CLIENTS = 61;
 
             pub fn create(driver: Virt.Driver, clients: []const Virt.Client) Virt {
                 var clients_array = std.mem.zeroes([MAX_NUM_CLIENTS]Virt.Client);
@@ -80,23 +84,14 @@ pub const Resources = struct {
             }
 
             pub const Client = extern struct {
-                req_queue: u64,
-                resp_queue: u64,
-                storage_info: u64,
-                data_vaddr: u64,
-                data_paddr: u64,
-                data_size: u64,
-                queue_mr_size: u64,
+                conn: Connection,
+                data: Device.Region,
                 partition: u32,
             };
 
             pub const Driver = extern struct {
-                storage_info: u64,
-                req_queue: u64,
-                resp_queue: u64,
-                data_vaddr: u64,
-                data_paddr: u64,
-                data_size: u64,
+                conn: Connection,
+                data: Device.Region,
             };
 
             num_clients: u64,
@@ -105,10 +100,7 @@ pub const Resources = struct {
         };
 
         pub const Driver = extern struct {
-            storage_info: u64,
-            req_queue: u64,
-            resp_queue: u64,
-            virt_id: u8,
+            virt: Connection,
         };
     };
 

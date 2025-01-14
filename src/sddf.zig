@@ -786,7 +786,7 @@ pub const BlockSystem = struct {
     // TODO: make this configurable per component
     queue_mr_size: usize,
     // TODO: make configurable
-    queue_capacity: usize = 128,
+    queue_capacity: u16 = 128,
     config: SerialiseConfig,
 
     const SerialiseConfig = struct {
@@ -880,20 +880,26 @@ pub const BlockSystem = struct {
         system.sdf.addChannel(ch);
 
         system.config.driver = .{
-            .storage_info = map_storage_info_driver.vaddr,
-            .req_queue = map_req_driver.vaddr,
-            .resp_queue = map_resp_driver.vaddr,
-            .virt_id = ch.pd_b_id,
+            .virt = .{
+                .storage_info = .createFromMap(map_storage_info_driver),
+                .req_queue = .createFromMap(map_req_driver),
+                .resp_queue = .createFromMap(map_resp_driver),
+                // TODO
+                .num_buffers = system.queue_capacity,
+                .id  = ch.pd_b_id,
+            },
         };
 
         system.config.virt_driver = .{
-            .storage_info = map_storage_info_virt.vaddr,
-            .req_queue = map_req_virt.vaddr,
-            .resp_queue = map_resp_virt.vaddr,
-            .data_vaddr = map_data_virt.vaddr,
-            // We have allocated an MR at a fixed physical address so this is valid.
-            .data_paddr = mr_data.paddr.?,
-            .data_size = map_data_virt.mr.size,
+            .conn = .{
+                .storage_info = .createFromMap(map_storage_info_virt),
+                .req_queue = .createFromMap(map_req_virt),
+                .resp_queue = .createFromMap(map_resp_virt),
+                // TODO
+                .num_buffers = system.queue_capacity,
+                .id  = ch.pd_a_id,
+            },
+            .data = .createFromMap(map_data_virt),
         };
     }
 
@@ -938,23 +944,28 @@ pub const BlockSystem = struct {
         system.sdf.addChannel(ch);
 
         system.config.virt_clients.append(.{
-            .req_queue = map_req_virt.vaddr,
-            .resp_queue = map_resp_virt.vaddr,
-            .storage_info = map_storage_info_virt.vaddr,
-            .data_vaddr = map_data_virt.vaddr,
-            .data_paddr = mr_data.paddr.?,
-            .data_size = mr_data.size,
-            .queue_mr_size = queue_mr_size,
+            .conn = .{
+                .storage_info = .createFromMap(map_storage_info_virt),
+                .req_queue = .createFromMap(map_req_virt),
+                .resp_queue = .createFromMap(map_resp_virt),
+                // TODO
+                .num_buffers = system.queue_capacity,
+                .id = ch.pd_a_id,
+            },
+            .data = .createFromMap(map_data_virt),
             .partition = system.client_partitions.items[i],
         }) catch @panic("could not add virt client config");
 
         system.config.clients.append(.{
-            .storage_info = map_storage_info_client.vaddr,
-            .req_queue = map_req_client.vaddr,
-            .resp_queue = map_resp_client.vaddr,
-            .data_vaddr = map_data_client.vaddr,
-            .queue_capacity = system.queue_capacity,
-            .virt_id = ch.pd_b_id,
+            .virt = .{
+                .storage_info = .createFromMap(map_storage_info_client),
+                .req_queue = .createFromMap(map_req_client),
+                .resp_queue = .createFromMap(map_resp_client),
+                // TODO
+                .num_buffers = system.queue_capacity,
+                .id = ch.pd_b_id,
+            },
+            .data = .createFromMap(map_data_client)
         }) catch @panic("could not add client config");
     }
 
