@@ -1562,8 +1562,6 @@ pub fn createDriver(sdf: *SystemDescription, pd: *Pd, device: *dtb.Node, class: 
         }
     }
 
-    const interrupts = device.prop(.Interrupts).?;
-
     // TODO: check for duplicate dt index on irqs and regions
     for (driver.resources.regions) |region_resource| {
         if (region_resource.dt_index == null and region_resource.size == null) {
@@ -1649,12 +1647,19 @@ pub fn createDriver(sdf: *SystemDescription, pd: *Pd, device: *dtb.Node, class: 
 
     // For all driver IRQs, find the corresponding entry in the device tree and
     // process it for the SDF.
+    const maybe_dt_irqs = device.prop(.Interrupts);
+    if (driver.resources.irqs.len != 0 and maybe_dt_irqs == null) {
+        std.log.err("expected interrupts field for node '{s}' when creating driver '{s}'", .{ device.name, driver.name });
+        return error.InvalidDeviceTreeNode;
+    }
+
     for (driver.resources.irqs) |driver_irq| {
-        if (driver_irq.dt_index >= interrupts.len) {
-            std.log.err("invalid device tree index '{}' when creating driver for '{s}'", .{ driver_irq.dt_index, driver.name });
+        const dt_irqs = maybe_dt_irqs.?;
+        if (driver_irq.dt_index >= dt_irqs.len) {
+            std.log.err("invalid device tree index '{}' when creating driver '{s}'", .{ driver_irq.dt_index, driver.name });
             return error.InvalidDeviceTreeIndex;
         }
-        const dt_irq = interrupts[driver_irq.dt_index];
+        const dt_irq = dt_irqs[driver_irq.dt_index];
 
         const irq = blk: {
             if (sdf.arch.isArm()) {
