@@ -532,7 +532,7 @@ pub const TimerSystem = struct {
             .sdf = sdf,
             .driver = driver,
             .device = device,
-            .device_res = std.mem.zeroes(ConfigResources.Device),
+            .device_res = std.mem.zeroInit(ConfigResources.Device, .{}),
             .clients = std.ArrayList(*Pd).init(allocator),
             .client_configs = std.ArrayList(ConfigResources.Timer.Client).init(allocator),
         };
@@ -550,7 +550,7 @@ pub const TimerSystem = struct {
             }
         }
         system.clients.append(client) catch @panic("Could not add client to TimerSystem");
-        system.client_configs.append(std.mem.zeroes(ConfigResources.Timer.Client)) catch @panic("Could not add client to TimerSystem");
+        system.client_configs.append(std.mem.zeroInit(ConfigResources.Timer.Client, .{})) catch @panic("Could not add client to TimerSystem");
     }
 
     pub fn connect(system: *TimerSystem) !void {
@@ -618,13 +618,13 @@ pub const I2cSystem = struct {
             .clients = std.ArrayList(*Pd).init(allocator),
             .driver = driver,
             .device = device,
-            .device_res = std.mem.zeroes(ConfigResources.Device),
+            .device_res = std.mem.zeroInit(ConfigResources.Device, .{}),
             .virt = virt,
             .region_req_size = options.region_req_size,
             .region_resp_size = options.region_resp_size,
             .region_data_size = options.region_data_size,
-            .driver_config = std.mem.zeroes(ConfigResources.I2c.Driver),
-            .virt_config = std.mem.zeroes(ConfigResources.I2c.Virt),
+            .driver_config = std.mem.zeroInit(ConfigResources.I2c.Driver, .{}),
+            .virt_config = std.mem.zeroInit(ConfigResources.I2c.Virt, .{}),
             .client_configs = std.ArrayList(ConfigResources.I2c.Client).init(allocator),
             // TODO: handle properly
             .num_buffers = 128,
@@ -639,7 +639,7 @@ pub const I2cSystem = struct {
             }
         }
         system.clients.append(client) catch @panic("Could not add client to I2cSystem");
-        system.client_configs.append(std.mem.zeroes(ConfigResources.I2c.Client)) catch @panic("Could not add client to I2cSystem");
+        system.client_configs.append(std.mem.zeroInit(ConfigResources.I2c.Client, .{})) catch @panic("Could not add client to I2cSystem");
     }
 
     pub fn connectDriver(system: *I2cSystem) void {
@@ -832,7 +832,7 @@ pub const BlockSystem = struct {
             .client_partitions = std.ArrayList(u32).init(allocator),
             .driver = driver,
             .device = device,
-            .device_res = std.mem.zeroes(ConfigResources.Device),
+            .device_res = std.mem.zeroInit(ConfigResources.Device, .{}),
             .virt = virt,
             // TODO: make configurable
             .queue_mr_size = 0x200_000,
@@ -1067,13 +1067,13 @@ pub const SerialSystem = struct {
             .clients = std.ArrayList(*Pd).init(allocator),
             .driver = driver,
             .device = device,
-            .device_res = std.mem.zeroes(ConfigResources.Device),
+            .device_res = std.mem.zeroInit(ConfigResources.Device, .{}),
             .virt_rx = options.virt_rx,
             .virt_tx = virt_tx,
 
-            .driver_config = std.mem.zeroes(ConfigResources.Serial.Driver),
-            .virt_rx_config = std.mem.zeroes(ConfigResources.Serial.VirtRx),
-            .virt_tx_config = std.mem.zeroes(ConfigResources.Serial.VirtTx),
+            .driver_config = std.mem.zeroInit(ConfigResources.Serial.Driver, .{}),
+            .virt_rx_config = std.mem.zeroInit(ConfigResources.Serial.VirtRx, .{}),
+            .virt_tx_config = std.mem.zeroInit(ConfigResources.Serial.VirtTx, .{}),
             .client_configs = std.ArrayList(ConfigResources.Serial.Client).init(allocator),
         };
     }
@@ -1090,7 +1090,7 @@ pub const SerialSystem = struct {
             }
         }
         system.clients.append(client) catch @panic("Could not add client to SerialSystem");
-        system.client_configs.append(std.mem.zeroes(ConfigResources.Serial.Client)) catch @panic("Could not add client to SerialSystem");
+        system.client_configs.append(std.mem.zeroInit(ConfigResources.Serial.Client, .{})) catch @panic("Could not add client to SerialSystem");
     }
 
     fn hasRx(system: *SerialSystem) bool {
@@ -1250,13 +1250,13 @@ pub const NetworkSystem = struct {
             .copiers = std.ArrayList(*Pd).init(allocator),
             .driver = driver,
             .device = device,
-            .device_res = std.mem.zeroes(ConfigResources.Device),
+            .device_res = std.mem.zeroInit(ConfigResources.Device, .{}),
             .virt_rx = virt_rx,
             .virt_tx = virt_tx,
 
-            .driver_config = std.mem.zeroes(ConfigResources.Net.Driver),
-            .virt_rx_config = std.mem.zeroes(ConfigResources.Net.VirtRx),
-            .virt_tx_config = std.mem.zeroes(ConfigResources.Net.VirtTx),
+            .driver_config = std.mem.zeroInit(ConfigResources.Net.Driver, .{}),
+            .virt_rx_config = std.mem.zeroInit(ConfigResources.Net.VirtRx, .{}),
+            .virt_tx_config = std.mem.zeroInit(ConfigResources.Net.VirtTx, .{}),
             .copy_configs = std.ArrayList(ConfigResources.Net.Copy).init(allocator),
             .client_configs = std.ArrayList(ConfigResources.Net.Client).init(allocator),
 
@@ -1302,10 +1302,10 @@ pub const NetworkSystem = struct {
 
         system.clients.append(client) catch @panic("Could not add client with copier to NetworkSystem");
         system.copiers.append(copier) catch @panic("Could not add client with copier to NetworkSystem");
-        system.client_configs.append(std.mem.zeroes(ConfigResources.Net.Client)) catch @panic("Could not add client with copier to NetworkSystem");
-        system.copy_configs.append(std.mem.zeroes(ConfigResources.Net.Copy)) catch @panic("Could not add client with copier to NetworkSystem");
+        system.client_configs.append(std.mem.zeroInit(ConfigResources.Net.Client, .{})) catch @panic("Could not add client with copier to NetworkSystem");
+        system.copy_configs.append(std.mem.zeroInit(ConfigResources.Net.Copy, .{})) catch @panic("Could not add client with copier to NetworkSystem");
 
-        system.client_info.append(std.mem.zeroes(ClientInfo)) catch @panic("Could not add client with copier to NetworkSystem");
+        system.client_info.append(std.mem.zeroInit(ClientInfo, .{})) catch @panic("Could not add client with copier to NetworkSystem");
         if (options.mac_addr) |mac_addr| {
             system.client_info.items[client_idx].mac_addr = parseMacAddr(mac_addr) catch return Error.InvalidMacAddr;
         }

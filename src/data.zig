@@ -1,6 +1,8 @@
 const std = @import("std");
 const sdf = @import("sdf.zig");
 
+const MAGIC_START: [4]u8 = .{ 's', 'D', 'D', 'F' };
+
 pub const Resources = struct {
     /// Provides information to a component about a memory region that is mapped into its address space
     pub const Region = extern struct {
@@ -24,6 +26,8 @@ pub const Resources = struct {
         pub const MaxRegions = 64;
         pub const MaxIrqs = 64;
 
+        const MAGIC: [5]u8 = MAGIC_START ++ .{ 0x1 };
+
         pub const Region = extern struct {
             region: Resources.Region,
             io_addr: u64,
@@ -45,16 +49,16 @@ pub const Resources = struct {
             id: u8,
         };
 
+        magic: [5]u8 = MAGIC,
         num_regions: u8,
         num_irqs: u8,
         regions: [MaxRegions]Device.Region,
         irqs: [MaxIrqs]Irq,
     };
 
-    /// For block sub-system:
-    /// Three regions for each client:
-    /// request, response, configuration
     pub const Block = struct {
+        const MAGIC: [5]u8 = MAGIC_START ++ .{ 0x2 };
+
         pub const Connection = extern struct {
             storage_info: Region,
             req_queue: Region,
@@ -64,6 +68,7 @@ pub const Resources = struct {
         };
 
         pub const Client = extern struct {
+            magic: [5]u8 = MAGIC,
             virt: Connection,
             data: Region,
         };
@@ -94,17 +99,21 @@ pub const Resources = struct {
                 data: Device.Region,
             };
 
+            magic: [5]u8 = MAGIC,
             num_clients: u64,
             driver: Virt.Driver,
             clients: [MAX_NUM_CLIENTS]Virt.Client,
         };
 
         pub const Driver = extern struct {
+            magic: [5]u8 = MAGIC,
             virt: Connection,
         };
     };
 
     pub const Serial = struct {
+        const MAGIC: [5]u8 = MAGIC_START ++ .{ 0x3 };
+
         pub const MAX_NUM_CLIENTS = 61;
 
         pub const Connection = extern struct {
@@ -114,6 +123,7 @@ pub const Resources = struct {
         };
 
         pub const Driver = extern struct {
+            magic: [5]u8 = MAGIC,
             rx: Connection,
             tx: Connection,
             default_baud: u64,
@@ -121,6 +131,7 @@ pub const Resources = struct {
         };
 
         pub const VirtRx = extern struct {
+            magic: [5]u8 = MAGIC,
             driver: Connection,
             clients: [MAX_NUM_CLIENTS]Connection,
             num_clients: u8,
@@ -137,6 +148,7 @@ pub const Resources = struct {
                 name: [MAX_NAME_LEN]u8,
             };
 
+            magic: [5]u8 = MAGIC,
             driver: Connection,
             clients: [MAX_NUM_CLIENTS]VirtTxClient,
             num_clients: u8,
@@ -147,12 +159,15 @@ pub const Resources = struct {
         };
 
         pub const Client = extern struct {
+            magic: [5]u8 = MAGIC,
             rx: Connection,
             tx: Connection,
         };
     };
 
     pub const I2c = struct {
+        const MAGIC: [5]u8 = MAGIC_START ++ .{ 0x4 };
+
         pub const Connection = extern struct {
             data: Region,
             req_queue: Region,
@@ -169,21 +184,26 @@ pub const Resources = struct {
                 driver_data_offset: u64,
             };
 
+            magic: [5]u8 = MAGIC,
             num_clients: u64,
             driver: Connection,
             clients: [MAX_NUM_CLIENTS]Virt.Client,
         };
 
         pub const Driver = extern struct {
+            magic: [5]u8 = MAGIC,
             virt: Connection,
         };
 
         pub const Client = extern struct {
+            magic: [5]u8 = MAGIC,
             virt: Connection,
         };
     };
 
     pub const Net = struct {
+        const MAGIC: [5]u8 = MAGIC_START ++ .{ 0x5 };
+
         pub const MAX_NUM_CLIENTS = 61;
 
         pub const Connection = extern struct {
@@ -194,6 +214,7 @@ pub const Resources = struct {
         };
 
         pub const Driver = extern struct {
+            magic: [5]u8 = MAGIC,
             virt_rx: Connection,
             virt_tx: Connection,
         };
@@ -204,6 +225,7 @@ pub const Resources = struct {
                 mac_addr: [6]u8,
             };
 
+            magic: [5]u8 = MAGIC,
             driver: Connection,
             data_region: Device.Region,
             buffer_metadata: Region,
@@ -217,34 +239,37 @@ pub const Resources = struct {
                 data: Device.Region,
             };
 
+            magic: [5]u8 = MAGIC,
             driver: Connection,
             clients: [MAX_NUM_CLIENTS]VirtTxClient,
             num_clients: u8,
         };
 
         pub const Copy = extern struct {
+            magic: [5]u8 = MAGIC,
             virt_rx: Connection,
             device_data: Region,
-
             client: Connection,
             client_data: Region,
         };
 
         pub const Client = extern struct {
+            magic: [5]u8 = MAGIC,
             rx: Connection,
             rx_data: Region,
-
             tx: Connection,
             tx_data: Region,
-
             mac_addr: [6]u8,
         };
     };
 
     pub const Timer = struct {
+        const MAGIC: [5]u8 = MAGIC_START ++ .{ 0x6 };
+
         pub const MAX_NUM_CLIENTS = 61;
 
         pub const Client = extern struct {
+            magic: [5]u8 = MAGIC,
             driver_id: u8,
         };
     };
