@@ -420,6 +420,8 @@ pub const SystemDescription = struct {
         arm_smc: ?bool,
         /// If this PD is a child of another PD, this ID identifies it to its parent PD
         child_id: ?u8,
+        /// CPU core
+        cpu: ?u8,
 
         setvars: ArrayList(SetVar),
 
@@ -435,6 +437,7 @@ pub const SystemDescription = struct {
             period: ?u32 = null,
             stack_size: ?u32 = null,
             arm_smc: ?bool = null,
+            cpu: ?u8 = null,
         };
 
         pub fn create(allocator: Allocator, name: []const u8, program_image: ?[]const u8, options: Options) ProtectionDomain {
@@ -457,6 +460,7 @@ pub const SystemDescription = struct {
                 .arm_smc = options.arm_smc,
                 .stack_size = options.stack_size,
                 .child_id = null,
+                .cpu = options.cpu,
             };
         }
 
@@ -629,6 +633,12 @@ pub const SystemDescription = struct {
                 const smc_xml = try allocPrint(allocator, " smc=\"{}\"", .{smc});
                 defer allocator.free(smc_xml);
                 _ = try writer.write(smc_xml);
+            }
+
+            if (pd.cpu) |cpu| {
+                const xml = try allocPrint(allocator, " cpu=\"{}\"", .{cpu});
+                defer allocator.free(xml);
+                _ = try writer.write(xml);
             }
 
             _ = try writer.write(">\n");
