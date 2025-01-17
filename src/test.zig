@@ -59,7 +59,7 @@ test "PD + MR + mappings + channel" {
     sdf.addProtectionDomain(&pd1);
     sdf.addProtectionDomain(&pd2);
 
-    sdf.addChannel(Channel.create(&pd1, &pd2, .{}));
+    sdf.addChannel(try Channel.create(&pd1, &pd2, .{}));
 
     const expected = try readTestFile("pd_mr_map_channel.system");
     const output = try sdf.toXml();
@@ -80,11 +80,11 @@ test "fixed channel" {
 
     _ = try pd1.addInterrupt(.create(33, .level, 0));
 
-    sdf.addChannel(Channel.create(&pd1, &pd2, .{
+    sdf.addChannel(try Channel.create(&pd1, &pd2, .{
         .pd_a_id = 3,
         .pd_b_id = 5,
     }));
-    sdf.addChannel(Channel.create(&pd1, &pd2, .{}));
+    sdf.addChannel(try Channel.create(&pd1, &pd2, .{}));
 
     const expected = try readTestFile("pd_fixed_channel.system");
     const output = try sdf.toXml();

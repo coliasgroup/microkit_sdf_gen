@@ -10,6 +10,7 @@ from enum import IntEnum
 class SddfStatus(IntEnum):
     OK = 0,
     DUPLICATE_CLIENT = 1,
+    INVALID_CLIENT = 2,
     NET_DUPLICATE_COPIER = 100,
     NET_DUPLICATE_MAC_ADDR = 101,
 
@@ -492,6 +493,8 @@ class Sddf:
                 return
             elif ret == SddfStatus.DUPLICATE_CLIENT:
                 raise Exception(f"duplicate client given '{client}'")
+            elif ret == SddfStatus.INVALID_CLIENT:
+                raise Exception(f"invalid client given '{client}'")
             else:
                 raise Exception(f"internal error: {ret}")
 
@@ -536,6 +539,8 @@ class Sddf:
                 return
             elif ret == SddfStatus.DUPLICATE_CLIENT:
                 raise Exception(f"duplicate client given '{client}'")
+            elif ret == SddfStatus.INVALID_CLIENT:
+                raise Exception(f"invalid client given '{client}'")
             else:
                 raise Exception(f"internal error: {ret}")
 
@@ -572,6 +577,8 @@ class Sddf:
                 return
             elif ret == SddfStatus.DUPLICATE_CLIENT:
                 raise Exception(f"duplicate client given '{client}'")
+            elif ret == SddfStatus.INVALID_CLIENT:
+                raise Exception(f"invalid client given '{client}'")
             else:
                 raise Exception(f"internal error: {ret}")
 
@@ -631,6 +638,8 @@ class Sddf:
                 return
             elif ret == SddfStatus.DUPLICATE_CLIENT:
                 raise Exception(f"duplicate client given '{client}'")
+            elif ret == SddfStatus.INVALID_CLIENT:
+                raise Exception(f"invalid client given '{client}'")
             elif ret == SddfStatus.NET_DUPLICATE_COPIER:
                 raise Exception(f"duplicate copier given '{copier}'")
             elif ret == SddfStatus.NET_DUPLICATE_MAC_ADDR:
@@ -670,6 +679,8 @@ class Sddf:
                 return
             elif ret == SddfStatus.DUPLICATE_CLIENT:
                 raise Exception(f"duplicate client given '{client}'")
+            elif ret == SddfStatus.INVALID_CLIENT:
+                raise Exception(f"invalid client given '{client}'")
             else:
                 raise Exception(f"internal error: {ret}")
 

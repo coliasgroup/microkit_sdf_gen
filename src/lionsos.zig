@@ -40,6 +40,7 @@ pub const FileSystem = struct {
         completion_queue,
     };
 
+    // TODO: check fs and client is valid
     pub fn init(allocator: Allocator, sdf: *SystemDescription, fs: *Pd, client: *Pd, options: Options) FileSystem {
         return .{
             .allocator = allocator,
@@ -84,7 +85,7 @@ pub const FileSystem = struct {
 
         system.sdf.addChannel(Channel.create(fs, client, .{
             .pd_a_id = 10,
-        }));
+        }) catch unreachable);
     }
 
     pub const Nfs = struct {

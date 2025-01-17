@@ -687,7 +687,13 @@ pub const SystemDescription = struct {
             pd_b_id: ?u8 = null,
         };
 
-        pub fn create(pd_a: *ProtectionDomain, pd_b: *ProtectionDomain, options: Options) Channel {
+        pub fn create(pd_a: *ProtectionDomain, pd_b: *ProtectionDomain, options: Options) !Channel {
+            // TODO: should we check for this here or when we connect the SDF?
+            if (std.mem.eql(u8, pd_a.name, pd_b.name)) {
+                std.log.err("channel end PDs do not differ, PD name is '{s}'\n", .{ pd_a.name });
+                return error.InvalidChannel;
+            }
+
             return .{
                 .pd_a = pd_a,
                 .pd_b = pd_b,

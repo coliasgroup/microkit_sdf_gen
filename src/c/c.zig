@@ -270,7 +270,7 @@ export fn sdfgen_map_destroy(c_map: *align(8) anyopaque) void {
 // TODO: handle specifying channel parameters
 export fn sdfgen_channel_create(pd_a: *align(8) anyopaque, pd_b: *align(8) anyopaque) *anyopaque {
     const ch = allocator.create(Channel) catch @panic("OOM");
-    ch.* = Channel.create(@ptrCast(pd_a), @ptrCast(pd_b), .{});
+    ch.* = Channel.create(@ptrCast(pd_a), @ptrCast(pd_b), .{}) catch @panic("TODO");
 
     return ch;
 }
@@ -323,6 +323,9 @@ export fn sdfgen_sddf_timer_add_client(system: *align(8) anyopaque, client: *ali
     timer.addClient(@ptrCast(client)) catch |e| {
         switch (e) {
             sddf.TimerSystem.Error.DuplicateClient => return 1,
+            sddf.TimerSystem.Error.InvalidClient => return 2,
+            // Should never happen when adding a client
+            sddf.TimerSystem.Error.NotConnected => @panic("internal error"),
         }
     };
 
@@ -361,6 +364,9 @@ export fn sdfgen_sddf_serial_add_client(system: *align(8) anyopaque, client: *al
     serial.addClient(@ptrCast(client)) catch |e| {
         switch (e) {
             sddf.SerialSystem.Error.DuplicateClient => return 1,
+            sddf.SerialSystem.Error.InvalidClient => return 2,
+            // Should never happen when adding a client
+            sddf.SerialSystem.Error.NotConnected => @panic("internal error"),
         }
     };
 
@@ -398,6 +404,9 @@ export fn sdfgen_sddf_i2c_add_client(system: *align(8) anyopaque, client: *align
     i2c.addClient(@ptrCast(client)) catch |e| {
         switch (e) {
             sddf.I2cSystem.Error.DuplicateClient => return 1,
+            sddf.I2cSystem.Error.InvalidClient => return 2,
+            // Should never happen when adding a client
+            sddf.I2cSystem.Error.NotConnected => @panic("internal error"),
         }
     };
 
@@ -436,6 +445,9 @@ export fn sdfgen_sddf_block_add_client(system: *align(8) anyopaque, client: *ali
     block.addClient(@ptrCast(client), partition) catch |e| {
         switch (e) {
             sddf.BlockSystem.Error.DuplicateClient => return 1,
+            sddf.BlockSystem.Error.InvalidClient => return 2,
+            // Should never happen when adding a client
+            sddf.BlockSystem.Error.NotConnected => @panic("internal error"),
         }
     };
 
@@ -473,9 +485,12 @@ export fn sdfgen_sddf_net_add_client_with_copier(system: *align(8) anyopaque, cl
     net.addClientWithCopier(@ptrCast(client), @ptrCast(copier), options) catch |e| {
         switch (e) {
             sddf.NetworkSystem.Error.DuplicateClient => return 1,
+            sddf.NetworkSystem.Error.InvalidClient => return 2,
             sddf.NetworkSystem.Error.DuplicateCopier => return 100,
             sddf.NetworkSystem.Error.DuplicateMacAddr => return 101,
             sddf.NetworkSystem.Error.InvalidMacAddr => return 102,
+            // Should never happen when adding a client
+            sddf.NetworkSystem.Error.NotConnected => @panic("internal error"),
         }
     };
 

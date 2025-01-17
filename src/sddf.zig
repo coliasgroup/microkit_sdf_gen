@@ -178,6 +178,7 @@ fn round_up(n: usize, d: usize) usize {
     return result;
 }
 
+// TODO: need to put this in a better place
 fn round_to_page(n: usize) usize {
     const page_size = 4096;
     return round_up(n, page_size);
@@ -505,6 +506,8 @@ pub const DeviceTree = struct {
 };
 
 const SystemError = error{
+    NotConnected,
+    InvalidClient,
     DuplicateClient,
 };
 
@@ -519,6 +522,7 @@ pub const TimerSystem = struct {
     /// Client PDs serviced by the timer driver
     clients: std.ArrayList(*Pd),
     client_configs: std.ArrayList(ConfigResources.Timer.Client),
+    connected: bool = false,
 
     pub const Error = SystemError;
 
@@ -543,11 +547,16 @@ pub const TimerSystem = struct {
     }
 
     pub fn addClient(system: *TimerSystem, client: *Pd) Error!void {
+        // TODO: need to check that client has less priority than driver
         // Check that the client does not already exist
         for (system.clients.items) |existing_client| {
             if (std.mem.eql(u8, existing_client.name, client.name)) {
                 return Error.DuplicateClient;
             }
+        }
+        if (std.mem.eql(u8, client.name, system.driver.name)) {
+            std.log.err("invalid timer client, same name as driver '{s}", .{ client.name });
+            return Error.InvalidClient;
         }
         system.clients.append(client) catch @panic("Could not add client to TimerSystem");
         system.client_configs.append(std.mem.zeroInit(ConfigResources.Timer.Client, .{})) catch @panic("Could not add client to TimerSystem");
@@ -564,13 +573,17 @@ pub const TimerSystem = struct {
                 .pp = .b,
                 // Client does not need to notify driver
                 .pd_b_notify = false,
-            });
+            }) catch unreachable;
             system.sdf.addChannel(ch);
             system.client_configs.items[i].driver_id = ch.pd_b_id;
         }
+
+        system.connected = true;
     }
 
     pub fn serialiseConfig(system: *TimerSystem, prefix: []const u8) !void {
+        if (!system.connected) return Error.NotConnected;
+
         const allocator = system.allocator;
 
         const device_res_data_name = fmt(system.allocator, "{s}_device_resources.data", .{system.driver.name});
@@ -602,6 +615,7 @@ pub const I2cSystem = struct {
     virt_config: ConfigResources.I2c.Virt,
     client_configs: std.ArrayList(ConfigResources.I2c.Client),
     num_buffers: u16,
+    connected: bool = false,
 
     pub const Error = SystemError;
 
@@ -638,6 +652,14 @@ pub const I2cSystem = struct {
                 return Error.DuplicateClient;
             }
         }
+        if (std.mem.eql(u8, client.name, system.driver.name)) {
+            std.log.err("invalid I2C client, same name as driver '{s}", .{ client.name });
+            return Error.InvalidClient;
+        }
+        if (std.mem.eql(u8, client.name, system.virt.name)) {
+            std.log.err("invalid I2C client, same name as virt '{s}", .{ client.name });
+            return Error.InvalidClient;
+        }
         system.clients.append(client) catch @panic("Could not add client to I2cSystem");
         system.client_configs.append(std.mem.zeroInit(ConfigResources.I2c.Client, .{})) catch @panic("Could not add client to I2cSystem");
     }
@@ -665,7 +687,7 @@ pub const I2cSystem = struct {
         const virt_map_resp = Map.create(mr_resp, virt.getMapVaddr(&mr_resp), .rw, .{});
         virt.addMap(virt_map_resp);
 
-        const ch = Channel.create(system.driver, system.virt, .{});
+        const ch = Channel.create(system.driver, system.virt, .{}) catch unreachable;
         sdf.addChannel(ch);
 
         system.driver_config = .{
@@ -721,7 +743,7 @@ pub const I2cSystem = struct {
         client.addMap(client_map_data);
 
         // Create a channel between the virtualiser and client
-        const ch = Channel.create(virt, client, .{ .pp = .b });
+        const ch = Channel.create(virt, client, .{ .pp = .b }) catch unreachable;
         sdf.addChannel(ch);
 
         system.virt_config.clients[i] = .{
@@ -770,9 +792,13 @@ pub const I2cSystem = struct {
 
         // To avoid cross-core IPC, we make the virtualiser passive
         system.virt.passive = true;
+
+        system.connected = true;
     }
 
     pub fn serialiseConfig(system: *I2cSystem, prefix: []const u8) !void {
+        if (!system.connected) return Error.NotConnected;
+
         const allocator = system.allocator;
 
         const device_res_data_name = fmt(system.allocator, "{s}_device_resources.data", .{system.driver.name});
@@ -825,6 +851,11 @@ pub const BlockSystem = struct {
     const STORAGE_INFO_REGION_SIZE: usize = 0x1000;
 
     pub fn init(allocator: Allocator, sdf: *SystemDescription, device: *dtb.Node, driver: *Pd, virt: *Pd, _: Options) BlockSystem {
+        if (std.mem.eql(u8, driver.name, virt.name)) {
+            std.log.err("invalid block driver, same name as virt '{s}", .{ driver.name });
+            // return Error.InvalidDriver;
+            @panic("TODO");
+        }
         return .{
             .allocator = allocator,
             .sdf = sdf,
@@ -856,6 +887,14 @@ pub const BlockSystem = struct {
             if (std.mem.eql(u8, existing_client.name, client.name)) {
                 return Error.DuplicateClient;
             }
+        }
+        if (std.mem.eql(u8, client.name, system.driver.name)) {
+            std.log.err("invalid block client, same name as driver '{s}", .{ client.name });
+            return Error.InvalidClient;
+        }
+        if (std.mem.eql(u8, client.name, system.virt.name)) {
+            std.log.err("invalid block client, same name as virt '{s}", .{ client.name });
+            return Error.InvalidClient;
         }
         system.clients.append(client) catch @panic("Could not add client to BlockSystem");
         system.client_partitions.append(partition) catch @panic("Could not add client to BlockSystem");
@@ -898,7 +937,7 @@ pub const BlockSystem = struct {
         sdf.addMemoryRegion(mr_data);
         virt.addMap(map_data_virt);
 
-        const ch = Channel.create(system.virt, system.driver, .{});
+        const ch = Channel.create(system.virt, system.driver, .{}) catch unreachable;
         system.sdf.addChannel(ch);
 
         system.config.driver = .{
@@ -962,7 +1001,7 @@ pub const BlockSystem = struct {
         system.virt.addMap(map_data_virt);
         client.addMap(map_data_client);
 
-        const ch = Channel.create(system.virt, client, .{});
+        const ch = Channel.create(system.virt, client, .{}) catch unreachable;
         system.sdf.addChannel(ch);
 
         system.config.virt_clients.append(.{
@@ -1007,7 +1046,7 @@ pub const BlockSystem = struct {
     }
 
     pub fn serialiseConfig(system: *BlockSystem, prefix: []const u8) !void {
-        if (!system.connected) return error.SystemNotConnected;
+        if (!system.connected) return Error.NotConnected;
 
         const allocator = system.allocator;
 
@@ -1044,6 +1083,7 @@ pub const SerialSystem = struct {
     virt_rx: ?*Pd,
     virt_tx: *Pd,
     clients: std.ArrayList(*Pd),
+    connected: bool = false,
 
     driver_config: ConfigResources.Serial.Driver,
     virt_rx_config: ConfigResources.Serial.VirtRx,
@@ -1123,7 +1163,7 @@ pub const SerialSystem = struct {
         client.addMap(data_mr_client_map);
         client_conn.data = ConfigResources.Region.createFromMap(data_mr_client_map);
 
-        const channel = Channel.create(server, client, .{});
+        const channel = Channel.create(server, client, .{}) catch unreachable;
         system.sdf.addChannel(channel);
         server_conn.id = channel.pd_a_id;
         client_conn.id = channel.pd_b_id;
@@ -1169,9 +1209,13 @@ pub const SerialSystem = struct {
         assert(system.virt_tx_config.begin_str[begin_str.len] == 0);
 
         system.virt_tx_config.begin_str_len = begin_str.len;
+
+        system.connected = true;
     }
 
     pub fn serialiseConfig(system: *SerialSystem, prefix: []const u8) !void {
+        if (!system.connected) return Error.NotConnected;
+
         const allocator = system.allocator;
 
         const device_res_data_name = fmt(system.allocator, "{s}_device_resources.data", .{system.driver.name});
@@ -1201,6 +1245,7 @@ pub const NetworkSystem = struct {
     const BUFFER_SIZE = 2048;
 
     pub const Error = SystemError || error{
+        InvalidClient,
         DuplicateCopier,
         DuplicateMacAddr,
         InvalidMacAddr,
@@ -1238,6 +1283,8 @@ pub const NetworkSystem = struct {
     virt_tx_config: ConfigResources.Net.VirtTx,
     copy_configs: std.ArrayList(ConfigResources.Net.Copy),
     client_configs: std.ArrayList(ConfigResources.Net.Client),
+
+    connected: bool = false,
 
     rx_buffers: usize,
     client_info: std.ArrayList(ClientInfo),
@@ -1347,7 +1394,7 @@ pub const NetworkSystem = struct {
         client.addMap(active_mr_client_map);
         client_conn.active_queue = ConfigResources.Region.createFromMap(active_mr_client_map);
 
-        const channel = Channel.create(server, client, .{});
+        const channel = Channel.create(server, client, .{}) catch @panic("failed to create connection channel");
         system.sdf.addChannel(channel);
         server_conn.id = channel.pd_a_id;
         client_conn.id = channel.pd_b_id;
@@ -1476,9 +1523,13 @@ pub const NetworkSystem = struct {
             system.virt_rx_config.clients[i].mac_addr = system.client_info.items[i].mac_addr.?;
             system.client_configs.items[i].mac_addr = system.client_info.items[i].mac_addr.?;
         }
+
+        system.connected = true;
     }
 
     pub fn serialiseConfig(system: *NetworkSystem, prefix: []const u8) !void {
+        if (!system.connected) return Error.NotConnected;
+
         const allocator = system.allocator;
 
         const device_res_data_name = fmt(allocator, "{s}_device_resources.data", .{system.driver.name});
