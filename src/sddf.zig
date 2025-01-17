@@ -105,7 +105,10 @@ pub fn probe(allocator: Allocator, path: []const u8) !void {
 
     log.debug("starting sDDF probe", .{});
     log.debug("opening sDDF root dir '{s}'", .{path});
-    var sddf = try std.fs.cwd().openDir(path, .{});
+    var sddf = std.fs.cwd().openDir(path, .{}) catch |e| {
+        std.log.err("failed to open sDDF directory '{s}': {}", .{ path, e });
+        return e;
+    };
     defer sddf.close();
 
     const device_classes = comptime std.meta.fields(Config.DeviceClass.Class);
@@ -116,7 +119,10 @@ pub fn probe(allocator: Allocator, path: []const u8) !void {
         // TODO: handle this gracefully
         for (@as(Config.DeviceClass.Class, @enumFromInt(device_class.value)).dirs()) |dir| {
             const driver_dir = fmt(allocator, "drivers/{s}", .{dir});
-            var device_class_dir = try sddf.openDir(driver_dir, .{ .iterate = true });
+            var device_class_dir = sddf.openDir(driver_dir, .{ .iterate = true }) catch |e| {
+                std.log.err("failed to open sDDF driver directory '{s}': {}", .{ driver_dir, e });
+                return e;
+            };
             defer device_class_dir.close();
             var iter = device_class_dir.iterate();
             while (try iter.next()) |entry| {
@@ -135,10 +141,13 @@ pub fn probe(allocator: Allocator, path: []const u8) !void {
                     }
                 };
                 defer config_file.close();
-                const config_size = (try config_file.stat()).size;
-                const config_bytes = try config_file.reader().readAllAlloc(allocator, config_size);
+                const config_file_stat = config_file.stat() catch |e| {
+                    std.log.err("failed to stat driver config file: {s}: {}", .{ config_path, e });
+                    return e;
+                };
+                const config_bytes = try config_file.reader().readAllAlloc(allocator, config_file_stat.size);
                 // TODO; free config? we'd have to dupe the json data when populating our data structures
-                assert(config_bytes.len == config_size);
+                assert(config_bytes.len == config_file_stat.size);
                 // TODO: we have no information if the parsing fails. We need to do some error output if
                 // it the input is malformed.
                 // TODO: should probably free the memory at some point
