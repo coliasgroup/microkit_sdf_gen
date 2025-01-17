@@ -542,8 +542,8 @@ export fn sdfgen_lionsos_fs_nfs(c_sdf: *align(8) anyopaque, c_fs: *align(8) anyo
 }
 
 export fn sdfgen_lionsos_fs_nfs_connect(system: *align(8) anyopaque) bool {
-    const fs: *lionsos.FileSystem = @ptrCast(system);
-    fs.connect();
+    const nfs: *lionsos.FileSystem.Nfs = @ptrCast(system);
+    nfs.connect();
 
     return true;
 }
