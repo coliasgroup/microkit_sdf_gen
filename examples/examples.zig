@@ -283,11 +283,11 @@ fn i2c(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !void {
     sdf.addProtectionDomain(&i2c_virt);
 
     var i2c_system = sddf.I2cSystem.init(allocator, sdf, i2c_node, &i2c_driver, &i2c_virt, .{});
-    i2c_system.addClient(&client_ds3231);
-    i2c_system.addClient(&client_pn532);
+    try i2c_system.addClient(&client_ds3231);
+    try i2c_system.addClient(&client_pn532);
 
-    i2c_driver.addMap(.create(clk_mr, i2c_driver.getMapVaddr(&clk_mr), .rw, false, .{ .setvar_vaddr = "clk_regs" }));
-    i2c_driver.addMap(.create(gpio_mr, i2c_driver.getMapVaddr(&gpio_mr), .rw, false, .{ .setvar_vaddr = "gpio_regs" }));
+    i2c_driver.addMap(.create(clk_mr, i2c_driver.getMapVaddr(&clk_mr), .rw, .{ .cached = false, .setvar_vaddr = "clk_regs" }));
+    i2c_driver.addMap(.create(gpio_mr, i2c_driver.getMapVaddr(&gpio_mr), .rw, .{ .cached = false, .setvar_vaddr = "gpio_regs" }));
 
     i2c_virt.priority = 99;
     client_ds3231.priority = 1;
@@ -301,8 +301,8 @@ fn i2c(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !void {
     timer_driver.priority = 101;
 
     var timer_system = sddf.TimerSystem.init(allocator, sdf, timer_node, &timer_driver);
-    timer_system.addClient(&client_ds3231);
-    timer_system.addClient(&client_pn532);
+    try timer_system.addClient(&client_ds3231);
+    try timer_system.addClient(&client_pn532);
 
     _ = try i2c_system.connect();
     try timer_system.connect();
@@ -324,7 +324,7 @@ fn blk(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !void {
     sdf.addProtectionDomain(&blk_virt);
 
     var blk_system = sddf.BlockSystem.init(allocator, sdf, blk_node, &blk_driver, &blk_virt, .{});
-    blk_system.addClient(&client, 0);
+    try blk_system.addClient(&client, 0);
 
     _ = try blk_system.connect();
 
@@ -344,7 +344,7 @@ fn timer(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !void {
     sdf.addProtectionDomain(&client);
 
     var timer_system = sddf.TimerSystem.init(allocator, sdf, timer_node, &timer_driver);
-    timer_system.addClient(&client);
+    try timer_system.addClient(&client);
 
     try timer_system.connect();
 
@@ -385,11 +385,11 @@ fn webserver(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !vo
     sdf.addProtectionDomain(&fatfs);
 
     var timer_system = sddf.TimerSystem.init(allocator, sdf, timer_node, &timer_driver);
-    timer_system.addClient(&micropython);
+    try timer_system.addClient(&micropython);
     // timer_system.addClient(&nfs);
 
     var serial_system = sddf.SerialSystem.init(allocator, sdf, uart_node, &uart_driver, &serial_virt_tx, .{});
-    serial_system.addClient(&micropython);
+    try serial_system.addClient(&micropython);
     // serial_system.addClient(&nfs);
 
     const blk_node = board.defaultBlockNode(blob);
@@ -400,7 +400,7 @@ fn webserver(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !vo
     sdf.addProtectionDomain(&blk_virt);
 
     var blk_system = sddf.BlockSystem.init(allocator, sdf, blk_node, &blk_driver, &blk_virt, .{});
-    blk_system.addClient(&fatfs, 0);
+    try blk_system.addClient(&fatfs, 0);
 
     const eth_node = board.defaultEthernetNode(blob);
     var eth_driver = Pd.create(allocator, "eth_driver", "eth_driver.elf", .{});
@@ -455,7 +455,7 @@ fn webserver(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !vo
 
     const fatfs_metadata = Mr.create(allocator, "fatfs_metadata", 0x200_000, .{});
     // TODO: fix
-    fatfs.addMap(Map.create(fatfs_metadata, 0x40_000_000, .rw, true, .{ .setvar_vaddr = "fs_metadata" }));
+    fatfs.addMap(.create(fatfs_metadata, 0x40_000_000, .rw, .{ .setvar_vaddr = "fs_metadata" }));
     sdf.addMemoryRegion(fatfs_metadata);
 
     const fs = lionsos.FileSystem.init(allocator, sdf, &fatfs, &micropython, .{});
@@ -561,11 +561,11 @@ fn echo_server(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !
     sdf.addMemoryRegion(cycle_counters_mr);
 
     const cycle_counters_bench_idle_vaddr = bench_idle.getMapVaddr(&cycle_counters_mr);
-    const cycle_counters_bench_idle_map = Map.create(cycle_counters_mr, cycle_counters_bench_idle_vaddr, .rw, true, .{});
+    const cycle_counters_bench_idle_map = Map.create(cycle_counters_mr, cycle_counters_bench_idle_vaddr, .rw, .{});
     bench_idle.addMap(cycle_counters_bench_idle_map);
 
     const cycle_counters_client0_vaddr = client0.getMapVaddr(&cycle_counters_mr);
-    const cycle_counters_client0_map = Map.create(cycle_counters_mr, cycle_counters_client0_vaddr, .rw, true, .{});
+    const cycle_counters_client0_map = Map.create(cycle_counters_mr, cycle_counters_client0_vaddr, .rw, .{});
     client0.addMap(cycle_counters_client0_map);
 
     var bench_config = std.mem.zeroes(BenchmarkConfig);
@@ -610,16 +610,16 @@ fn echo_server(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !
 
     // Connections
 
-    timer_system.addClient(&client0);
+    try timer_system.addClient(&client0);
 
-    serial_system.addClient(&bench);
-    serial_system.addClient(&client0);
+    try serial_system.addClient(&bench);
+    try serial_system.addClient(&client0);
 
     try eth_system.addClientWithCopier(&client0, &eth_copy_client0, .{});
 
-    const bench_start_channel = Channel.create(&bench, &client0, .{});
-    const bench_stop_channel = Channel.create(&bench, &client0, .{});
-    const bench_init_channel = Channel.create(&bench, &bench_idle, .{});
+    const bench_start_channel = try Channel.create(&bench, &client0, .{});
+    const bench_stop_channel = try Channel.create(&bench, &client0, .{});
+    const bench_init_channel = try Channel.create(&bench, &bench_idle, .{});
     sdf.addChannel(bench_start_channel);
     sdf.addChannel(bench_stop_channel);
     sdf.addChannel(bench_init_channel);
@@ -667,8 +667,8 @@ fn serial(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !void 
     sdf.addProtectionDomain(&client1);
 
     var serial_system = sddf.SerialSystem.init(allocator, sdf, uart_node, &uart_driver, &serial_virt_tx, .{ .virt_rx = &serial_virt_rx });
-    serial_system.addClient(&client0);
-    serial_system.addClient(&client1);
+    try serial_system.addClient(&client0);
+    try serial_system.addClient(&client1);
 
     uart_driver.priority = 100;
     serial_virt_tx.priority = 99;
