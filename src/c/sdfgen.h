@@ -102,7 +102,7 @@ bool sdfgen_sddf_i2c_serialise_config(void *system, char *output_dir);
 
 void *sdfgen_sddf_block(void *sdf, void *device, void *driver, void *virt);
 void sdfgen_sddf_block_destroy(void *system);
-sdfgen_sddf_status_t sdfgen_sddf_block_add_client(void *system, void *client);
+sdfgen_sddf_status_t sdfgen_sddf_block_add_client(void *system, void *client, uint32_t partition);
 bool sdfgen_sddf_block_connect(void *system);
 bool sdfgen_sddf_block_serialise_config(void *system, char *output_dir);
 
