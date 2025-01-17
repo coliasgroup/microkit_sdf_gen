@@ -853,9 +853,9 @@ pub const BlockSystem = struct {
     queue_mr_size: usize,
     // TODO: make configurable
     queue_capacity: u16 = 128,
-    config: SerialiseConfig,
+    config: BlockSystem.Config,
 
-    const SerialiseConfig = struct {
+    const Config = struct {
         driver: ConfigResources.Block.Driver = undefined,
         virt_driver: ConfigResources.Block.Virt.Driver = undefined,
         virt_clients: std.ArrayList(ConfigResources.Block.Virt.Client),
@@ -924,7 +924,7 @@ pub const BlockSystem = struct {
         const driver = system.driver;
         const virt = system.virt;
 
-        const mr_storage_info = Mr.create(allocator, "blk_driver_config", STORAGE_INFO_REGION_SIZE, .{});
+        const mr_storage_info = Mr.create(allocator, "blk_driver_storage_info", STORAGE_INFO_REGION_SIZE, .{});
         const map_storage_info_driver = Map.create(mr_storage_info, system.driver.getMapVaddr(&mr_storage_info), .rw, .{});
         const map_storage_info_virt = Map.create(mr_storage_info, system.virt.getMapVaddr(&mr_storage_info), .r, .{});
 
