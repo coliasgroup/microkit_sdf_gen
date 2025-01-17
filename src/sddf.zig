@@ -125,7 +125,10 @@ pub fn probe(allocator: Allocator, path: []const u8) !void {
             };
             defer device_class_dir.close();
             var iter = device_class_dir.iterate();
-            while (try iter.next()) |entry| {
+            while (iter.next() catch |e| {
+                std.log.err("failed to iterate sDDF driver directory '{s}': {}", .{ driver_dir, e });
+                return e;
+            }) |entry| {
                 // Under this directory, we should find the configuration file
                 const config_path = fmt(allocator, "{s}/config.json", .{entry.name});
                 defer allocator.free(config_path);
@@ -137,7 +140,10 @@ pub fn probe(allocator: Allocator, path: []const u8) !void {
                         error.FileNotFound => {
                             continue;
                         },
-                        else => return e,
+                        else => {
+                            std.log.err("failed to open driver configuration file '{s}': {}\n", .{ config_path, e });
+                            return e;
+                        },
                     }
                 };
                 defer config_file.close();

@@ -454,7 +454,7 @@ class Sddf:
         ret = libsdfgen.sdfgen_sddf_init(c_char_p(path.encode("utf-8")))
         if not ret:
             # TODO: report more information
-            raise Exception("sDDF failed to initialise")
+            raise Exception(f"sDDF failed to initialise with path '{path}'")
 
     def __del__(self):
         # TODO
