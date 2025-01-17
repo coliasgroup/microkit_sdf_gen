@@ -129,6 +129,9 @@ pub fn probe(allocator: Allocator, path: []const u8) !void {
                 std.log.err("failed to iterate sDDF driver directory '{s}': {}", .{ driver_dir, e });
                 return e;
             }) |entry| {
+                if (entry.kind != .directory) {
+                    continue;
+                }
                 // Under this directory, we should find the configuration file
                 const config_path = fmt(allocator, "{s}/config.json", .{entry.name});
                 defer allocator.free(config_path);
