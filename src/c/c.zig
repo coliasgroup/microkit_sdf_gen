@@ -216,7 +216,7 @@ export fn sdfgen_vm_add_map(c_vm: *align(8) anyopaque, c_map: *align(8) anyopaqu
 
 export fn sdfgen_sddf_init(path: [*c]u8) bool {
     sddf.probe(allocator, std.mem.span(path)) catch |e| {
-        std.log.err("sDDF init failed: {}", .{ e });
+        std.log.err("sDDF init failed on path {s}: {}", .{ path, e });
         return false;
     };
 
