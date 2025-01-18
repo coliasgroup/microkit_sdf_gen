@@ -170,6 +170,20 @@ libsdfgen.sdfgen_sddf_net_connect.argtypes = [c_void_p]
 libsdfgen.sdfgen_sddf_net_serialise_config.restype = c_bool
 libsdfgen.sdfgen_sddf_net_serialise_config.argtypes = [c_void_p, c_char_p]
 
+libsdfgen.sdfgen_sddf_gpu.restype = c_void_p
+libsdfgen.sdfgen_sddf_gpu.argtypes = [c_void_p, c_void_p, c_void_p, c_void_p]
+libsdfgen.sdfgen_sddf_gpu_destroy.restype = None
+libsdfgen.sdfgen_sddf_gpu_destroy.argtypes = [c_void_p]
+
+libsdfgen.sdfgen_sddf_gpu_add_client.restype = c_uint32
+libsdfgen.sdfgen_sddf_gpu_add_client.argtypes = [c_void_p, c_void_p, c_uint32]
+
+libsdfgen.sdfgen_sddf_gpu_connect.restype = c_bool
+libsdfgen.sdfgen_sddf_gpu_connect.argtypes = [c_void_p]
+
+libsdfgen.sdfgen_sddf_gpu_serialise_config.restype = c_bool
+libsdfgen.sdfgen_sddf_gpu_serialise_config.argtypes = [c_void_p, c_char_p]
+
 libsdfgen.sdfgen_lionsos_fs_fat.restype = c_void_p
 libsdfgen.sdfgen_lionsos_fs_fat.argtypes = [c_void_p, c_void_p, c_void_p]
 libsdfgen.sdfgen_lionsos_fs_fat_connect.restype = c_bool
@@ -693,6 +707,45 @@ class Sddf:
 
         def __del__(self):
             libsdfgen.sdfgen_sddf_timer_destroy(self._obj)
+
+    class Gpu:
+        _obj: c_void_p
+
+        def __init__(
+            self,
+            sdf: SystemDescription,
+            device: Optional[DeviceTree.Node],
+            driver: SystemDescription.ProtectionDomain,
+            virt: SystemDescription.ProtectionDomain
+        ) -> None:
+            if device is None:
+                device_obj = None
+            else:
+                device_obj = device._obj
+
+            self._obj = libsdfgen.sdfgen_sddf_gpu(sdf._obj, device_obj, driver._obj, virt._obj)
+
+        def add_client(self, client: SystemDescription.ProtectionDomain):
+            ret = libsdfgen.sdfgen_sddf_gpu_add_client(self._obj, client._obj)
+            if ret == SddfStatus.OK:
+                return
+            elif ret == SddfStatus.DUPLICATE_CLIENT:
+                raise Exception(f"duplicate client given '{client}'")
+            elif ret == SddfStatus.INVALID_CLIENT:
+                raise Exception(f"invalid client given '{client}'")
+            else:
+                raise Exception(f"internal error: {ret}")
+
+        def connect(self) -> bool:
+            return libsdfgen.sdfgen_sddf_gpu_connect(self._obj)
+
+        def serialise_config(self, output_dir: str) -> bool:
+            c_output_dir = c_char_p(output_dir.encode("utf-8"))
+            return libsdfgen.sdfgen_sddf_gpu_serialise_config(self._obj, c_output_dir)
+
+        def __del__(self):
+            libsdfgen.sdfgen_sddf_gpu_destroy(self._obj)
+
 
 class LionsOs:
     class FileSystem:

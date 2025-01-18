@@ -112,6 +112,12 @@ sdfgen_sddf_status_t sdfgen_sddf_net_add_client_with_copier(void *system, void *
 bool sdfgen_sddf_net_connect(void *system);
 bool sdfgen_sddf_net_serialise_config(void *system, char *output_dir);
 
+void *sdfgen_sddf_gpu(void *sdf, void *device, void *driver, void *virt);
+void sdfgen_sddf_gpu_destroy(void *system);
+sdfgen_sddf_status_t sdfgen_sddf_gpu_add_client(void *system, void *client);
+bool sdfgen_sddf_gpu_connect(void *system);
+bool sdfgen_sddf_gpu_serialise_config(void *system, char *output_dir);
+
 /*** LionsOS ***/
 
 void *sdfgen_lionsos_fs_fat(void *sdf, void *fs, void *client);

@@ -273,6 +273,61 @@ pub const Resources = struct {
             driver_id: u8,
         };
     };
+
+    pub const Gpu = struct {
+        const MAGIC: [5]u8 = MAGIC_START ++ .{ 0x7 };
+
+        pub const Connection = extern struct {
+            events: Region,
+            req_queue: Region,
+            resp_queue: Region,
+            num_buffers: u16,
+            id: u8,
+        };
+
+        pub const Client = extern struct {
+            magic: [5]u8 = MAGIC,
+            virt: Connection,
+            data: Region,
+        };
+
+        pub const Virt = extern struct {
+            const MAX_NUM_CLIENTS = 61;
+
+            pub fn create(driver: Virt.Driver, clients: []const Virt.Client) Virt {
+                var clients_array = std.mem.zeroes([MAX_NUM_CLIENTS]Virt.Client);
+                for (clients, 0..) |client, i| {
+                    clients_array[i] = client;
+                }
+                return .{
+                    .num_clients = clients.len,
+                    .driver = driver,
+                    .clients = clients_array,
+                };
+            }
+
+            pub const Client = extern struct {
+                conn: Connection,
+                data: Device.Region,
+            };
+
+            pub const Driver = extern struct {
+                conn: Connection,
+                data: Device.Region,
+            };
+
+            magic: [5]u8 = MAGIC,
+            num_clients: u64,
+            driver: Virt.Driver,
+            clients: [MAX_NUM_CLIENTS]Virt.Client,
+        };
+
+        pub const Driver = extern struct {
+            magic: [5]u8 = MAGIC,
+            virt: Connection,
+            data: Region,
+        };
+    };
 };
 
 pub fn serialize(s: anytype, path: []const u8) !void {

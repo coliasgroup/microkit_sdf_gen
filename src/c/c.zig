@@ -518,6 +518,48 @@ export fn sdfgen_sddf_net_destroy(system: *align(8) anyopaque) void {
     allocator.destroy(net);
 }
 
+export fn sdfgen_sddf_gpu(c_sdf: *align(8) anyopaque, c_device: *align(8) anyopaque, driver: *align(8) anyopaque, virt: *align(8) anyopaque) *anyopaque {
+    const sdf: *SystemDescription = @ptrCast(c_sdf);
+    const gpu = allocator.create(sddf.GpuSystem) catch @panic("OOM");
+    gpu.* = sddf.GpuSystem.init(allocator, sdf, @ptrCast(c_device), @ptrCast(driver), @ptrCast(virt), .{});
+
+    return gpu;
+}
+
+export fn sdfgen_sddf_gpu_destroy(system: *align(8) anyopaque) void {
+    const gpu: *sddf.GpuSystem = @ptrCast(system);
+    gpu.deinit();
+    allocator.destroy(gpu);
+}
+
+export fn sdfgen_sddf_gpu_add_client(system: *align(8) anyopaque, client: *align(8) anyopaque) bindings.sdfgen_sddf_status_t {
+    const gpu: *sddf.GpuSystem = @ptrCast(system);
+    gpu.addClient(@ptrCast(client)) catch |e| {
+        switch (e) {
+            sddf.GpuSystem.Error.DuplicateClient => return 1,
+            sddf.GpuSystem.Error.InvalidClient => return 2,
+            // Should never happen when adding a client
+            sddf.GpuSystem.Error.NotConnected => @panic("internal error"),
+        }
+    };
+
+    return 0;
+}
+
+export fn sdfgen_sddf_gpu_connect(system: *align(8) anyopaque) bool {
+    const gpu: *sddf.GpuSystem = @ptrCast(system);
+    gpu.connect() catch return false;
+
+    return true;
+}
+
+export fn sdfgen_sddf_gpu_serialise_config(system: *align(8) anyopaque, output_dir: [*c]u8) bool {
+    const gpu: *sddf.GpuSystem = @ptrCast(system);
+    gpu.serialiseConfig(std.mem.span(output_dir)) catch return false;
+
+    return true;
+}
+
 export fn sdfgen_lionsos_fs_fat(c_sdf: *align(8) anyopaque, c_fs: *align(8) anyopaque, c_client: *align(8) anyopaque) *anyopaque {
     const sdf: *SystemDescription = @ptrCast(c_sdf);
     const fs = allocator.create(lionsos.FileSystem.Fat) catch @panic("OOM");
