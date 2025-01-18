@@ -46,7 +46,7 @@ pub const FileSystem = struct {
 
     pub fn init(allocator: Allocator, sdf: *SystemDescription, fs: *Pd, client: *Pd, options: Options) Error!FileSystem {
         if (std.mem.eql(u8, fs.name, client.name)) {
-            std.log.err("invalid file system client, same name as file system PD '{s}", .{ client.name });
+            std.log.err("invalid file system client, same name as file system PD '{s}", .{client.name});
             return Error.InvalidClient;
         }
         return .{

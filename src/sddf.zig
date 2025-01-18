@@ -592,7 +592,7 @@ pub const TimerSystem = struct {
             }
         }
         if (std.mem.eql(u8, client.name, system.driver.name)) {
-            log.err("invalid timer client, same name as driver '{s}", .{ client.name });
+            log.err("invalid timer client, same name as driver '{s}", .{client.name});
             return Error.InvalidClient;
         }
         const client_priority = if (client.priority) |priority| priority else Pd.DEFAULT_PRIORITY;
@@ -700,11 +700,11 @@ pub const I2cSystem = struct {
             }
         }
         if (std.mem.eql(u8, client.name, system.driver.name)) {
-            log.err("invalid I2C client, same name as driver '{s}", .{ client.name });
+            log.err("invalid I2C client, same name as driver '{s}", .{client.name});
             return Error.InvalidClient;
         }
         if (std.mem.eql(u8, client.name, system.virt.name)) {
-            log.err("invalid I2C client, same name as virt '{s}", .{ client.name });
+            log.err("invalid I2C client, same name as virt '{s}", .{client.name});
             return Error.InvalidClient;
         }
         system.clients.append(client) catch @panic("Could not add client to I2cSystem");
@@ -811,15 +811,13 @@ pub const I2cSystem = struct {
             system.driver_config.virt.data = .createFromMap(driver_map_data);
         }
 
-        system.client_configs.items[i] = .{
-            .virt = .{
-                .data = .createFromMap(client_map_data),
-                .req_queue = .createFromMap(client_map_req),
-                .resp_queue = .createFromMap(client_map_resp),
-                .num_buffers = system.num_buffers,
-                .id = ch.pd_b_id,
-            }
-        };
+        system.client_configs.items[i] = .{ .virt = .{
+            .data = .createFromMap(client_map_data),
+            .req_queue = .createFromMap(client_map_req),
+            .resp_queue = .createFromMap(client_map_resp),
+            .num_buffers = system.num_buffers,
+            .id = ch.pd_b_id,
+        } };
     }
 
     pub fn connect(system: *I2cSystem) !void {
@@ -904,7 +902,7 @@ pub const BlockSystem = struct {
 
     pub fn init(allocator: Allocator, sdf: *SystemDescription, device: *dtb.Node, driver: *Pd, virt: *Pd, _: Options) BlockSystem {
         if (std.mem.eql(u8, driver.name, virt.name)) {
-            log.err("invalid block virtualiser, same name as driver '{s}", .{ virt.name });
+            log.err("invalid block virtualiser, same name as driver '{s}", .{virt.name});
             // return Error.InvalidVirt;
             @panic("TODO");
         }
@@ -939,11 +937,11 @@ pub const BlockSystem = struct {
             }
         }
         if (std.mem.eql(u8, client.name, system.driver.name)) {
-            log.err("invalid block client, same name as driver '{s}", .{ client.name });
+            log.err("invalid block client, same name as driver '{s}", .{client.name});
             return Error.InvalidClient;
         }
         if (std.mem.eql(u8, client.name, system.virt.name)) {
-            log.err("invalid block client, same name as virt '{s}", .{ client.name });
+            log.err("invalid block client, same name as virt '{s}", .{client.name});
             return Error.InvalidClient;
         }
         system.clients.append(client) catch @panic("Could not add client to BlockSystem");
@@ -995,7 +993,7 @@ pub const BlockSystem = struct {
                 .req_queue = .createFromMap(map_req_driver),
                 .resp_queue = .createFromMap(map_resp_driver),
                 .num_buffers = system.queue_capacity,
-                .id  = ch.pd_b_id,
+                .id = ch.pd_b_id,
             },
         };
 
@@ -1005,7 +1003,7 @@ pub const BlockSystem = struct {
                 .req_queue = .createFromMap(map_req_virt),
                 .resp_queue = .createFromMap(map_resp_virt),
                 .num_buffers = system.queue_capacity,
-                .id  = ch.pd_a_id,
+                .id = ch.pd_a_id,
             },
             .data = .createFromMap(map_data_virt),
         };
@@ -1063,16 +1061,13 @@ pub const BlockSystem = struct {
             .partition = system.client_partitions.items[i],
         }) catch @panic("could not add virt client config");
 
-        system.config.clients.append(.{
-            .virt = .{
-                .storage_info = .createFromMap(map_storage_info_client),
-                .req_queue = .createFromMap(map_req_client),
-                .resp_queue = .createFromMap(map_resp_client),
-                .num_buffers = system.queue_capacity,
-                .id = ch.pd_b_id,
-            },
-            .data = .createFromMap(map_data_client)
-        }) catch @panic("could not add client config");
+        system.config.clients.append(.{ .virt = .{
+            .storage_info = .createFromMap(map_storage_info_client),
+            .req_queue = .createFromMap(map_req_client),
+            .resp_queue = .createFromMap(map_resp_client),
+            .num_buffers = system.queue_capacity,
+            .id = ch.pd_b_id,
+        }, .data = .createFromMap(map_data_client) }) catch @panic("could not add client config");
     }
 
     pub fn connect(system: *BlockSystem) !void {
@@ -1149,18 +1144,18 @@ pub const SerialSystem = struct {
 
     pub fn init(allocator: Allocator, sdf: *SystemDescription, device: *dtb.Node, driver: *Pd, virt_tx: *Pd, options: Options) SerialSystem {
         if (std.mem.eql(u8, driver.name, virt_tx.name)) {
-            log.err("invalid serial tx virtualiser, same name as driver '{s}", .{ virt_tx.name });
+            log.err("invalid serial tx virtualiser, same name as driver '{s}", .{virt_tx.name});
             // return Error.InvalidVirt;
             @panic("TODO");
         }
         if (options.virt_rx) |virt_rx| {
             if (std.mem.eql(u8, driver.name, virt_rx.name)) {
-                log.err("invalid serial rx virtualiser, same name as driver '{s}", .{ virt_rx.name });
+                log.err("invalid serial rx virtualiser, same name as driver '{s}", .{virt_rx.name});
                 // return Error.InvalidVirt;
                 @panic("TODO");
             }
             if (std.mem.eql(u8, virt_tx.name, virt_rx.name)) {
-                log.err("invalid serial rx virtualiser, same name as tx virtualiser '{s}", .{ virt_rx.name });
+                log.err("invalid serial rx virtualiser, same name as tx virtualiser '{s}", .{virt_rx.name});
                 // return Error.InvalidVirt;
                 @panic("TODO");
             }
@@ -1748,7 +1743,7 @@ pub const GpuSystem = struct {
                 .req_queue = .createFromMap(map_req_driver),
                 .resp_queue = .createFromMap(map_resp_driver),
                 .num_buffers = system.queue_capacity,
-                .id  = ch.pd_b_id,
+                .id = ch.pd_b_id,
             },
             .data = .createFromMap(map_data_driver),
         };
@@ -1759,7 +1754,7 @@ pub const GpuSystem = struct {
                 .req_queue = .createFromMap(map_req_virt),
                 .resp_queue = .createFromMap(map_resp_virt),
                 .num_buffers = system.queue_capacity,
-                .id  = ch.pd_a_id,
+                .id = ch.pd_a_id,
             },
             .data = .createFromMap(map_data_virt),
         };
@@ -1811,16 +1806,13 @@ pub const GpuSystem = struct {
             .data = .createFromMap(map_data_virt),
         }) catch @panic("could not add virt client config");
 
-        system.config.clients.append(.{
-            .virt = .{
-                .events = .createFromMap(map_events_client),
-                .req_queue = .createFromMap(map_req_client),
-                .resp_queue = .createFromMap(map_resp_client),
-                .num_buffers = system.queue_capacity,
-                .id = ch.pd_b_id,
-            },
-            .data = .createFromMap(map_data_client)
-        }) catch @panic("could not add client config");
+        system.config.clients.append(.{ .virt = .{
+            .events = .createFromMap(map_events_client),
+            .req_queue = .createFromMap(map_req_client),
+            .resp_queue = .createFromMap(map_resp_client),
+            .num_buffers = system.queue_capacity,
+            .id = ch.pd_b_id,
+        }, .data = .createFromMap(map_data_client) }) catch @panic("could not add client config");
     }
 
     pub fn connect(system: *GpuSystem) !void {

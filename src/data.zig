@@ -26,7 +26,7 @@ pub const Resources = struct {
         pub const MaxRegions = 64;
         pub const MaxIrqs = 64;
 
-        const MAGIC: [5]u8 = MAGIC_START ++ .{ 0x1 };
+        const MAGIC: [5]u8 = MAGIC_START ++ .{0x1};
 
         pub const Region = extern struct {
             region: Resources.Region,
@@ -57,7 +57,7 @@ pub const Resources = struct {
     };
 
     pub const Block = struct {
-        const MAGIC: [5]u8 = MAGIC_START ++ .{ 0x2 };
+        const MAGIC: [5]u8 = MAGIC_START ++ .{0x2};
 
         pub const Connection = extern struct {
             storage_info: Region,
@@ -112,7 +112,7 @@ pub const Resources = struct {
     };
 
     pub const Serial = struct {
-        const MAGIC: [5]u8 = MAGIC_START ++ .{ 0x3 };
+        const MAGIC: [5]u8 = MAGIC_START ++ .{0x3};
 
         pub const MAX_NUM_CLIENTS = 61;
 
@@ -166,7 +166,7 @@ pub const Resources = struct {
     };
 
     pub const I2c = struct {
-        const MAGIC: [5]u8 = MAGIC_START ++ .{ 0x4 };
+        const MAGIC: [5]u8 = MAGIC_START ++ .{0x4};
 
         pub const Connection = extern struct {
             data: Region,
@@ -202,7 +202,7 @@ pub const Resources = struct {
     };
 
     pub const Net = struct {
-        const MAGIC: [5]u8 = MAGIC_START ++ .{ 0x5 };
+        const MAGIC: [5]u8 = MAGIC_START ++ .{0x5};
 
         pub const MAX_NUM_CLIENTS = 61;
 
@@ -264,7 +264,7 @@ pub const Resources = struct {
     };
 
     pub const Timer = struct {
-        const MAGIC: [5]u8 = MAGIC_START ++ .{ 0x6 };
+        const MAGIC: [5]u8 = MAGIC_START ++ .{0x6};
 
         pub const MAX_NUM_CLIENTS = 61;
 
@@ -275,7 +275,7 @@ pub const Resources = struct {
     };
 
     pub const Gpu = struct {
-        const MAGIC: [5]u8 = MAGIC_START ++ .{ 0x7 };
+        const MAGIC: [5]u8 = MAGIC_START ++ .{0x7};
 
         pub const Connection = extern struct {
             events: Region,
