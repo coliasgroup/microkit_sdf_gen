@@ -430,6 +430,8 @@ pub const SystemDescription = struct {
         const MAX_IRQS: u8 = MAX_IDS;
         const MAX_CHILD_PDS: u8 = MAX_IDS;
 
+        pub const DEFAULT_PRIORITY: u8 = 100;
+
         const Options = struct {
             passive: ?bool = null,
             priority: ?u8 = null,
@@ -540,7 +542,14 @@ pub const SystemDescription = struct {
         };
 
         pub fn addChild(pd: *ProtectionDomain, child: *ProtectionDomain, options: ChildOptions) !u8 {
-            pd.child_pds.append(child) catch @panic("TODO");
+            if (pd.child_pds.items.len == MAX_CHILD_PDS) {
+                std.log.err("failed to add child '{s}' to parent '{s}', maximum children reached", .{ child.name, pd.name });
+                return error.MaximumChildren;
+            }
+
+            pd.child_pds.appendAssumeCapacity(child);
+            // Even though we check that we haven't added too many children, it is still
+            // possible that allocation can fail.
             child.child_id = try pd.allocateId(options.id);
 
             return child.child_id.?;
@@ -707,8 +716,8 @@ pub const SystemDescription = struct {
             return .{
                 .pd_a = pd_a,
                 .pd_b = pd_b,
-                .pd_a_id = pd_a.allocateId(options.pd_a_id) catch @panic("Could not allocate ID for channel"),
-                .pd_b_id = pd_b.allocateId(options.pd_b_id) catch @panic("Could not allocate ID for channel"),
+                .pd_a_id = try pd_a.allocateId(options.pd_a_id),
+                .pd_b_id = try pd_b.allocateId(options.pd_b_id),
                 .pd_a_notify = options.pd_a_notify,
                 .pd_b_notify = options.pd_b_notify,
                 .pp = options.pp,

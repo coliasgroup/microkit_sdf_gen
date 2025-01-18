@@ -47,8 +47,12 @@ libsdfgen.sdfgen_pd_set_budget.restype = None
 libsdfgen.sdfgen_pd_set_budget.argtypes = [c_void_p, c_uint32]
 libsdfgen.sdfgen_pd_set_period.restype = None
 libsdfgen.sdfgen_pd_set_period.argtypes = [c_void_p, c_uint32]
+libsdfgen.sdfgen_pd_set_passive.restype = None
+libsdfgen.sdfgen_pd_set_passive.argtypes = [c_void_p, c_uint8]
 libsdfgen.sdfgen_pd_set_stack_size.restype = None
 libsdfgen.sdfgen_pd_set_stack_size.argtypes = [c_void_p, c_uint32]
+libsdfgen.sdfgen_pd_set_cpu.restype = None
+libsdfgen.sdfgen_pd_set_cpu.argtypes = [c_void_p, c_uint8]
 
 libsdfgen.sdfgen_to_xml.restype = c_char_p
 libsdfgen.sdfgen_to_xml.argtypes = [c_void_p]
@@ -217,8 +221,6 @@ class DeviceTree:
         libsdfgen.sdfgen_dtb_destroy(self._obj)
 
     class Node:
-        # TODO: does having a node increase the ref count for the
-        # device tree
         def __init__(self, device_tree: DeviceTree, node: str):
             c_node = c_char_p(node.encode("utf-8"))
             self._obj = libsdfgen.sdfgen_dtb_node(device_tree._obj, c_node)
@@ -274,7 +276,7 @@ class SystemDescription:
         X86_64 = 5,
 
     class ProtectionDomain:
-        name: str
+        _name: str
         _obj: c_void_p
         # We need to hold references to the PDs in case they get GC'd.
         _child_pds: List[SystemDescription.ProtectionDomain]
@@ -286,11 +288,11 @@ class SystemDescription:
             priority: Optional[int] = None,
             budget: Optional[int] = None,
             period: Optional[int] = None,
-            stack_size: Optional[int] = None
+            passive: Optional[bool] = None,
+            stack_size: Optional[int] = None,
+            cpu: Optional[int] = None,
         ) -> None:
-            # TODO: don't do this, users might expect to be able to mutate name which
-            # is not the case
-            self.name = name
+            self._name = name
             c_name = c_char_p(name.encode("utf-8"))
             c_program_image = c_char_p(program_image.encode("utf-8"))
             self._obj = libsdfgen.sdfgen_pd_create(c_name, c_program_image)
@@ -301,8 +303,16 @@ class SystemDescription:
                 libsdfgen.sdfgen_pd_set_budget(self._obj, budget)
             if period is not None:
                 libsdfgen.sdfgen_pd_set_period(self._obj, period)
+            if passive is not None:
+                libsdfgen.sdfgen_pd_set_passive(self._obj, passive)
             if stack_size is not None:
                 libsdfgen.sdfgen_pd_set_stack_size(self._obj, stack_size)
+            if cpu is not None:
+                libsdfgen.sdfgen_pd_set_cpu(self._obj, cpu)
+
+        @property
+        def name(self) -> str:
+            return self._name
 
         def add_child_pd(self, child_pd: SystemDescription.ProtectionDomain, child_id=None) -> int:
             """
@@ -324,8 +334,7 @@ class SystemDescription:
         def set_virtual_machine(self, vm: SystemDescription.VirtualMachine):
             ret = libsdfgen.sdfgen_pd_set_virtual_machine(self._obj, vm._obj)
             if not ret:
-                # TODO: improve error message
-                raise Exception("ProtectionDomain already has VirtualMachine")
+                raise Exception(f"ProtectionDomain '{self.name}' already has VirtualMachine")
 
         def __del__(self):
             libsdfgen.sdfgen_pd_destroy(self._obj)
@@ -333,7 +342,10 @@ class SystemDescription:
         def __repr__(self) -> str:
             return f"ProtectionDomain({self.name})"
 
+    # TODO: __del__ is more complicated for virtual machine since it may be owned by a protection domain
+    # meaning it would result in a double free
     class VirtualMachine:
+        _name: str
         _obj: c_void_p
 
         class VirtualCpu:
@@ -344,10 +356,18 @@ class SystemDescription:
         def __init__(self, name: str, vcpus: List[VirtualCpu]):
             vcpus_tuple: Tuple[c_void_p] = tuple([vcpu._obj for vcpu in vcpus])
             c_vcpus = (c_void_p * len(vcpus))(vcpus_tuple)
+            self._name = name
             self._obj = libsdfgen.sdfgen_vm_create(name, cast(c_vcpus, POINTER(c_void_p)))
+
+        @property
+        def name(self) -> str:
+            return self._name
 
         def add_map(self, map: SystemDescription.Map):
             libsdfgen.sdfgen_vm_add_map(self._obj, map._obj)
+
+        def __repr__(self) -> str:
+            return f"VirtualMachine({self.name})"
 
     class Map:
         _obj: c_void_p

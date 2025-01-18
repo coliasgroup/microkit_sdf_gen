@@ -49,6 +49,8 @@ void sdfgen_pd_set_priority(void *pd, uint8_t priority);
 void sdfgen_pd_set_budget(void *pd, uint32_t budget);
 void sdfgen_pd_set_period(void *pd, uint32_t period);
 void sdfgen_pd_set_stack_size(void *pd, uint32_t stack_size);
+void sdfgen_pd_set_cpu(void *pd, uint8_t cpu);
+void sdfgen_pd_set_passive(void *pd, bool passive);
 bool sdfgen_pd_set_virtual_machine(void *pd, void *vm);
 
 void *sdfgen_vm_create(char *name, void **vcpus, uint32_t num_vcpus);

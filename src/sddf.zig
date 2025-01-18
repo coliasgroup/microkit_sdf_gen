@@ -39,6 +39,10 @@ var classes: std.ArrayList(Config.DeviceClass) = undefined;
 
 const CONFIG_FILENAME = "config.json";
 
+/// Only emit JSON versions of the serialised configuration data
+/// in debug mode.
+const serialise_emit_json = builtin.mode == .Debug;
+
 /// Whether or not we have probed sDDF
 // TODO: should probably just happen upon `init` of sDDF, then
 // we pass around sddf everywhere?
@@ -66,67 +70,63 @@ pub fn compatibleDrivers(allocator: Allocator) ![]const []const u8 {
     return try array.toOwnedSlice();
 }
 
-pub fn wasmProbe(allocator: Allocator, driverConfigs: anytype, classConfigs: anytype) !void {
-    drivers = std.ArrayList(Config.Driver).init(allocator);
-    // TODO: we could init capacity with number of DeviceClassType fields
-    classes = std.ArrayList(Config.DeviceClass).init(allocator);
+// pub fn wasmProbe(allocator: Allocator, driverConfigs: anytype, classConfigs: anytype) !void {
+//     drivers = std.ArrayList(Config.Driver).init(allocator);
+//     classes = std.ArrayList(Config.DeviceClass).initCapacity(allocator, @typeInfo(Config.DeviceClass).Enum.fields.len);
 
-    var i: usize = 0;
-    while (i < driverConfigs.items.len) : (i += 1) {
-        const config = driverConfigs.items[i].object;
-        const json = try std.json.parseFromSliceLeaky(Config.Driver.Json, allocator, config.get("content").?.string, .{});
-        try drivers.append(Config.Driver.fromJson(json, config.get("class").?.string));
-    }
-    // for (driverConfigs) |config| {
-    //     const json = try std.json.parseFromSliceLeaky(Config.Driver.Json, allocator, config.get("content").?.content, .{});
-    //     try drivers.append(Config.Driver.fromJson(json, config.get("class").?.name));
-    // }
+//     var i: usize = 0;
+//     while (i < driverConfigs.items.len) : (i += 1) {
+//         const config = driverConfigs.items[i].object;
+//         const json = try std.json.parseFromSliceLeaky(Config.Driver.Json, allocator, config.get("content").?.string, .{});
+//         try drivers.append(Config.Driver.fromJson(json, config.get("class").?.string));
+//     }
+//     // for (driverConfigs) |config| {
+//     //     const json = try std.json.parseFromSliceLeaky(Config.Driver.Json, allocator, config.get("content").?.content, .{});
+//     //     try drivers.append(Config.Driver.fromJson(json, config.get("class").?.name));
+//     // }
 
-    i = 0;
-    while (i < classConfigs.items.len) : (i += 1) {
-        const config = classConfigs.items[i].object;
-        const json = try std.json.parseFromSliceLeaky(Config.DeviceClass.Json, allocator, config.get("content").?.string, .{});
-        try classes.append(Config.DeviceClass.fromJson(json, config.get("class").?.string));
-    }
-    // for (classConfigs) |config| {
-    //     const json = try std.json.parseFromSliceLeaky(Config.DeviceClass.Json, allocator, config.get("content").?.content, .{});
-    //     try classes.append(Config.DeviceClass.fromJson(json, config.get("class").?.name));
-    // }
-    probed = true;
-}
+//     i = 0;
+//     while (i < classConfigs.items.len) : (i += 1) {
+//         const config = classConfigs.items[i].object;
+//         const json = try std.json.parseFromSliceLeaky(Config.DeviceClass.Json, allocator, config.get("content").?.string, .{});
+//         try classes.appendAssumeCapacity(Config.DeviceClass.fromJson(json, config.get("class").?.string));
+//     }
+//     // for (classConfigs) |config| {
+//     //     const json = try std.json.parseFromSliceLeaky(Config.DeviceClass.Json, allocator, config.get("content").?.content, .{});
+//     //     try classes.appendAssumeCapacity(Config.DeviceClass.fromJson(json, config.get("class").?.name));
+//     // }
+//     probed = true;
+// }
 
 /// As part of the initilisation, we want to find all the JSON configuration
 /// files, parse them, and built up a data structure for us to then search
 /// through whenever we want to create a driver to the system description.
 pub fn probe(allocator: Allocator, path: []const u8) !void {
     drivers = std.ArrayList(Config.Driver).init(allocator);
-    // TODO: we could init capacity with number of DeviceClassType fields
-    classes = std.ArrayList(Config.DeviceClass).init(allocator);
 
     log.debug("starting sDDF probe", .{});
     log.debug("opening sDDF root dir '{s}'", .{path});
     var sddf = std.fs.cwd().openDir(path, .{}) catch |e| {
-        std.log.err("failed to open sDDF directory '{s}': {}", .{ path, e });
+        log.err("failed to open sDDF directory '{s}': {}", .{ path, e });
         return e;
     };
     defer sddf.close();
 
-    const device_classes = comptime std.meta.fields(Config.DeviceClass.Class);
+    const device_classes = comptime std.meta.fields(Config.Driver.Class);
     inline for (device_classes) |device_class| {
         var checked_compatibles = std.ArrayList([]const u8).init(allocator);
         // Search for all the drivers. For each device class we need
         // to iterate through each directory and find the config file
-        // TODO: handle this gracefully
-        for (@as(Config.DeviceClass.Class, @enumFromInt(device_class.value)).dirs()) |dir| {
+        for (@as(Config.Driver.Class, @enumFromInt(device_class.value)).dirs()) |dir| {
             const driver_dir = fmt(allocator, "drivers/{s}", .{dir});
             var device_class_dir = sddf.openDir(driver_dir, .{ .iterate = true }) catch |e| {
-                std.log.err("failed to open sDDF driver directory '{s}': {}", .{ driver_dir, e });
+                log.err("failed to open sDDF driver directory '{s}': {}", .{ driver_dir, e });
                 return e;
             };
             defer device_class_dir.close();
             var iter = device_class_dir.iterate();
             while (iter.next() catch |e| {
-                std.log.err("failed to iterate sDDF driver directory '{s}': {}", .{ driver_dir, e });
+                log.err("failed to iterate sDDF driver directory '{s}': {}", .{ driver_dir, e });
                 return e;
             }) |entry| {
                 if (entry.kind != .directory) {
@@ -144,14 +144,14 @@ pub fn probe(allocator: Allocator, path: []const u8) !void {
                             continue;
                         },
                         else => {
-                            std.log.err("failed to open driver configuration file '{s}': {}\n", .{ config_path, e });
+                            log.err("failed to open driver configuration file '{s}': {}\n", .{ config_path, e });
                             return e;
                         },
                     }
                 };
                 defer config_file.close();
                 const config_file_stat = config_file.stat() catch |e| {
-                    std.log.err("failed to stat driver config file: {s}: {}", .{ config_path, e });
+                    log.err("failed to stat driver config file: {s}: {}", .{ config_path, e });
                     return e;
                 };
                 const config_bytes = try config_file.reader().readAllAlloc(allocator, config_file_stat.size);
@@ -163,23 +163,58 @@ pub fn probe(allocator: Allocator, path: []const u8) !void {
                 // We are using an ArenaAllocator so calling parseFromSliceLeaky instead of parseFromSlice
                 // is recommended.
                 const json = std.json.parseFromSliceLeaky(Config.Driver.Json, allocator, config_bytes, .{}) catch |e| {
-                    std.log.err("Failed to parse JSON configuration '{s}/{s}/{s}' with error '{}'", .{ path, driver_dir, config_path, e });
+                    log.err("Failed to parse JSON configuration '{s}/{s}/{s}' with error '{}'", .{ path, driver_dir, config_path, e });
                     return error.JsonParse;
                 };
 
-                const config = Config.Driver.fromJson(json, device_class.name);
-                try drivers.append(config);
+                // This should never fail since device_class.name must be valid since we are looping
+                // based on the valid device classes.
+                const config = Config.Driver.fromJson(json, device_class.name) catch unreachable;
+
+                // Check IRQ resources are valid
+                var checked_irqs = std.ArrayList(DeviceTreeIndex).init(allocator);
+                defer checked_irqs.deinit();
+                for (config.resources.irqs) |irq| {
+                    for (checked_irqs.items) |checked_dt_index| {
+                        if (irq.dt_index == checked_dt_index) {
+                            std.log.err("duplicate irq dt_index value '{}' for driver '{s}'", .{ irq.dt_index, config.name });
+                            return error.InvalidConfig;
+                        }
+                    }
+                    try checked_irqs.append(irq.dt_index);
+                }
+
+                // Check region resources are valid
+                var checked_regions = std.ArrayList(Config.Region).init(allocator);
+                defer checked_regions.deinit();
+                for (config.resources.regions) |region| {
+                    for (checked_regions.items) |checked_region| {
+                        if (std.mem.eql(u8, region.name, checked_region.name)) {
+                            std.log.err("duplicate region name '{s}' for driver '{s}'", .{ region.name, config.name });
+                            return error.InvalidConfig;
+                        }
+                        if (region.dt_index != null and checked_region.dt_index != null) {
+                            if (region.dt_index.? == checked_region.dt_index.?) {
+                                std.log.err("duplicate region dt_index value '{}' for driver '{s}'", .{ region.dt_index.?, config.name });
+                                return error.InvalidConfig;
+                            }
+                        }
+                    }
+                    try checked_regions.append(region);
+                }
 
                 // Check there are no duplicate compatible strings for the same device class
                 for (config.compatible) |compatible| {
                     for (checked_compatibles.items) |checked_compatible| {
                         if (std.mem.eql(u8, checked_compatible, compatible)) {
-                            std.log.err("Found duplicate driver compatible: '{s}' for driver: '{s}'\n", .{ compatible, config.name });
-                            return error.DuplicateDriver;
+                            log.err("duplicate compatible string '{s}' for driver '{s}'", .{ compatible, config.name });
+                            return error.InvalidConfig;
                         }
                     }
                     try checked_compatibles.append(compatible);
                 }
+
+                try drivers.append(config);
             }
         }
     }
@@ -229,7 +264,7 @@ pub const Config = struct {
     /// For example, the device class that the driver belongs to.
     pub const Driver = struct {
         name: []const u8,
-        class: DeviceClass.Class,
+        class: Class,
         compatible: []const []const u8,
         resources: Resources,
 
@@ -244,27 +279,15 @@ pub const Config = struct {
             resources: Resources,
         };
 
-        pub fn fromJson(json: Json, class: []const u8) Driver {
+        pub fn fromJson(json: Json, class_str: []const u8) !Driver {
+            const class = Class.fromStr(class_str);
+            if (class == null) {
+                return error.InvalidClass;
+            }
             return .{
                 .name = json.name,
-                .class = DeviceClass.Class.fromStr(class),
+                .class = class.?,
                 .compatible = json.compatible,
-                .resources = json.resources,
-            };
-        }
-    };
-
-    pub const DeviceClass = struct {
-        class: Class,
-        resources: Resources,
-
-        const Json = struct {
-            resources: Resources,
-        };
-
-        pub fn fromJson(json: Json, class: []const u8) DeviceClass {
-            return .{
-                .class = DeviceClass.Class.fromStr(class),
                 .resources = json.resources,
             };
         }
@@ -282,15 +305,14 @@ pub const Config = struct {
             i2c,
             gpu,
 
-            pub fn fromStr(str: []const u8) Class {
+            pub fn fromStr(str: []const u8) ?Class {
                 inline for (std.meta.fields(Class)) |field| {
                     if (std.mem.eql(u8, str, field.name)) {
                         return @enumFromInt(field.value);
                     }
                 }
 
-                // TODO: don't panic
-                @panic("Unexpected device class string given");
+                return null;
             }
 
             pub fn dirs(comptime self: Class) []const []const u8 {
@@ -303,10 +325,6 @@ pub const Config = struct {
                     .gpu => &.{"gpu"},
                 };
             }
-        };
-
-        const Resources = struct {
-            regions: []const Region,
         };
     };
 };
@@ -567,7 +585,6 @@ pub const TimerSystem = struct {
     }
 
     pub fn addClient(system: *TimerSystem, client: *Pd) Error!void {
-        // TODO: need to check that client has less priority than driver
         // Check that the client does not already exist
         for (system.clients.items) |existing_client| {
             if (std.mem.eql(u8, existing_client.name, client.name)) {
@@ -575,7 +592,13 @@ pub const TimerSystem = struct {
             }
         }
         if (std.mem.eql(u8, client.name, system.driver.name)) {
-            std.log.err("invalid timer client, same name as driver '{s}", .{ client.name });
+            log.err("invalid timer client, same name as driver '{s}", .{ client.name });
+            return Error.InvalidClient;
+        }
+        const client_priority = if (client.priority) |priority| priority else Pd.DEFAULT_PRIORITY;
+        const driver_priority = if (system.driver.priority) |priority| priority else Pd.DEFAULT_PRIORITY;
+        if (client_priority >= driver_priority) {
+            log.err("invalid timer client '{s}', driver '{s}' must have greater priority than client", .{ client.name, system.driver.name });
             return Error.InvalidClient;
         }
         system.clients.append(client) catch @panic("Could not add client to TimerSystem");
@@ -607,15 +630,19 @@ pub const TimerSystem = struct {
         const allocator = system.allocator;
 
         const device_res_data_name = fmt(system.allocator, "{s}_device_resources.data", .{system.driver.name});
-        const device_res_json_name = fmt(system.allocator, "{s}_device_resources.json", .{system.driver.name});
-        try data.serialize(system.device_res, try std.fs.path.join(system.allocator, &.{ prefix, device_res_data_name }));
-        try data.jsonify(system.device_res, try std.fs.path.join(system.allocator, &.{ prefix, device_res_json_name }), .{ .whitespace = .indent_4 });
-
+        try data.serialize(system.device_res, try std.fs.path.join(allocator, &.{ prefix, device_res_data_name }));
         for (system.clients.items, 0..) |client, i| {
-            const data_name = fmt(system.allocator, "timer_client_{s}.data", .{client.name});
-            const json_name = fmt(system.allocator, "timer_client_{s}.json", .{client.name});
+            const data_name = fmt(allocator, "timer_client_{s}.data", .{client.name});
             try data.serialize(system.client_configs.items[i], try fs.path.join(allocator, &.{ prefix, data_name }));
-            try data.jsonify(system.client_configs.items[i], try fs.path.join(allocator, &.{ prefix, json_name }), .{ .whitespace = .indent_4 });
+        }
+
+        if (serialise_emit_json) {
+            const device_res_json_name = fmt(allocator, "{s}_device_resources.json", .{system.driver.name});
+            try data.jsonify(system.device_res, try std.fs.path.join(allocator, &.{ prefix, device_res_json_name }));
+            for (system.clients.items, 0..) |client, i| {
+                const json_name = fmt(allocator, "timer_client_{s}.json", .{client.name});
+                try data.jsonify(system.client_configs.items[i], try fs.path.join(allocator, &.{ prefix, json_name }));
+            }
         }
     }
 };
@@ -673,11 +700,11 @@ pub const I2cSystem = struct {
             }
         }
         if (std.mem.eql(u8, client.name, system.driver.name)) {
-            std.log.err("invalid I2C client, same name as driver '{s}", .{ client.name });
+            log.err("invalid I2C client, same name as driver '{s}", .{ client.name });
             return Error.InvalidClient;
         }
         if (std.mem.eql(u8, client.name, system.virt.name)) {
-            std.log.err("invalid I2C client, same name as virt '{s}", .{ client.name });
+            log.err("invalid I2C client, same name as virt '{s}", .{ client.name });
             return Error.InvalidClient;
         }
         system.clients.append(client) catch @panic("Could not add client to I2cSystem");
@@ -822,21 +849,26 @@ pub const I2cSystem = struct {
         const allocator = system.allocator;
 
         const device_res_data_name = fmt(system.allocator, "{s}_device_resources.data", .{system.driver.name});
-        const device_res_json_name = fmt(system.allocator, "{s}_device_resources.json", .{system.driver.name});
-        try data.serialize(system.device_res, try std.fs.path.join(system.allocator, &.{ prefix, device_res_data_name }));
-        try data.jsonify(system.device_res, try std.fs.path.join(system.allocator, &.{ prefix, device_res_json_name }), .{ .whitespace = .indent_4 });
-
+        try data.serialize(system.device_res, try std.fs.path.join(allocator, &.{ prefix, device_res_data_name }));
         try data.serialize(system.driver_config, try fs.path.join(allocator, &.{ prefix, "i2c_driver.data" }));
-        try data.jsonify(system.driver_config, try fs.path.join(allocator, &.{ prefix, "i2c_driver.json" }), .{ .whitespace = .indent_4 });
-
         try data.serialize(system.virt_config, try fs.path.join(allocator, &.{ prefix, "i2c_virt.data" }));
-        try data.jsonify(system.virt_config, try fs.path.join(allocator, &.{ prefix, "i2c_virt.json" }), .{ .whitespace = .indent_4 });
 
         for (system.clients.items, 0..) |client, i| {
             const data_name = fmt(allocator, "i2c_client_{s}.data", .{client.name});
             const json_name = fmt(allocator, "i2c_client_{s}.json", .{client.name});
             try data.serialize(system.client_configs.items[i], try fs.path.join(allocator, &.{ prefix, data_name }));
-            try data.jsonify(system.client_configs.items[i], try fs.path.join(allocator, &.{ prefix, json_name }), .{ .whitespace = .indent_4 });
+            try data.jsonify(system.client_configs.items[i], try fs.path.join(allocator, &.{ prefix, json_name }));
+        }
+
+        if (serialise_emit_json) {
+            const device_res_json_name = fmt(system.allocator, "{s}_device_resources.json", .{system.driver.name});
+            try data.jsonify(system.device_res, try std.fs.path.join(allocator, &.{ prefix, device_res_json_name }));
+            try data.jsonify(system.driver_config, try fs.path.join(allocator, &.{ prefix, "i2c_driver.json" }));
+            try data.jsonify(system.virt_config, try fs.path.join(allocator, &.{ prefix, "i2c_virt.json" }));
+            for (system.clients.items, 0..) |client, i| {
+                const json_name = fmt(allocator, "i2c_client_{s}.json", .{client.name});
+                try data.jsonify(system.client_configs.items[i], try fs.path.join(allocator, &.{ prefix, json_name }));
+            }
         }
     }
 };
@@ -852,7 +884,7 @@ pub const BlockSystem = struct {
     client_partitions: std.ArrayList(u32),
     connected: bool = false,
     // TODO: make this configurable per component
-    queue_mr_size: usize,
+    queue_mr_size: usize = 2 * 1024 * 1024,
     // TODO: make configurable
     queue_capacity: u16 = 128,
     config: BlockSystem.Config,
@@ -872,8 +904,8 @@ pub const BlockSystem = struct {
 
     pub fn init(allocator: Allocator, sdf: *SystemDescription, device: *dtb.Node, driver: *Pd, virt: *Pd, _: Options) BlockSystem {
         if (std.mem.eql(u8, driver.name, virt.name)) {
-            std.log.err("invalid block driver, same name as virt '{s}", .{ driver.name });
-            // return Error.InvalidDriver;
+            log.err("invalid block virtualiser, same name as driver '{s}", .{ virt.name });
+            // return Error.InvalidVirt;
             @panic("TODO");
         }
         return .{
@@ -885,8 +917,6 @@ pub const BlockSystem = struct {
             .device = device,
             .device_res = std.mem.zeroInit(ConfigResources.Device, .{}),
             .virt = virt,
-            // TODO: make configurable
-            .queue_mr_size = 0x200_000,
             .config = .{
                 .virt_clients = .init(allocator),
                 .clients = .init(allocator),
@@ -909,11 +939,11 @@ pub const BlockSystem = struct {
             }
         }
         if (std.mem.eql(u8, client.name, system.driver.name)) {
-            std.log.err("invalid block client, same name as driver '{s}", .{ client.name });
+            log.err("invalid block client, same name as driver '{s}", .{ client.name });
             return Error.InvalidClient;
         }
         if (std.mem.eql(u8, client.name, system.virt.name)) {
-            std.log.err("invalid block client, same name as virt '{s}", .{ client.name });
+            log.err("invalid block client, same name as virt '{s}", .{ client.name });
             return Error.InvalidClient;
         }
         system.clients.append(client) catch @panic("Could not add client to BlockSystem");
@@ -934,8 +964,7 @@ pub const BlockSystem = struct {
         driver.addMap(map_storage_info_driver);
         virt.addMap(map_storage_info_virt);
 
-        // TODO: deal with size
-        const mr_req = Mr.create(allocator, "blk_driver_request", 0x200_000, .{});
+        const mr_req = Mr.create(allocator, "blk_driver_request", system.queue_mr_size, .{});
         const map_req_driver = Map.create(mr_req, driver.getMapVaddr(&mr_req), .rw, .{});
         const map_req_virt = Map.create(mr_req, virt.getMapVaddr(&mr_req), .rw, .{});
 
@@ -943,7 +972,7 @@ pub const BlockSystem = struct {
         driver.addMap(map_req_driver);
         virt.addMap(map_req_virt);
 
-        const mr_resp = Mr.create(allocator, "blk_driver_response", 0x200_000, .{});
+        const mr_resp = Mr.create(allocator, "blk_driver_response", system.queue_mr_size, .{});
         const map_resp_driver = Map.create(mr_resp, driver.getMapVaddr(&mr_resp), .rw, .{});
         const map_resp_virt = Map.create(mr_resp, virt.getMapVaddr(&mr_resp), .rw, .{});
 
@@ -951,7 +980,7 @@ pub const BlockSystem = struct {
         driver.addMap(map_resp_driver);
         virt.addMap(map_resp_virt);
 
-        const mr_data = Mr.physical(allocator, sdf, "blk_driver_data", 0x200_000, .{});
+        const mr_data = Mr.physical(allocator, sdf, "blk_driver_data", system.queue_mr_size, .{});
         const map_data_virt = Map.create(mr_data, virt.getMapVaddr(&mr_data), .rw, .{});
 
         sdf.addMemoryRegion(mr_data);
@@ -965,7 +994,6 @@ pub const BlockSystem = struct {
                 .storage_info = .createFromMap(map_storage_info_driver),
                 .req_queue = .createFromMap(map_req_driver),
                 .resp_queue = .createFromMap(map_resp_driver),
-                // TODO
                 .num_buffers = system.queue_capacity,
                 .id  = ch.pd_b_id,
             },
@@ -976,7 +1004,6 @@ pub const BlockSystem = struct {
                 .storage_info = .createFromMap(map_storage_info_virt),
                 .req_queue = .createFromMap(map_req_virt),
                 .resp_queue = .createFromMap(map_resp_virt),
-                // TODO
                 .num_buffers = system.queue_capacity,
                 .id  = ch.pd_a_id,
             },
@@ -1029,7 +1056,6 @@ pub const BlockSystem = struct {
                 .storage_info = .createFromMap(map_storage_info_virt),
                 .req_queue = .createFromMap(map_req_virt),
                 .resp_queue = .createFromMap(map_resp_virt),
-                // TODO
                 .num_buffers = system.queue_capacity,
                 .id = ch.pd_a_id,
             },
@@ -1042,7 +1068,6 @@ pub const BlockSystem = struct {
                 .storage_info = .createFromMap(map_storage_info_client),
                 .req_queue = .createFromMap(map_req_client),
                 .resp_queue = .createFromMap(map_resp_client),
-                // TODO
                 .num_buffers = system.queue_capacity,
                 .id = ch.pd_b_id,
             },
@@ -1070,28 +1095,32 @@ pub const BlockSystem = struct {
 
         const allocator = system.allocator;
 
-        const device_res_data_name = fmt(system.allocator, "{s}_device_resources.data", .{system.driver.name});
-        const device_res_json_name = fmt(system.allocator, "{s}_device_resources.json", .{system.driver.name});
-        try data.serialize(system.device_res, try std.fs.path.join(system.allocator, &.{ prefix, device_res_data_name }));
-        try data.jsonify(system.device_res, try std.fs.path.join(system.allocator, &.{ prefix, device_res_json_name }), .{ .whitespace = .indent_4 });
-
+        const device_res_data_name = fmt(allocator, "{s}_device_resources.data", .{system.driver.name});
+        try data.serialize(system.device_res, try std.fs.path.join(allocator, &.{ prefix, device_res_data_name }));
         try data.serialize(system.config.driver, try fs.path.join(allocator, &.{ prefix, "blk_driver.data" }));
-        try data.jsonify(system.config.driver, try fs.path.join(allocator, &.{ prefix, "blk_driver.json" }), .{ .whitespace = .indent_4 });
-
         const virt_config = ConfigResources.Block.Virt.create(system.config.virt_driver, system.config.virt_clients.items);
         try data.serialize(virt_config, try fs.path.join(allocator, &.{ prefix, "blk_virt.data" }));
-        try data.jsonify(virt_config, try fs.path.join(allocator, &.{ prefix, "blk_virt.json" }), .{ .whitespace = .indent_4 });
 
         for (system.config.clients.items, 0..) |config, i| {
             const client_data = fmt(allocator, "blk_client_{s}.data", .{system.clients.items[i].name});
             const client_json = fmt(allocator, "blk_client_{s}.json", .{system.clients.items[i].name});
             try data.serialize(config, try fs.path.join(allocator, &.{ prefix, client_data }));
-            try data.jsonify(config, try fs.path.join(allocator, &.{ prefix, client_json }), .{ .whitespace = .indent_4 });
+            try data.jsonify(config, try fs.path.join(allocator, &.{ prefix, client_json }));
+        }
+
+        if (serialise_emit_json) {
+            const device_res_json_name = fmt(allocator, "{s}_device_resources.json", .{system.driver.name});
+            try data.jsonify(system.device_res, try std.fs.path.join(allocator, &.{ prefix, device_res_json_name }));
+            try data.jsonify(system.config.driver, try fs.path.join(allocator, &.{ prefix, "blk_driver.json" }));
+            try data.jsonify(virt_config, try fs.path.join(allocator, &.{ prefix, "blk_virt.json" }));
+            for (system.config.clients.items, 0..) |config, i| {
+                const client_json = fmt(allocator, "blk_client_{s}.json", .{system.clients.items[i].name});
+                try data.jsonify(config, try fs.path.join(allocator, &.{ prefix, client_json }));
+            }
         }
     }
 };
 
-/// TODO: these functions do very little error checking
 pub const SerialSystem = struct {
     allocator: Allocator,
     sdf: *SystemDescription,
@@ -1119,6 +1148,23 @@ pub const SerialSystem = struct {
     };
 
     pub fn init(allocator: Allocator, sdf: *SystemDescription, device: *dtb.Node, driver: *Pd, virt_tx: *Pd, options: Options) SerialSystem {
+        if (std.mem.eql(u8, driver.name, virt_tx.name)) {
+            log.err("invalid serial tx virtualiser, same name as driver '{s}", .{ virt_tx.name });
+            // return Error.InvalidVirt;
+            @panic("TODO");
+        }
+        if (options.virt_rx) |virt_rx| {
+            if (std.mem.eql(u8, driver.name, virt_rx.name)) {
+                log.err("invalid serial rx virtualiser, same name as driver '{s}", .{ virt_rx.name });
+                // return Error.InvalidVirt;
+                @panic("TODO");
+            }
+            if (std.mem.eql(u8, virt_tx.name, virt_rx.name)) {
+                log.err("invalid serial rx virtualiser, same name as tx virtualiser '{s}", .{ virt_rx.name });
+                // return Error.InvalidVirt;
+                @panic("TODO");
+            }
+        }
         return .{
             .allocator = allocator,
             .sdf = sdf,
@@ -1238,25 +1284,29 @@ pub const SerialSystem = struct {
 
         const allocator = system.allocator;
 
-        const device_res_data_name = fmt(system.allocator, "{s}_device_resources.data", .{system.driver.name});
-        const device_res_json_name = fmt(system.allocator, "{s}_device_resources.json", .{system.driver.name});
-        try data.serialize(system.device_res, try std.fs.path.join(system.allocator, &.{ prefix, device_res_data_name }));
-        try data.jsonify(system.device_res, try std.fs.path.join(system.allocator, &.{ prefix, device_res_json_name }), .{ .whitespace = .indent_4 });
-
+        const device_res_data_name = fmt(allocator, "{s}_device_resources.data", .{system.driver.name});
+        try data.serialize(system.device_res, try fs.path.join(allocator, &.{ prefix, device_res_data_name }));
         try data.serialize(system.driver_config, try fs.path.join(allocator, &.{ prefix, "serial_driver_config.data" }));
-        try data.jsonify(system.driver_config, try fs.path.join(allocator, &.{ prefix, "serial_driver_config.json" }), .{ .whitespace = .indent_4 });
-
         try data.serialize(system.virt_rx_config, try fs.path.join(allocator, &.{ prefix, "serial_virt_rx.data" }));
-        try data.jsonify(system.virt_rx_config, try fs.path.join(allocator, &.{ prefix, "serial_virt_rx.json" }), .{ .whitespace = .indent_4 });
-
         try data.serialize(system.virt_tx_config, try fs.path.join(allocator, &.{ prefix, "serial_virt_tx.data" }));
-        try data.jsonify(system.virt_tx_config, try fs.path.join(allocator, &.{ prefix, "serial_virt_tx.json" }), .{ .whitespace = .indent_4 });
 
         for (system.clients.items, 0..) |client, i| {
-            const data_name = fmt(system.allocator, "serial_client_{s}.data", .{client.name});
-            const json_name = fmt(system.allocator, "serial_client_{s}.json", .{client.name});
+            const data_name = fmt(allocator, "serial_client_{s}.data", .{client.name});
+            const json_name = fmt(allocator, "serial_client_{s}.json", .{client.name});
             try data.serialize(system.client_configs.items[i], try fs.path.join(allocator, &.{ prefix, data_name }));
-            try data.jsonify(system.client_configs.items[i], try fs.path.join(allocator, &.{ prefix, json_name }), .{ .whitespace = .indent_4 });
+            try data.jsonify(system.client_configs.items[i], try fs.path.join(allocator, &.{ prefix, json_name }));
+        }
+
+        if (serialise_emit_json) {
+            const device_res_json_name = fmt(allocator, "{s}_device_resources.json", .{system.driver.name});
+            try data.jsonify(system.device_res, try fs.path.join(allocator, &.{ prefix, device_res_json_name }));
+            try data.jsonify(system.driver_config, try fs.path.join(allocator, &.{ prefix, "serial_driver_config.json" }));
+            try data.jsonify(system.virt_rx_config, try fs.path.join(allocator, &.{ prefix, "serial_virt_rx.json" }));
+            try data.jsonify(system.virt_tx_config, try fs.path.join(allocator, &.{ prefix, "serial_virt_tx.json" }));
+            for (system.clients.items, 0..) |client, i| {
+                const json_name = fmt(allocator, "serial_client_{s}.json", .{client.name});
+                try data.jsonify(system.client_configs.items[i], try fs.path.join(allocator, &.{ prefix, json_name }));
+            }
         }
     }
 };
@@ -1554,30 +1604,40 @@ pub const NetworkSystem = struct {
 
         const device_res_data_name = fmt(allocator, "{s}_device_resources.data", .{system.driver.name});
         try data.serialize(system.device_res, try std.fs.path.join(allocator, &.{ prefix, device_res_data_name }));
-        const device_res_json_name = fmt(allocator, "{s}_device_resources.json", .{system.driver.name});
-        try data.jsonify(system.device_res, try std.fs.path.join(allocator, &.{ prefix, device_res_json_name }), .{ .whitespace = .indent_4 });
-
         try data.serialize(system.driver_config, try fs.path.join(allocator, &.{ prefix, "net_driver.data" }));
-        try data.jsonify(system.driver_config, try fs.path.join(allocator, &.{ prefix, "net_driver.json" }), .{ .whitespace = .indent_4 });
-
         try data.serialize(system.virt_rx_config, try fs.path.join(allocator, &.{ prefix, "net_virt_rx.data" }));
-        try data.jsonify(system.virt_rx_config, try fs.path.join(allocator, &.{ prefix, "net_virt_rx.json" }), .{ .whitespace = .indent_4 });
-
         try data.serialize(system.virt_tx_config, try fs.path.join(allocator, &.{ prefix, "net_virt_tx.data" }));
-        try data.jsonify(system.virt_tx_config, try fs.path.join(allocator, &.{ prefix, "net_virt_tx.json" }), .{ .whitespace = .indent_4 });
 
         for (system.copiers.items, 0..) |copier, i| {
             const data_name = fmt(allocator, "net_copy_{s}.data", .{copier.name});
             try data.serialize(system.copy_configs.items[i], try fs.path.join(allocator, &.{ prefix, data_name }));
             const json_name = fmt(allocator, "net_copy_{s}.json", .{copier.name});
-            try data.jsonify(system.copy_configs.items[i], try fs.path.join(allocator, &.{ prefix, json_name }), .{ .whitespace = .indent_4 });
+            try data.jsonify(system.copy_configs.items[i], try fs.path.join(allocator, &.{ prefix, json_name }));
         }
 
         for (system.clients.items, 0..) |client, i| {
             const data_name = fmt(allocator, "net_client_{s}.data", .{client.name});
             try data.serialize(system.client_configs.items[i], try fs.path.join(allocator, &.{ prefix, data_name }));
             const json_name = fmt(allocator, "net_client_{s}.json", .{client.name});
-            try data.jsonify(system.client_configs.items[i], try fs.path.join(allocator, &.{ prefix, json_name }), .{ .whitespace = .indent_4 });
+            try data.jsonify(system.client_configs.items[i], try fs.path.join(allocator, &.{ prefix, json_name }));
+        }
+
+        if (serialise_emit_json) {
+            const device_res_json_name = fmt(allocator, "{s}_device_resources.json", .{system.driver.name});
+            try data.jsonify(system.device_res, try std.fs.path.join(allocator, &.{ prefix, device_res_json_name }));
+            try data.jsonify(system.driver_config, try fs.path.join(allocator, &.{ prefix, "net_driver.json" }));
+            try data.jsonify(system.virt_rx_config, try fs.path.join(allocator, &.{ prefix, "net_virt_rx.json" }));
+            try data.jsonify(system.virt_tx_config, try fs.path.join(allocator, &.{ prefix, "net_virt_tx.json" }));
+
+            for (system.copiers.items, 0..) |copier, i| {
+                const json_name = fmt(allocator, "net_copy_{s}.json", .{copier.name});
+                try data.jsonify(system.copy_configs.items[i], try fs.path.join(allocator, &.{ prefix, json_name }));
+            }
+
+            for (system.clients.items, 0..) |client, i| {
+                const json_name = fmt(allocator, "net_client_{s}.json", .{client.name});
+                try data.jsonify(system.client_configs.items[i], try fs.path.join(allocator, &.{ prefix, json_name }));
+            }
         }
     }
 };
@@ -1784,28 +1844,35 @@ pub const GpuSystem = struct {
         const allocator = system.allocator;
 
         const device_res_data_name = fmt(system.allocator, "{s}_device_resources.data", .{system.driver.name});
-        const device_res_json_name = fmt(system.allocator, "{s}_device_resources.json", .{system.driver.name});
         try data.serialize(system.device_res, try std.fs.path.join(system.allocator, &.{ prefix, device_res_data_name }));
-        try data.jsonify(system.device_res, try std.fs.path.join(system.allocator, &.{ prefix, device_res_json_name }), .{ .whitespace = .indent_4 });
-
         try data.serialize(system.config.driver, try fs.path.join(allocator, &.{ prefix, "gpu_driver.data" }));
-        try data.jsonify(system.config.driver, try fs.path.join(allocator, &.{ prefix, "gpu_driver.json" }), .{ .whitespace = .indent_4 });
 
         const virt_config = ConfigResources.Gpu.Virt.create(system.config.virt_driver, system.config.virt_clients.items);
         try data.serialize(virt_config, try fs.path.join(allocator, &.{ prefix, "gpu_virt.data" }));
-        try data.jsonify(virt_config, try fs.path.join(allocator, &.{ prefix, "gpu_virt.json" }), .{ .whitespace = .indent_4 });
 
         for (system.config.clients.items, 0..) |config, i| {
             const client_data = fmt(allocator, "gpu_client_{s}.data", .{system.clients.items[i].name});
             const client_json = fmt(allocator, "gpu_client_{s}.json", .{system.clients.items[i].name});
             try data.serialize(config, try fs.path.join(allocator, &.{ prefix, client_data }));
-            try data.jsonify(config, try fs.path.join(allocator, &.{ prefix, client_json }), .{ .whitespace = .indent_4 });
+            try data.jsonify(config, try fs.path.join(allocator, &.{ prefix, client_json }));
+        }
+
+        if (serialise_emit_json) {
+            const device_res_json_name = fmt(system.allocator, "{s}_device_resources.json", .{system.driver.name});
+            try data.jsonify(system.device_res, try std.fs.path.join(system.allocator, &.{ prefix, device_res_json_name }));
+            try data.jsonify(system.config.driver, try fs.path.join(allocator, &.{ prefix, "gpu_driver.json" }));
+            try data.jsonify(virt_config, try fs.path.join(allocator, &.{ prefix, "gpu_virt.json" }));
+
+            for (system.config.clients.items, 0..) |config, i| {
+                const client_json = fmt(allocator, "gpu_client_{s}.json", .{system.clients.items[i].name});
+                try data.jsonify(config, try fs.path.join(allocator, &.{ prefix, client_json }));
+            }
         }
     }
 };
 
 /// Assumes probe() has been called
-fn findDriver(compatibles: []const []const u8, class: Config.DeviceClass.Class) ?Config.Driver {
+fn findDriver(compatibles: []const []const u8, class: Config.Driver.Class) ?Config.Driver {
     assert(probed);
     for (drivers.items) |driver| {
         // This is yet another point of weirdness with device trees. It is often
@@ -1828,7 +1895,7 @@ fn findDriver(compatibles: []const []const u8, class: Config.DeviceClass.Class) 
 
 /// Given the DTB node for the device and the SDF program image, we can figure
 /// all the resources that need to be added to the system description.
-pub fn createDriver(sdf: *SystemDescription, pd: *Pd, device: *dtb.Node, class: Config.DeviceClass.Class, device_res: *ConfigResources.Device) !void {
+pub fn createDriver(sdf: *SystemDescription, pd: *Pd, device: *dtb.Node, class: Config.Driver.Class, device_res: *ConfigResources.Device) !void {
     if (!probed) return error.CalledBeforeProbe;
     // First thing to do is find the driver configuration for the device given.
     // The way we do that is by searching for the compatible string described in the DTB node.
@@ -1855,13 +1922,12 @@ pub fn createDriver(sdf: *SystemDescription, pd: *Pd, device: *dtb.Node, class: 
         }
     }
 
-    // TODO: check for duplicate dt index on irqs and regions
     for (driver.resources.regions) |region_resource| {
+        // TODO: all this error checking should be done when we parse config.json
         if (region_resource.dt_index == null and region_resource.size == null) {
             log.err("driver '{s}' has region resource '{s}'' which specifies neither dt_index nor size: one or both must be specified", .{ driver.name, region_resource.name });
         }
 
-        // TODO: huh?
         if (region_resource.dt_index != null and region_resource.cached != null and region_resource.cached.? == true) {
             log.err("driver '{s}' has region resource '{s}' which tries to map MMIO region as cached", .{ driver.name, region_resource.name });
         }
@@ -1942,14 +2008,14 @@ pub fn createDriver(sdf: *SystemDescription, pd: *Pd, device: *dtb.Node, class: 
     // process it for the SDF.
     const maybe_dt_irqs = device.prop(.Interrupts);
     if (driver.resources.irqs.len != 0 and maybe_dt_irqs == null) {
-        std.log.err("expected interrupts field for node '{s}' when creating driver '{s}'", .{ device.name, driver.name });
+        log.err("expected interrupts field for node '{s}' when creating driver '{s}'", .{ device.name, driver.name });
         return error.InvalidDeviceTreeNode;
     }
 
     for (driver.resources.irqs) |driver_irq| {
         const dt_irqs = maybe_dt_irqs.?;
         if (driver_irq.dt_index >= dt_irqs.len) {
-            std.log.err("invalid device tree index '{}' when creating driver '{s}'", .{ driver_irq.dt_index, driver.name });
+            log.err("invalid device tree index '{}' when creating driver '{s}'", .{ driver_irq.dt_index, driver.name });
             return error.InvalidDeviceTreeIndex;
         }
         const dt_irq = dt_irqs[driver_irq.dt_index];

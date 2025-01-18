@@ -118,7 +118,6 @@ export fn sdfgen_dtb_destroy(c_blob: *align(8) anyopaque) void {
     blob.deinit(allocator);
 }
 
-// TODO: handle options
 export fn sdfgen_pd_create(name: [*c]u8, program_image: [*c]u8) *anyopaque {
     const pd = allocator.create(Pd) catch @panic("OOM");
     pd.* = Pd.create(allocator, std.mem.span(name), std.mem.span(program_image), .{});
@@ -164,6 +163,16 @@ export fn sdfgen_pd_set_period(c_pd: *align(8) anyopaque, period: u32) void {
 export fn sdfgen_pd_set_stack_size(c_pd: *align(8) anyopaque, stack_size: u32) void {
     const pd: *Pd = @ptrCast(c_pd);
     pd.stack_size = stack_size;
+}
+
+export fn sdfgen_pd_set_cpu(c_pd: *align(8) anyopaque, cpu: u8) void {
+    const pd: *Pd = @ptrCast(c_pd);
+    pd.cpu = cpu;
+}
+
+export fn sdfgen_pd_set_passive(c_pd: *align(8) anyopaque, passive: bool) void {
+    const pd: *Pd = @ptrCast(c_pd);
+    pd.passive = passive;
 }
 
 export fn sdfgen_pd_set_virtual_machine(c_pd: *align(8) anyopaque, c_vm: *align(8) anyopaque) bool {
@@ -563,7 +572,7 @@ export fn sdfgen_sddf_gpu_serialise_config(system: *align(8) anyopaque, output_d
 export fn sdfgen_lionsos_fs_fat(c_sdf: *align(8) anyopaque, c_fs: *align(8) anyopaque, c_client: *align(8) anyopaque) *anyopaque {
     const sdf: *SystemDescription = @ptrCast(c_sdf);
     const fs = allocator.create(lionsos.FileSystem.Fat) catch @panic("OOM");
-    fs.* = lionsos.FileSystem.Fat.init(allocator, sdf, @ptrCast(c_fs), @ptrCast(c_client), .{});
+    fs.* = lionsos.FileSystem.Fat.init(allocator, sdf, @ptrCast(c_fs), @ptrCast(c_client), .{}) catch @panic("TODO");
 
     return fs;
 }

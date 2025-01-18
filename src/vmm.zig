@@ -45,7 +45,6 @@ pub const VirtualMachineSystem = struct {
         // Find the device, get it's memory regions and add it to the guest. Add its IRQs to the VMM.
         if (device.prop(.Reg)) |device_reg| {
             for (device_reg, 0..) |d, i| {
-                // TODO: use function for this
                 const device_paddr = DeviceTree.regToPaddr(device, d[0]);
                 const device_size = DeviceTree.regToSize(d[1]);
                 var mr_name: []const u8 = undefined;

@@ -40,8 +40,15 @@ pub const FileSystem = struct {
         completion_queue,
     };
 
-    // TODO: check fs and client is valid
-    pub fn init(allocator: Allocator, sdf: *SystemDescription, fs: *Pd, client: *Pd, options: Options) FileSystem {
+    const Error = error{
+        InvalidClient,
+    };
+
+    pub fn init(allocator: Allocator, sdf: *SystemDescription, fs: *Pd, client: *Pd, options: Options) Error!FileSystem {
+        if (std.mem.eql(u8, fs.name, client.name)) {
+            std.log.err("invalid file system client, same name as file system PD '{s}", .{ client.name });
+            return Error.InvalidClient;
+        }
         return .{
             .allocator = allocator,
             .sdf = sdf,
@@ -91,10 +98,12 @@ pub const FileSystem = struct {
     pub const Nfs = struct {
         fs: FileSystem,
 
-        pub fn init(allocator: Allocator, sdf: *SystemDescription, fs: *Pd, client: *Pd, net: *NetworkSystem, net_copier: *Pd, options: Options) !Nfs {
+        const Error = FileSystem.Error || NetworkSystem.Error;
+
+        pub fn init(allocator: Allocator, sdf: *SystemDescription, fs: *Pd, client: *Pd, net: *NetworkSystem, net_copier: *Pd, options: Options) Nfs.Error!Nfs {
             try net.addClientWithCopier(fs, net_copier, .{});
             return .{
-                .fs = FileSystem.init(allocator, sdf, fs, client, options),
+                .fs = try FileSystem.init(allocator, sdf, fs, client, options),
             };
         }
 
@@ -106,9 +115,9 @@ pub const FileSystem = struct {
     pub const Fat = struct {
         fs: FileSystem,
 
-        pub fn init(allocator: Allocator, sdf: *SystemDescription, fs: *Pd, client: *Pd, options: Options) Fat {
+        pub fn init(allocator: Allocator, sdf: *SystemDescription, fs: *Pd, client: *Pd, options: Options) Error!Fat {
             return .{
-                .fs = FileSystem.init(allocator, sdf, fs, client, options),
+                .fs = try FileSystem.init(allocator, sdf, fs, client, options),
             };
         }
 

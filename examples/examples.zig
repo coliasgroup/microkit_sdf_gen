@@ -458,7 +458,7 @@ fn webserver(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !vo
     fatfs.addMap(.create(fatfs_metadata, 0x40_000_000, .rw, .{ .setvar_vaddr = "fs_metadata" }));
     sdf.addMemoryRegion(fatfs_metadata);
 
-    const fs = lionsos.FileSystem.init(allocator, sdf, &fatfs, &micropython, .{});
+    const fs = try lionsos.FileSystem.init(allocator, sdf, &fatfs, &micropython, .{});
     fs.connect();
 
     try sdf.print();
