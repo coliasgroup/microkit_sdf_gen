@@ -19,7 +19,7 @@ class ZigBuilder(build_ext):
             "c",
             "-Doptimize=ReleaseSafe",
             "-Dc-dynamic=true",
-            f"-Dcsdfgen-emit={self.get_ext_filename(ext.name)}",
+            f"-Dc-emit={self.get_ext_filename(ext.name)}",
             "--prefix-lib-dir",
             f"{modpath}",
         ]
