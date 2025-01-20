@@ -78,6 +78,11 @@ libsdfgen.sdfgen_mr_create_physical.argtypes = [c_char_p, c_uint64, c_uint64]
 libsdfgen.sdfgen_mr_destroy.restype = None
 libsdfgen.sdfgen_mr_destroy.argtypes = [c_void_p]
 
+libsdfgen.sdfgen_irq_create.restype = c_void_p
+libsdfgen.sdfgen_irq_create.argtypes = [c_uint32]
+libsdfgen.sdfgen_irq_destroy.restype = None
+libsdfgen.sdfgen_irq_destroy.argtypes = [c_void_p]
+
 libsdfgen.sdfgen_vm_create.restype = c_void_p
 libsdfgen.sdfgen_vm_create.argtypes = [c_char_p, POINTER(c_void_p), c_uint32]
 libsdfgen.sdfgen_vm_destroy.restype = None
@@ -100,6 +105,8 @@ libsdfgen.sdfgen_pd_add_child.restype = c_uint8
 libsdfgen.sdfgen_pd_add_child.argtypes = [c_void_p, c_void_p, POINTER(c_uint8)]
 libsdfgen.sdfgen_pd_add_map.restype = None
 libsdfgen.sdfgen_pd_add_map.argtypes = [c_void_p, c_void_p]
+libsdfgen.sdfgen_pd_add_irq.restype = c_uint8
+libsdfgen.sdfgen_pd_add_irq.argtypes = [c_void_p, c_void_p]
 
 libsdfgen.sdfgen_sddf_timer.restype = c_void_p
 libsdfgen.sdfgen_sddf_timer.argtypes = [c_void_p, c_void_p, c_void_p]
@@ -192,6 +199,8 @@ libsdfgen.sdfgen_vmm.restype = c_void_p
 libsdfgen.sdfgen_vmm.argtypes = [c_void_p, c_void_p, c_void_p, c_void_p]
 libsdfgen.sdfgen_vmm_add_passthrough_device.restype = c_bool
 libsdfgen.sdfgen_vmm_add_passthrough_device.argtypes = [c_void_p, c_char_p, c_void_p]
+libsdfgen.sdfgen_vmm_add_passthrough_irq.restype = c_bool
+libsdfgen.sdfgen_vmm_add_passthrough_irq.argtypes = [c_void_p, c_void_p]
 libsdfgen.sdfgen_vmm_connect.restype = c_bool
 libsdfgen.sdfgen_vmm_connect.argtypes = [c_void_p]
 libsdfgen.sdfgen_vmm_serialise_config.restype = c_bool
@@ -341,6 +350,9 @@ class SystemDescription:
         def add_map(self, map: SystemDescription.Map):
             libsdfgen.sdfgen_pd_add_map(self._obj, map._obj)
 
+        def add_irq(self, map: SystemDescription.Irq) -> int:
+            return libsdfgen.sdfgen_pd_add_irq(self._obj, irq._obj)
+
         def set_virtual_machine(self, vm: SystemDescription.VirtualMachine):
             ret = libsdfgen.sdfgen_pd_set_virtual_machine(self._obj, vm._obj)
             if not ret:
@@ -429,6 +441,19 @@ class SystemDescription:
 
         def __del__(self):
             libsdfgen.sdfgen_mr_destroy(self._obj)
+
+    class Irq:
+        _obj: c_void_p
+
+        # TODO: handle options
+        def __init__(
+            self,
+            irq: int,
+        ):
+            self._obj = libsdfgen.sdfgen_irq_create(irq)
+
+        def __del__(self):
+            libsdfgen.sdfgen_irq_destroy(self._obj)
 
     class Channel:
         _obj: c_void_p
@@ -792,7 +817,10 @@ class Vmm:
 
     def add_passthrough_device(self, name: str, device: DeviceTree.Node):
         c_name = c_char_p(name.encode("utf-8"))
-        return libsdfgen.sdfgen_vmm_add_passthrough_device(c_name, device._obj)
+        return libsdfgen.sdfgen_vmm_add_passthrough_device(self._obj, c_name, device._obj)
+
+    def add_passthrough_irq(self, irq: Irq):
+        return libsdfgen.sdfgen_vmm_add_passthrough_irq(self._obj, irq._obj)
 
     def connect(self) -> bool:
         return libsdfgen.sdfgen_vmm_connect(self._obj)

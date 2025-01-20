@@ -6,7 +6,7 @@
         <map mr="test" vaddr="0x400000000" perms="r" />
         <map mr="test" vaddr="0x600000000" perms="x" />
         <map mr="test" vaddr="0x800000000" perms="rwx" />
-        <irq irq="33" trigger="level" id="0" />
+        <irq irq="33" id="0" />
     </protection_domain>
     <protection_domain name="hello-2">
         <program_image path="hello.elf" />

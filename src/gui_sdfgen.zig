@@ -116,7 +116,7 @@ fn parsePDFromJson(sdf: *SystemDescription, node_config: anytype) !*Pd {
         const irq_new = parseIrqFromJson(irq_config) catch |err| {
             return err;
         };
-        pd_new.addInterrupt(irq_new) catch |err| {
+        pd_new.addIrq(irq_new) catch |err| {
             return err;
         };
     }

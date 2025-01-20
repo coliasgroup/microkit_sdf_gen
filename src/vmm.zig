@@ -11,6 +11,7 @@ const fs = std.fs;
 const SystemDescription = mod_sdf.SystemDescription;
 const Mr = SystemDescription.MemoryRegion;
 const Pd = SystemDescription.ProtectionDomain;
+const Irq = SystemDescription.Irq;
 const Map = SystemDescription.Map;
 const Vm = SystemDescription.VirtualMachine;
 
@@ -37,7 +38,7 @@ const Options = struct {
     one_to_one_ram: bool = false,
 };
 
-const MAX_PASSTHROUGH_IRQS: usize = 32;
+const MAX_IRQS: usize = 32;
 const MAX_VCPUS: usize = 32;
 
 const Data = extern struct {
@@ -55,7 +56,7 @@ const Data = extern struct {
     dtb: u64,
     initrd: u64,
     num_irqs: u8,
-    passthrough_irqs: [MAX_PASSTHROUGH_IRQS]Irq,
+    irqs: [MAX_IRQS]Data.Irq,
     num_vcpus: u8,
     vcpus: [MAX_VCPUS]Vcpu,
 };
@@ -107,8 +108,10 @@ pub fn addPassthroughDevice(system: *Self, name: []const u8, device: *mod_dtb.No
                 const irq_type = sddf.DeviceTree.armGicIrqType(interrupt[0]);
                 const irq_number = sddf.DeviceTree.armGicIrqNumber(interrupt[1], irq_type);
                 const irq_trigger = DeviceTree.armGicTrigger(interrupt[2]);
-                const irq_id = try system.vmm.addInterrupt(.create(irq_number, irq_trigger, null));
-                system.data.passthrough_irqs[system.data.num_irqs] = .{
+                const irq_id = try system.vmm.addIrq(.create(irq_number, .{
+                    .trigger = irq_trigger
+                }));
+                system.data.irqs[system.data.num_irqs] = .{
                     .id = irq_id,
                     .irq = irq_number,
                 };
@@ -125,6 +128,15 @@ pub fn addPassthroughRegion(system: *Self, name: []const u8, device: *mod_dtb.No
     const device_mr = Mr.create(system.allocator, name, device_size, device_paddr, .small);
     system.sdf.addMemoryRegion(device_mr);
     system.vm.addMap(Map.create(device_mr, device_paddr, .rw, false, null));
+}
+
+pub fn addPassthroughIrq(system: *Self, irq: Irq) !void {
+    const irq_id = try system.vmm.addIrq(irq);
+    system.data.irqs[system.data.num_irqs] = .{
+        .id = irq_id,
+        .irq = irq.irq,
+    };
+    system.data.num_irqs +=  1;
 }
 
 // TODO: deal with the general problem of having multiple gic vcpu mappings but only one MR.

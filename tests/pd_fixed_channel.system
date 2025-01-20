@@ -2,7 +2,7 @@
 <system>
     <protection_domain name="hello-1">
         <program_image path="hello.elf" />
-        <irq irq="33" trigger="level" id="0" />
+        <irq irq="33" id="0" trigger="level" />
     </protection_domain>
     <protection_domain name="hello-2">
         <program_image path="hello.elf" />

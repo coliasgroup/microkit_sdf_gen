@@ -47,7 +47,7 @@ test "PD + MR + mappings + channel" {
 
     const image = "hello.elf";
     var pd1 = ProtectionDomain.create(allocator, "hello-1", image, .{});
-    _ = try pd1.addInterrupt(.create(33, .level, null));
+    _ = try pd1.addIrq(.create(33, .{}));
     pd1.addMap(.create(mr, 0x400000000, .r, .{}));
     pd1.addMap(.create(mr, 0x600000000, .x, .{}));
     pd1.addMap(.create(mr, 0x800000000, .rwx, .{}));
@@ -76,7 +76,7 @@ test "fixed channel" {
     sdf.addProtectionDomain(&pd1);
     sdf.addProtectionDomain(&pd2);
 
-    _ = try pd1.addInterrupt(.create(33, .level, 0));
+    _ = try pd1.addIrq(.create(33, .{ .trigger = .level, .id = 0 }));
 
     sdf.addChannel(try Channel.create(&pd1, &pd2, .{
         .pd_a_id = 3,

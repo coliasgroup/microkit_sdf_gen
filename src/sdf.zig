@@ -417,7 +417,7 @@ pub const SystemDescription = struct {
         /// The length of this array is bound by the maximum number of child PDs a PD can have.
         child_pds: ArrayList(*ProtectionDomain),
         /// The length of this array is bound by the maximum number of IRQs a PD can have.
-        irqs: ArrayList(Interrupt),
+        irqs: ArrayList(Irq),
         vm: ?*VirtualMachine,
         /// Keeping track of what IDs are available for channels, IRQs, etc
         ids: std.bit_set.StaticBitSet(MAX_IDS),
@@ -456,7 +456,7 @@ pub const SystemDescription = struct {
                 .program_image = program_image_dupe,
                 .maps = ArrayList(Map).init(allocator),
                 .child_pds = ArrayList(*ProtectionDomain).initCapacity(allocator, MAX_CHILD_PDS) catch @panic("Could not allocate child_pds"),
-                .irqs = ArrayList(Interrupt).initCapacity(allocator, MAX_IRQS) catch @panic("Could not allocate irqs"),
+                .irqs = ArrayList(Irq).initCapacity(allocator, MAX_IRQS) catch @panic("Could not allocate irqs"),
                 .vm = null,
                 .ids = std.bit_set.StaticBitSet(MAX_IDS).initEmpty(),
                 .setvars = ArrayList(SetVar).init(allocator),
@@ -523,7 +523,7 @@ pub const SystemDescription = struct {
             pd.maps.append(map) catch @panic("Could not add Map to ProtectionDomain");
         }
 
-        pub fn addInterrupt(pd: *ProtectionDomain, irq: Interrupt) !u8 {
+        pub fn addIrq(pd: *ProtectionDomain, irq: Irq) !u8 {
             // If the IRQ ID is already set, then we check that we can allocate it with
             // the PD.
             if (irq.id) |id| {
@@ -747,33 +747,50 @@ pub const SystemDescription = struct {
         }
     };
 
-    pub const Interrupt = struct {
-        id: ?u8 = null,
+    pub const Irq = struct {
         /// IRQ number that will be registered with seL4. That means that this
         /// number needs to map onto what seL4 observes (e.g the numbers in the
         /// device tree do not necessarily map onto what seL4 sees on ARM).
         irq: u32,
-        trigger: Trigger,
+        trigger: ?Trigger,
+        id: ?u8,
 
         pub const Trigger = enum { edge, level };
 
-        pub fn create(irq: u32, trigger: Trigger, id: ?u8) Interrupt {
-            return Interrupt{ .irq = irq, .trigger = trigger, .id = id };
+        pub const Options = struct {
+            trigger: ?Trigger = null,
+            id: ?u8 = null,
+        };
+
+        pub fn create(irq: u32, options: Options) Irq {
+            return .{
+                .irq = irq,
+                .trigger = options.trigger,
+                .id = options.id
+            };
         }
 
-        pub fn toXml(irq: *const Interrupt, sdf: *SystemDescription, writer: ArrayList(u8).Writer, separator: []const u8) !void {
+        pub fn toXml(irq: *const Irq, sdf: *SystemDescription, writer: ArrayList(u8).Writer, separator: []const u8) !void {
             // By the time we get here, something should have populated the 'id' field.
             std.debug.assert(irq.id != null);
 
+            const allocator = sdf.allocator;
+
             const irq_str =
-                \\{s}<irq irq="{}" trigger="{s}" id="{}" />
+                \\{s}<irq irq="{}" id="{}"
             ;
 
-            const irq_xml = try allocPrint(sdf.allocator, irq_str, .{ separator, irq.irq, @tagName(irq.trigger), irq.id.? });
-            defer sdf.allocator.free(irq_xml);
-
+            const irq_xml = try allocPrint(allocator, irq_str, .{ separator, irq.irq, irq.id.? });
+            defer allocator.free(irq_xml);
             _ = try writer.write(irq_xml);
-            _ = try writer.write("\n");
+
+            if (irq.trigger) |trigger| {
+                const xml = try allocPrint(allocator, " trigger=\"{s}\"", .{ @tagName(trigger) });
+                defer allocator.free(xml);
+                _ = try writer.write(xml);
+            }
+
+            _ = try writer.write(" />\n");
         }
     };
 

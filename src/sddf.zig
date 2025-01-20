@@ -13,7 +13,7 @@ const SystemDescription = mod_sdf.SystemDescription;
 const Mr = SystemDescription.MemoryRegion;
 const Map = SystemDescription.Map;
 const Pd = SystemDescription.ProtectionDomain;
-const Interrupt = SystemDescription.Interrupt;
+const Irq = SystemDescription.Irq;
 const Channel = SystemDescription.Channel;
 const SetVar = SystemDescription.SetVar;
 
@@ -270,7 +270,7 @@ pub const Config = struct {
 
         const Resources = struct {
             regions: []const Region,
-            irqs: []const Irq,
+            irqs: []const Config.Irq,
         };
 
         pub const Json = struct {
@@ -476,7 +476,7 @@ pub const DeviceTree = struct {
         };
     }
 
-    pub fn armGicTrigger(trigger: usize) Interrupt.Trigger {
+    pub fn armGicTrigger(trigger: usize) Irq.Trigger {
         // Only bits 0-3 of the DT IRQ type are for the trigger
         return switch (trigger & 0b111) {
             0x1 => return .edge,
@@ -2020,18 +2020,24 @@ pub fn createDriver(sdf: *SystemDescription, pd: *Pd, device: *dtb.Node, class: 
                 const irq_number = DeviceTree.armGicIrqNumber(dt_irq[1], irq_type);
                 const irq_trigger = DeviceTree.armGicTrigger(dt_irq[2]);
 
-                break :blk SystemDescription.Interrupt.create(irq_number, irq_trigger, driver_irq.channel_id);
+                break :blk SystemDescription.Irq.create(irq_number, .{
+                    .trigger = irq_trigger,
+                    .id = driver_irq.channel_id,
+                });
             } else if (sdf.arch.isRiscv()) {
                 std.debug.assert(dt_irq.len == 1);
                 const irq_number = dt_irq[0];
                 const irq_trigger = .level;
-                break :blk SystemDescription.Interrupt.create(irq_number, irq_trigger, driver_irq.channel_id);
+                break :blk SystemDescription.Irq.create(irq_number, .{
+                    .trigger = irq_trigger,
+                    .id = driver_irq.channel_id
+                });
             } else {
                 @panic("device driver IRQ handling is unimplemented for given arch");
             }
         };
 
-        const irq_channel = try pd.addInterrupt(irq);
+        const irq_channel = try pd.addIrq(irq);
 
         device_res.irqs[device_res.num_irqs] = .{
             .id = irq_channel,

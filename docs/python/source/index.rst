@@ -8,3 +8,4 @@ Python sdfgen documentation
    system_description
    device_tree
    sddf
+   vmm

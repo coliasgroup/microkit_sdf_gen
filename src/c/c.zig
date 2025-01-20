@@ -14,6 +14,7 @@ const lionsos = modsdf.lionsos;
 const Vmm = modsdf.Vmm;
 const SystemDescription = modsdf.sdf.SystemDescription;
 const Pd = SystemDescription.ProtectionDomain;
+const Irq = SystemDescription.Irq;
 const Vm = SystemDescription.VirtualMachine;
 const Channel = SystemDescription.Channel;
 const Mr = SystemDescription.MemoryRegion;
@@ -146,6 +147,13 @@ export fn sdfgen_pd_add_map(c_pd: *align(8) anyopaque, c_map: *align(8) anyopaqu
     pd.addMap(map.*);
 }
 
+export fn sdfgen_pd_add_irq(c_pd: *align(8) anyopaque, c_irq: *align(8) anyopaque) u8 {
+    const pd: *Pd = @ptrCast(c_pd);
+    const irq: *Irq = @ptrCast(c_irq);
+
+    return pd.addIrq(irq.*) catch @panic("TODO");
+}
+
 export fn sdfgen_pd_set_priority(c_pd: *align(8) anyopaque, priority: u8) void {
     const pd: *Pd = @ptrCast(c_pd);
     pd.priority = priority;
@@ -235,6 +243,19 @@ export fn sdfgen_sddf_init(path: [*c]u8) bool {
     };
 
     return true;
+}
+
+export fn sdfgen_irq_create(irq_number: u32) *anyopaque {
+    const irq = allocator.create(Irq) catch @panic("OOM");
+    // TODO: handle options
+    irq.* = Irq.create(irq_number, .{});
+
+    return irq;
+}
+
+export fn sdfgen_irq_destroy(c_irq: *align(8) anyopaque) void {
+    const irq: *Irq = @ptrCast(c_irq);
+    allocator.destroy(irq);
 }
 
 export fn sdfgen_mr_create(name: [*c]u8, size: u64) *anyopaque {
@@ -585,6 +606,14 @@ export fn sdfgen_vmm(c_sdf: *align(8) anyopaque, vmm_pd: *align(8) anyopaque, vm
 export fn sdfgen_vmm_add_passthrough_device(c_vmm: *align(8) anyopaque, c_name: [*c]u8, c_device: *align(8) anyopaque) bool {
     const vmm: *Vmm = @ptrCast(c_vmm);
     vmm.addPassthroughDevice(std.mem.span(c_name), @ptrCast(c_device), true) catch @panic("TODO");
+
+    return true;
+}
+
+export fn sdfgen_vmm_add_passthrough_irq(c_vmm: *align(8) anyopaque, c_irq: *align(8) anyopaque) bool {
+    const vmm: *Vmm = @ptrCast(c_vmm);
+    const irq: *Irq = @ptrCast(c_irq);
+    vmm.addPassthroughIrq(irq.*) catch @panic("TODO");
 
     return true;
 }
