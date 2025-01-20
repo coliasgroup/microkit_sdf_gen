@@ -2,6 +2,7 @@ const std = @import("std");
 const sdf = @import("sdf.zig");
 
 const MAGIC_START: [4]u8 = .{ 's', 'D', 'D', 'F' };
+const LIONS_MAGIC_START: [7]u8 = .{ 'L', 'i', 'o', 'n', 's', 'O', 'S' };
 
 pub const Resources = struct {
     /// Provides information to a component about a memory region that is mapped into its address space
@@ -326,6 +327,28 @@ pub const Resources = struct {
             magic: [5]u8 = MAGIC,
             virt: Connection,
             data: Region,
+        };
+    };
+
+    pub const Fs = extern struct {
+        const MAGIC: [8]u8 = LIONS_MAGIC_START ++ .{0x1};
+
+        pub const Connection = extern struct {
+            command_queue: Region,
+            completion_queue: Region,
+            share: Region,
+            queue_len: u16,
+            id: u8,
+        };
+
+        pub const Server = extern struct {
+            magic: [8]u8 = MAGIC,
+            client: Connection,
+        };
+
+        pub const Client = extern struct {
+            magic: [8]u8 = MAGIC,
+            server: Connection,
         };
     };
 };
