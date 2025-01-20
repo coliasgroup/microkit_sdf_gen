@@ -9,3 +9,4 @@ Python sdfgen documentation
    device_tree
    sddf
    vmm
+   lionsos
