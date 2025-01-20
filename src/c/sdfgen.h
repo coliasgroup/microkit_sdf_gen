@@ -121,6 +121,9 @@ bool sdfgen_sddf_gpu_connect(void *system);
 bool sdfgen_sddf_gpu_serialise_config(void *system, char *output_dir);
 
 /*** Virtual Machine Monitor ***/
+void *sdfgen_vmm(void *sdf, void *vmm_pd, void *vm, char *name, void *dtb);
+bool sdfgen_vmm_add_passthrough_device(void *vmm, char *name, void *device);
+bool sdfgen_vmm_connect(void *vmm);
 
 /*** LionsOS ***/
 

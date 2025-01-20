@@ -570,10 +570,10 @@ export fn sdfgen_sddf_gpu_serialise_config(system: *align(8) anyopaque, output_d
     return true;
 }
 
-export fn sdfgen_vmm(c_sdf: *align(8) anyopaque, vmm_pd: *align(8) anyopaque, vm_pd: *align(8) anyopaque, c_dtb: *align(8) anyopaque) *anyopaque {
+export fn sdfgen_vmm(c_sdf: *align(8) anyopaque, vmm_pd: *align(8) anyopaque, vm: *align(8) anyopaque, c_dtb: *align(8) anyopaque) *anyopaque {
     const sdf: *SystemDescription = @ptrCast(c_sdf);
     const vmm = allocator.create(Vmm) catch @panic("OOM");
-    vmm.* = Vmm.init(allocator, sdf, @ptrCast(vmm_pd), @ptrCast(vm_pd), @ptrCast(c_dtb), .{});
+    vmm.* = Vmm.init(allocator, sdf, @ptrCast(vmm_pd), @ptrCast(vm), @ptrCast(c_dtb), .{});
 
     return vmm;
 }
@@ -581,6 +581,13 @@ export fn sdfgen_vmm(c_sdf: *align(8) anyopaque, vmm_pd: *align(8) anyopaque, vm
 export fn sdfgen_vmm_add_passthrough_device(c_vmm: *align(8) anyopaque, c_name: [*c]u8, c_device: *align(8) anyopaque) bool {
     const vmm: *Vmm = @ptrCast(c_vmm);
     vmm.addPassthroughDevice(std.mem.span(c_name), @ptrCast(c_device), true) catch @panic("TODO");
+
+    return true;
+}
+
+export fn sdfgen_vmm_connect(c_vmm: *align(8) anyopaque) bool {
+    const vmm: *Vmm = @ptrCast(c_vmm);
+    vmm.connect() catch return false;
 
     return true;
 }
