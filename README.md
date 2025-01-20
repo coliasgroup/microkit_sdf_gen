@@ -12,8 +12,8 @@ process of creating seL4 Microkit systems.
 ## Use
 
 The sdfgen tooling (name temporary) contains libraries for programmatically creating:
-* Microkit System Description Files (SDF),
-* systems using the seL4 Device Driver Framework (sDDF),
+* Microkit System Description Files (SDF)
+* systems using the seL4 Device Driver Framework (sDDF)
 * systems using LionsOS
 
 It has first-class support for use in the following languages:
@@ -24,7 +24,10 @@ It has first-class support for use in the following languages:
 The Python package is available via `pip` (on [PyPI](https://pypi.org/project/sdfgen/))
 and can be installed simply via `pip install sdfgen`.
 
-Pre-built archives of the C library is available in each
+Documentation for the Python package can be found
+[here](https://au-ts.github.io/microkit_sdf_gen).
+
+Pre-built archives of the C library are available in each
 [release](https://github.com/au-ts/microkit_sdf_gen/releases).
 
 ## Motivation
@@ -118,9 +121,6 @@ The source code for the example is in `examples/examples.c`.
 
 The Python package is supported for versions 3.9 to 3.13.
 Linux (x86-64) and macOS (Intel/Apple Silicon) are supported. Windows is *not* supported.
-
-Documentation for the Python package can be found
-[here](https://au-ts.github.io/microkit_sdf_gen).
 
 The Python bindings are all in Python itself, and do direct FFI to the C bindings via
 [ctypes](https://docs.python.org/3/library/ctypes.html).
