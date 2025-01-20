@@ -351,6 +351,18 @@ pub const Resources = struct {
             server: Connection,
         };
     };
+
+    pub const Nfs = extern struct {
+        const MAGIC: [8]u8 = LIONS_MAGIC_START ++ .{0x2};
+        pub const MaxServerUrlLen = 4096;
+        pub const MaxExportPathLen = 4096;
+
+        pub const Config = extern struct {
+            magic: [8]u8 = MAGIC,
+            nfs_server: [MaxServerUrlLen]u8,
+            nfs_export: [MaxExportPathLen]u8,
+        };
+    };
 };
 
 pub fn serialize(s: anytype, path: []const u8) !void {
