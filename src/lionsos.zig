@@ -1,6 +1,7 @@
 const std = @import("std");
 const mod_sdf = @import("sdf.zig");
 const mod_sddf = @import("sddf.zig");
+const data = @import("data.zig");
 const Allocator = std.mem.Allocator;
 
 const SystemDescription = mod_sdf.SystemDescription;
@@ -8,6 +9,8 @@ const Pd = SystemDescription.ProtectionDomain;
 const Mr = SystemDescription.MemoryRegion;
 const Map = SystemDescription.Map;
 const Channel = SystemDescription.Channel;
+
+const ConfigResources = data.Resources;
 
 const NetworkSystem = mod_sddf.NetworkSystem;
 const SerialSystem = mod_sddf.SerialSystem;
@@ -27,6 +30,9 @@ pub const FileSystem = struct {
     data_size: usize,
     completion_queue_size: usize,
     command_queue_size: usize,
+
+    server_config: ConfigResources.Fs.Server,
+    client_config: ConfigResources.Fs.Client,
 
     const Options = struct {
         data_mr: ?Mr = null,
@@ -60,10 +66,13 @@ pub const FileSystem = struct {
             .data_size = options.data_size,
             .completion_queue_size = options.completion_queue_size,
             .command_queue_size = options.command_queue_size,
+
+            .server_config = std.mem.zeroInit(ConfigResources.Fs.Server, .{}),
+            .client_config = std.mem.zeroInit(ConfigResources.Fs.Client, .{}),
         };
     }
 
-    pub fn connect(system: *const FileSystem) void {
+    pub fn connect(system: *FileSystem) void {
         const allocator = system.allocator;
         const fs = system.fs;
         const client = system.client;
@@ -84,17 +93,52 @@ pub const FileSystem = struct {
             }
         };
 
-        fs.addMap(.create(fs_command_queue, fs.getMapVaddr(&fs_command_queue), .rw, .{ .setvar_vaddr = "fs_command_queue" }));
-        fs.addMap(.create(fs_completion_queue, fs.getMapVaddr(&fs_completion_queue), .rw, .{ .setvar_vaddr = "fs_completion_queue" }));
-        fs.addMap(.create(fs_share, fs.getMapVaddr(&fs_share), .rw, .{ .setvar_vaddr = "fs_share" }));
+        const server_command_map = Map.create(fs_command_queue, fs.getMapVaddr(&fs_command_queue), .rw, .{});
+        fs.addMap(server_command_map);
+        system.server_config.client.command_queue = .createFromMap(server_command_map);
 
-        client.addMap(.create(fs_command_queue, client.getMapVaddr(&fs_command_queue), .rw, .{ .setvar_vaddr = "fs_command_queue" }));
-        client.addMap(.create(fs_completion_queue, client.getMapVaddr(&fs_completion_queue), .rw, .{ .setvar_vaddr = "fs_completion_queue" }));
-        client.addMap(.create(fs_share, client.getMapVaddr(&fs_share), .rw, .{ .setvar_vaddr = "fs_share" }));
+        const server_completion_map = Map.create(fs_completion_queue, fs.getMapVaddr(&fs_completion_queue), .rw, .{});
+        system.server_config.client.completion_queue = .createFromMap(server_completion_map);
+        fs.addMap(server_completion_map);
 
-        system.sdf.addChannel(Channel.create(fs, client, .{
-            .pd_a_id = 10,
-        }) catch unreachable);
+        const server_share_map = Map.create(fs_share, fs.getMapVaddr(&fs_share), .rw, .{});
+        fs.addMap(server_share_map);
+        system.server_config.client.share = .createFromMap(server_share_map);
+
+        const client_command_map = Map.create(fs_command_queue, client.getMapVaddr(&fs_command_queue), .rw, .{});
+        system.client.addMap(client_command_map);
+        system.client_config.server.command_queue = .createFromMap(client_command_map);
+
+        const client_completion_map = Map.create(fs_completion_queue, client.getMapVaddr(&fs_completion_queue), .rw, .{});
+
+        system.client.addMap(client_completion_map);
+        system.client_config.server.completion_queue = .createFromMap(client_completion_map);
+
+        const client_share_map = Map.create(fs_share, client.getMapVaddr(&fs_share), .rw, .{});
+        system.client.addMap(client_share_map);
+        system.client_config.server.share = .createFromMap(client_share_map);
+
+        system.server_config.client.queue_len = 512;
+        system.client_config.server.queue_len = 512;
+
+        const channel = Channel.create(system.fs, system.client, .{}) catch @panic("failed to create connection channel");
+        system.sdf.addChannel(channel);
+        system.server_config.client.id = channel.pd_a_id;
+        system.client_config.server.id = channel.pd_b_id;
+    }
+
+    pub fn serialiseConfig(system: *FileSystem, prefix: []const u8) !void {
+        const allocator = system.allocator;
+
+        const server_config_data_name = fmt(allocator, "fs_server_{s}.data", .{system.fs.name});
+        try data.serialize(system.server_config, try std.fs.path.join(allocator, &.{ prefix, server_config_data_name }));
+        const server_config_json_name = fmt(allocator, "fs_server_{s}.json", .{system.fs.name});
+        try data.jsonify(system.server_config, try std.fs.path.join(allocator, &.{ prefix, server_config_json_name }));
+
+        const client_config_data_name = fmt(allocator, "fs_client_{s}.data", .{system.client.name});
+        try data.serialize(system.client_config, try std.fs.path.join(allocator, &.{ prefix, client_config_data_name }));
+        const client_config_json_name = fmt(allocator, "fs_client_{s}.json", .{system.client.name});
+        try data.jsonify(system.client_config, try std.fs.path.join(allocator, &.{ prefix, client_config_json_name }));
     }
 
     pub const Nfs = struct {
@@ -121,6 +165,10 @@ pub const FileSystem = struct {
 
         pub fn connect(nfs: *Nfs) void {
             nfs.fs.connect();
+        }
+
+        pub fn serialiseConfig(nfs: *Nfs, prefix: []const u8) !void {
+            nfs.fs.serialiseConfig(prefix) catch @panic("Could not serialise config");
         }
     };
 

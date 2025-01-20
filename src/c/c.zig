@@ -625,3 +625,10 @@ export fn sdfgen_lionsos_fs_nfs_connect(system: *align(8) anyopaque) bool {
 
     return true;
 }
+
+export fn sdfgen_lionsos_fs_nfs_serialise_config(system: *align(8) anyopaque, output_dir: [*c]u8) bool {
+    const nfs: *lionsos.FileSystem.Nfs = @ptrCast(system);
+    nfs.serialiseConfig(std.mem.span(output_dir)) catch return false;
+
+    return true;
+}
