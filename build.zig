@@ -89,10 +89,11 @@ pub fn build(b: *std.Build) !void {
     b.installArtifact(csdfgen);
 
     const c_step = b.step("c", "Library for C bindings");
-    const csdfgen_emit = b.option([]const u8, "c-emit", "C sdfgen emit") orelse "libsdfgen";
-    c_step.dependOn(&b.addInstallLibFile(csdfgen.getEmittedBin(), csdfgen_emit).step);
-    c_step.dependOn(&b.addInstallDirectory(.{ .source_dir = csdfgen.getEmittedIncludeTree(), .install_dir = .header, .install_subdir = "" }).step);
-    c_step.dependOn(&csdfgen.step);
+    c_step.dependOn(b.getInstallStep());
+    const csdfgen_emit = b.option([]const u8, "c-emit", "C sdfgen emit") orelse null;
+    if (csdfgen_emit) |name| {
+        c_step.dependOn(&b.addInstallLibFile(csdfgen.getEmittedBin(), name).step);
+    }
 
     const c_example = b.addExecutable(.{
         .name = "c_example",
