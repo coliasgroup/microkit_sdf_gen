@@ -194,6 +194,8 @@ libsdfgen.sdfgen_vmm_add_passthrough_device.restype = c_bool
 libsdfgen.sdfgen_vmm_add_passthrough_device.argtypes = [c_void_p, c_char_p, c_void_p]
 libsdfgen.sdfgen_vmm_connect.restype = c_bool
 libsdfgen.sdfgen_vmm_connect.argtypes = [c_void_p]
+libsdfgen.sdfgen_vmm_serialise_config.restype = c_bool
+libsdfgen.sdfgen_vmm_serialise_config.argtypes = [c_void_p, c_char_p]
 
 libsdfgen.sdfgen_lionsos_fs_fat.restype = c_void_p
 libsdfgen.sdfgen_lionsos_fs_fat.argtypes = [c_void_p, c_void_p, c_void_p]
@@ -356,16 +358,17 @@ class SystemDescription:
         _name: str
         _obj: c_void_p
 
-        class VirtualCpu:
+        class Vcpu:
             def __init__(self, *, id: int, cpu: Optional[int] = 0):
                 # TODO: error checking
                 self._obj = libsdfgen.sdfgen_vm_vcpu_create(id, cpu)
 
-        def __init__(self, name: str, vcpus: List[VirtualCpu]):
+        def __init__(self, name: str, vcpus: List[Vcpu]):
             vcpus_tuple: Tuple[c_void_p] = tuple([vcpu._obj for vcpu in vcpus])
-            c_vcpus = (c_void_p * len(vcpus))(vcpus_tuple)
+            c_vcpus = (c_void_p * len(vcpus))(*vcpus_tuple)
+            c_name = c_char_p(name.encode("utf-8"))
             self._name = name
-            self._obj = libsdfgen.sdfgen_vm_create(name, cast(c_vcpus, POINTER(c_void_p)))
+            self._obj = libsdfgen.sdfgen_vm_create(c_name, cast(c_vcpus, POINTER(c_void_p)), len(vcpus))
 
         @property
         def name(self) -> str:
@@ -793,6 +796,10 @@ class Vmm:
 
     def connect(self) -> bool:
         return libsdfgen.sdfgen_vmm_connect(self._obj)
+
+    def serialise_config(self, output_dir: str) -> bool:
+        c_output_dir = c_char_p(output_dir.encode("utf-8"))
+        return libsdfgen.sdfgen_vmm_serialise_config(self._obj, c_output_dir)
 
 
 class LionsOs:

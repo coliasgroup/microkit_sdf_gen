@@ -1,8 +1,12 @@
 const std = @import("std");
+const builtin = @import("builtin");
 const mod_sdf = @import("sdf.zig");
-const dtb = @import("dtb");
+const mod_dtb = @import("dtb");
+const mod_data = @import("data.zig");
 const sddf = @import("sddf.zig");
 const Allocator = std.mem.Allocator;
+
+const fs = std.fs;
 
 const SystemDescription = mod_sdf.SystemDescription;
 const Mr = SystemDescription.MemoryRegion;
@@ -13,13 +17,19 @@ const Vm = SystemDescription.VirtualMachine;
 const DeviceTree = sddf.DeviceTree;
 const ArmGic = DeviceTree.ArmGic;
 
+// TODO: repeated with sddf.zig
+/// Only emit JSON versions of the serialised configuration data
+/// in debug mode.
+const serialise_emit_json = builtin.mode == .Debug;
+
 const Self = @This();
 
 allocator: Allocator,
 sdf: *SystemDescription,
 vmm: *Pd,
 vm: *Vm,
-guest_dtb: *dtb.Node,
+dtb: *mod_dtb.Node,
+data: Data,
 /// Whether or not to map guest RAM with 1-1 mappings with physical memory
 one_to_one_ram: bool,
 
@@ -27,21 +37,49 @@ const Options = struct {
     one_to_one_ram: bool = false,
 };
 
-pub fn init(allocator: Allocator, sdf: *SystemDescription, vmm: *Pd, vm: *Vm, guest_dtb: *dtb.Node, options: Options) Self {
+const MAX_PASSTHROUGH_IRQS: usize = 32;
+const MAX_VCPUS: usize = 32;
+
+const Data = extern struct {
+    const Irq = extern struct {
+        id: u8,
+        irq: u32,
+    };
+
+    const Vcpu = extern struct {
+        id: u8,
+    };
+
+    ram: u64,
+    ram_size: u64,
+    dtb: u64,
+    initrd: u64,
+    num_irqs: u8,
+    passthrough_irqs: [MAX_PASSTHROUGH_IRQS]Irq,
+    num_vcpus: u8,
+    vcpus: [MAX_VCPUS]Vcpu,
+};
+
+pub fn init(allocator: Allocator, sdf: *SystemDescription, vmm: *Pd, vm: *Vm, dtb: *mod_dtb.Node, options: Options) Self {
     return .{
         .allocator = allocator,
         .sdf = sdf,
         .vmm = vmm,
         .vm = vm,
-        .guest_dtb = guest_dtb,
+        .dtb = dtb,
+        .data = std.mem.zeroInit(Data, .{}),
         .one_to_one_ram = options.one_to_one_ram,
     };
+}
+
+fn fmt(allocator: Allocator, comptime s: []const u8, args: anytype) []u8 {
+    return std.fmt.allocPrint(allocator, s, args) catch @panic("OOM");
 }
 
 /// A currently naive approach to adding passthrough for a particular device
 /// to a virtual machine.
 /// This adds the required interrupts to be given to the VMM, and the TODO finish description
-pub fn addPassthroughDevice(system: *Self, name: []const u8, device: *dtb.Node, irqs: bool) !void {
+pub fn addPassthroughDevice(system: *Self, name: []const u8, device: *mod_dtb.Node, irqs: bool) !void {
     const allocator = system.allocator;
     // Find the device, get it's memory regions and add it to the guest. Add its IRQs to the VMM.
     if (device.prop(.Reg)) |device_reg| {
@@ -69,13 +107,18 @@ pub fn addPassthroughDevice(system: *Self, name: []const u8, device: *dtb.Node, 
                 const irq_type = sddf.DeviceTree.armGicIrqType(interrupt[0]);
                 const irq_number = sddf.DeviceTree.armGicIrqNumber(interrupt[1], irq_type);
                 const irq_trigger = DeviceTree.armGicTrigger(interrupt[2]);
-                _ = try system.vmm.addInterrupt(.create(irq_number, irq_trigger, null));
+                const irq_id = try system.vmm.addInterrupt(.create(irq_number, irq_trigger, null));
+                system.data.passthrough_irqs[system.data.num_irqs] = .{
+                    .id = irq_id,
+                    .irq = irq_number,
+                };
+                system.data.num_irqs += 1;
             }
         }
     }
 }
 
-pub fn addPassthroughRegion(system: *Self, name: []const u8, device: *dtb.Node, reg_index: u64) !void {
+pub fn addPassthroughRegion(system: *Self, name: []const u8, device: *mod_dtb.Node, reg_index: u64) !void {
     const device_reg = device.prop(.Reg).?;
     const device_paddr = DeviceTree.regToPaddr(device, device_reg[reg_index][0]);
     const device_size = DeviceTree.regToSize(device_reg[reg_index][1]);
@@ -100,7 +143,7 @@ pub fn connect(system: *Self) !void {
 
     // On ARM, map in the GIC vCPU device as the GIC CPU device in the guest's memory.
     if (sdf.arch.isArm()) {
-        const gic = ArmGic.fromDtb(system.guest_dtb);
+        const gic = ArmGic.fromDtb(system.dtb);
 
         if (gic.hasMmioCpuInterface()) {
             const gic_vcpu_mr = Mr.physical(allocator, sdf, "gic_vcpu", gic.vcpu_size.?, .{ .paddr = gic.vcpu_paddr.? });
@@ -110,7 +153,7 @@ pub fn connect(system: *Self) !void {
         }
     }
 
-    const memory_node = DeviceTree.memory(system.guest_dtb).?;
+    const memory_node = DeviceTree.memory(system.dtb).?;
     const memory_reg = memory_node.prop(.Reg).?;
     // TODO
     std.debug.assert(memory_reg.len == 1);
@@ -129,4 +172,48 @@ pub fn connect(system: *Self) !void {
     sdf.addMemoryRegion(guest_ram_mr);
     vmm.addMap(.create(guest_ram_mr, memory_paddr, .rw, .{}));
     vm.addMap(.create(guest_ram_mr, memory_paddr, .rwx, .{}));
+
+    // var chosen: ?*mod_dtb.Node = null;
+    // for (system.dtb.children) |child| {
+    //     if (std.mem.eql(u8, child.name, "chosen")) {
+    //         chosen = child;
+    //     }
+    // }
+    // if (chosen == null) {
+    //     @panic("TODO");
+    // }
+
+    system.data.ram = memory_paddr;
+    system.data.ram_size = guest_ram_size;
+    // TODO: fix this
+    system.data.dtb = 0x4f000000;
+    system.data.initrd = 0x4d000000;
+
+    for (system.vm.vcpus) |vcpu| {
+        system.data.vcpus[system.data.num_vcpus] = .{
+            .id = vcpu.id,
+        };
+        system.data.num_vcpus += 1;
+    }
+
+    // for (chosen.?.props) |prop| {
+    //     if (p == .Unknown) {
+    //         const initrd_start_prop = @field(p, .Unknown);
+    //     }
+    // }
+
+    // const initrd_start = system.dtb.propAt(&.{ "chosen" }, .Unknown{ .name = "linux,initrd-start" });
+    // std.log.info("initrd_start: 0x{x}", .{ initrd_start });
+}
+
+pub fn serialiseConfig(system: *Self, prefix: []const u8) !void {
+    // TODO: check connected
+    const allocator = system.allocator;
+    const data_name = fmt(allocator, "vmm_{s}.data", .{ system.vmm.name });
+
+    try mod_data.serialize(system.data, try fs.path.join(allocator, &.{ prefix, data_name }));
+    if (serialise_emit_json) {
+        const json_name = fmt(allocator, "vmm_{s}.data", .{ system.vmm.name });
+        try mod_data.jsonify(system.data, try fs.path.join(allocator, &.{ prefix, json_name }));
+    }
 }

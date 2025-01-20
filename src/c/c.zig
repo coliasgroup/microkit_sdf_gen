@@ -208,7 +208,11 @@ export fn sdfgen_vm_destroy(c_vm: *align(8) anyopaque) void {
 
 export fn sdfgen_vm_vcpu_create(id: u8, cpu: u16) *anyopaque {
     const vcpu: *Vm.Vcpu = allocator.create(Vm.Vcpu) catch @panic("OOM");
-    vcpu.* = Vm.Vcpu{ .id = id, .cpu = cpu };
+    vcpu.* = Vm.Vcpu{ .id = id };
+    // TODO: this is kind of hacky?
+    if (cpu != 0) {
+        vcpu.cpu = cpu;
+    }
 
     return vcpu;
 }
@@ -588,6 +592,13 @@ export fn sdfgen_vmm_add_passthrough_device(c_vmm: *align(8) anyopaque, c_name: 
 export fn sdfgen_vmm_connect(c_vmm: *align(8) anyopaque) bool {
     const vmm: *Vmm = @ptrCast(c_vmm);
     vmm.connect() catch return false;
+
+    return true;
+}
+
+export fn sdfgen_vmm_serialise_config(c_vmm: *align(8) anyopaque, output_dir: [*c]u8) bool {
+    const vmm: *Vmm = @ptrCast(c_vmm);
+    vmm.serialiseConfig(std.mem.span(output_dir)) catch return false;
 
     return true;
 }

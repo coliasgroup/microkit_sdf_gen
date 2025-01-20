@@ -106,7 +106,7 @@ pub fn probe(allocator: Allocator, path: []const u8) !void {
 
     log.debug("starting sDDF probe", .{});
     log.debug("opening sDDF root dir '{s}'", .{path});
-    var sddf = std.fs.cwd().openDir(path, .{}) catch |e| {
+    var sddf = fs.cwd().openDir(path, .{}) catch |e| {
         log.err("failed to open sDDF directory '{s}': {}", .{ path, e });
         return e;
     };
@@ -630,7 +630,7 @@ pub const TimerSystem = struct {
         const allocator = system.allocator;
 
         const device_res_data_name = fmt(system.allocator, "{s}_device_resources.data", .{system.driver.name});
-        try data.serialize(system.device_res, try std.fs.path.join(allocator, &.{ prefix, device_res_data_name }));
+        try data.serialize(system.device_res, try fs.path.join(allocator, &.{ prefix, device_res_data_name }));
         for (system.clients.items, 0..) |client, i| {
             const data_name = fmt(allocator, "timer_client_{s}.data", .{client.name});
             try data.serialize(system.client_configs.items[i], try fs.path.join(allocator, &.{ prefix, data_name }));
@@ -638,7 +638,7 @@ pub const TimerSystem = struct {
 
         if (serialise_emit_json) {
             const device_res_json_name = fmt(allocator, "{s}_device_resources.json", .{system.driver.name});
-            try data.jsonify(system.device_res, try std.fs.path.join(allocator, &.{ prefix, device_res_json_name }));
+            try data.jsonify(system.device_res, try fs.path.join(allocator, &.{ prefix, device_res_json_name }));
             for (system.clients.items, 0..) |client, i| {
                 const json_name = fmt(allocator, "timer_client_{s}.json", .{client.name});
                 try data.jsonify(system.client_configs.items[i], try fs.path.join(allocator, &.{ prefix, json_name }));
@@ -847,7 +847,7 @@ pub const I2cSystem = struct {
         const allocator = system.allocator;
 
         const device_res_data_name = fmt(system.allocator, "{s}_device_resources.data", .{system.driver.name});
-        try data.serialize(system.device_res, try std.fs.path.join(allocator, &.{ prefix, device_res_data_name }));
+        try data.serialize(system.device_res, try fs.path.join(allocator, &.{ prefix, device_res_data_name }));
         try data.serialize(system.driver_config, try fs.path.join(allocator, &.{ prefix, "i2c_driver.data" }));
         try data.serialize(system.virt_config, try fs.path.join(allocator, &.{ prefix, "i2c_virt.data" }));
 
@@ -860,7 +860,7 @@ pub const I2cSystem = struct {
 
         if (serialise_emit_json) {
             const device_res_json_name = fmt(system.allocator, "{s}_device_resources.json", .{system.driver.name});
-            try data.jsonify(system.device_res, try std.fs.path.join(allocator, &.{ prefix, device_res_json_name }));
+            try data.jsonify(system.device_res, try fs.path.join(allocator, &.{ prefix, device_res_json_name }));
             try data.jsonify(system.driver_config, try fs.path.join(allocator, &.{ prefix, "i2c_driver.json" }));
             try data.jsonify(system.virt_config, try fs.path.join(allocator, &.{ prefix, "i2c_virt.json" }));
             for (system.clients.items, 0..) |client, i| {
@@ -1091,7 +1091,7 @@ pub const BlockSystem = struct {
         const allocator = system.allocator;
 
         const device_res_data_name = fmt(allocator, "{s}_device_resources.data", .{system.driver.name});
-        try data.serialize(system.device_res, try std.fs.path.join(allocator, &.{ prefix, device_res_data_name }));
+        try data.serialize(system.device_res, try fs.path.join(allocator, &.{ prefix, device_res_data_name }));
         try data.serialize(system.config.driver, try fs.path.join(allocator, &.{ prefix, "blk_driver.data" }));
         const virt_config = ConfigResources.Block.Virt.create(system.config.virt_driver, system.config.virt_clients.items);
         try data.serialize(virt_config, try fs.path.join(allocator, &.{ prefix, "blk_virt.data" }));
@@ -1105,7 +1105,7 @@ pub const BlockSystem = struct {
 
         if (serialise_emit_json) {
             const device_res_json_name = fmt(allocator, "{s}_device_resources.json", .{system.driver.name});
-            try data.jsonify(system.device_res, try std.fs.path.join(allocator, &.{ prefix, device_res_json_name }));
+            try data.jsonify(system.device_res, try fs.path.join(allocator, &.{ prefix, device_res_json_name }));
             try data.jsonify(system.config.driver, try fs.path.join(allocator, &.{ prefix, "blk_driver.json" }));
             try data.jsonify(virt_config, try fs.path.join(allocator, &.{ prefix, "blk_virt.json" }));
             for (system.config.clients.items, 0..) |config, i| {
@@ -1598,7 +1598,7 @@ pub const NetworkSystem = struct {
         const allocator = system.allocator;
 
         const device_res_data_name = fmt(allocator, "{s}_device_resources.data", .{system.driver.name});
-        try data.serialize(system.device_res, try std.fs.path.join(allocator, &.{ prefix, device_res_data_name }));
+        try data.serialize(system.device_res, try fs.path.join(allocator, &.{ prefix, device_res_data_name }));
         try data.serialize(system.driver_config, try fs.path.join(allocator, &.{ prefix, "net_driver.data" }));
         try data.serialize(system.virt_rx_config, try fs.path.join(allocator, &.{ prefix, "net_virt_rx.data" }));
         try data.serialize(system.virt_tx_config, try fs.path.join(allocator, &.{ prefix, "net_virt_tx.data" }));
@@ -1619,7 +1619,7 @@ pub const NetworkSystem = struct {
 
         if (serialise_emit_json) {
             const device_res_json_name = fmt(allocator, "{s}_device_resources.json", .{system.driver.name});
-            try data.jsonify(system.device_res, try std.fs.path.join(allocator, &.{ prefix, device_res_json_name }));
+            try data.jsonify(system.device_res, try fs.path.join(allocator, &.{ prefix, device_res_json_name }));
             try data.jsonify(system.driver_config, try fs.path.join(allocator, &.{ prefix, "net_driver.json" }));
             try data.jsonify(system.virt_rx_config, try fs.path.join(allocator, &.{ prefix, "net_virt_rx.json" }));
             try data.jsonify(system.virt_tx_config, try fs.path.join(allocator, &.{ prefix, "net_virt_tx.json" }));
@@ -1836,7 +1836,7 @@ pub const GpuSystem = struct {
         const allocator = system.allocator;
 
         const device_res_data_name = fmt(system.allocator, "{s}_device_resources.data", .{system.driver.name});
-        try data.serialize(system.device_res, try std.fs.path.join(system.allocator, &.{ prefix, device_res_data_name }));
+        try data.serialize(system.device_res, try fs.path.join(system.allocator, &.{ prefix, device_res_data_name }));
         try data.serialize(system.config.driver, try fs.path.join(allocator, &.{ prefix, "gpu_driver.data" }));
 
         const virt_config = ConfigResources.Gpu.Virt.create(system.config.virt_driver, system.config.virt_clients.items);
@@ -1851,7 +1851,7 @@ pub const GpuSystem = struct {
 
         if (serialise_emit_json) {
             const device_res_json_name = fmt(system.allocator, "{s}_device_resources.json", .{system.driver.name});
-            try data.jsonify(system.device_res, try std.fs.path.join(system.allocator, &.{ prefix, device_res_json_name }));
+            try data.jsonify(system.device_res, try fs.path.join(system.allocator, &.{ prefix, device_res_json_name }));
             try data.jsonify(system.config.driver, try fs.path.join(allocator, &.{ prefix, "gpu_driver.json" }));
             try data.jsonify(virt_config, try fs.path.join(allocator, &.{ prefix, "gpu_virt.json" }));
 

@@ -308,7 +308,7 @@ pub const SystemDescription = struct {
         pub const Vcpu = struct {
             id: u8,
             /// Physical core the vCPU will run on
-            cpu: u16 = 0,
+            cpu: ?u16 = null,
         };
 
         pub fn create(allocator: Allocator, name: []const u8, vcpus: []const Vcpu, options: Options) !VirtualMachine {
@@ -375,10 +375,15 @@ pub const SystemDescription = struct {
             defer sdf.allocator.free(child_separator);
 
             for (vm.vcpus) |vcpu| {
-                const vcpu_xml = try allocPrint(sdf.allocator, "{s}<vcpu id=\"{}\" cpu=\"{}\" />", .{ child_separator, vcpu.id, vcpu.cpu });
+                const vcpu_xml = try allocPrint(sdf.allocator, "{s}<vcpu id=\"{}\"", .{ child_separator, vcpu.id });
                 defer sdf.allocator.free(vcpu_xml);
                 _ = try writer.write(vcpu_xml);
-                _ = try writer.write("\n");
+                if (vcpu.cpu) |cpu| {
+                    const xml = try allocPrint(allocator, " cpu=\"{}\"", .{ cpu });
+                    defer allocator.free(xml);
+                    _ = try writer.write(xml);
+                }
+                _ = try writer.write(" />\n");
             }
 
             for (vm.maps.items) |map| {
