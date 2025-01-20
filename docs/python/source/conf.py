@@ -9,8 +9,9 @@
 project = 'pysdfgen'
 copyright = '2024, UNSW'
 author = 'Trustworthy Systems'
-version = '0.2.0'
-release = '0.2.0'
+
+version = open("../../../VERSION").read().strip()
+release = version
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
