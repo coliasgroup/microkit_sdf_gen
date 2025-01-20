@@ -11,7 +11,7 @@ process of creating seL4 Microkit systems.
 
 ## Use
 
-The sdfgen tooling (name temporary) contains libraries for creating:
+The sdfgen tooling (name temporary) contains libraries for programmatically creating:
 * Microkit System Description Files (SDF),
 * systems using the seL4 Device Driver Framework (sDDF),
 * systems using LionsOS
