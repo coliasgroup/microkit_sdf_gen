@@ -97,6 +97,9 @@ The source code for the example is in `examples/examples.c`.
 The Python package is supported for versions 3.9 to 3.13.
 Linux (x86-64) and macOS (Intel/Apple Silicon) are supported. Windows is *not* supported.
 
+Documentation for the Python package can be found
+[here](https://au-ts.github.io/microkit_sdf_gen).
+
 The Python bindings are all in Python itself, and do direct FFI to the C bindings via
 [ctypes](https://docs.python.org/3/library/ctypes.html).
 
