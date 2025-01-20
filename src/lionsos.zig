@@ -10,6 +10,8 @@ const Map = SystemDescription.Map;
 const Channel = SystemDescription.Channel;
 
 const NetworkSystem = mod_sddf.NetworkSystem;
+const SerialSystem = mod_sddf.SerialSystem;
+const TimerSystem = mod_sddf.TimerSystem;
 
 fn fmt(allocator: Allocator, comptime s: []const u8, args: anytype) []u8 {
     return std.fmt.allocPrint(allocator, s, args) catch @panic("OOM");
@@ -100,10 +102,20 @@ pub const FileSystem = struct {
 
         const Error = FileSystem.Error || NetworkSystem.Error;
 
-        pub fn init(allocator: Allocator, sdf: *SystemDescription, fs: *Pd, client: *Pd, net: *NetworkSystem, net_copier: *Pd, options: Options) Nfs.Error!Nfs {
-            try net.addClientWithCopier(fs, net_copier, .{});
+        pub const Options = struct {
+            mac_addr: ?[]const u8 = null,
+        };
+
+        pub fn init(allocator: Allocator, sdf: *SystemDescription, fs: *Pd, client: *Pd, net: *NetworkSystem, net_copier: *Pd, serial: *SerialSystem, timer: *TimerSystem, options: Nfs.Options) Nfs.Error!Nfs {
+            // NFS depends on being connected via the network, serial, and timer sub-sytems.
+            try net.addClientWithCopier(fs, net_copier, .{
+                .mac_addr = options.mac_addr,
+            });
+            try serial.addClient(fs);
+            try timer.addClient(fs);
+
             return .{
-                .fs = try FileSystem.init(allocator, sdf, fs, client, options),
+                .fs = try FileSystem.init(allocator, sdf, fs, client, .{}),
             };
         }
 

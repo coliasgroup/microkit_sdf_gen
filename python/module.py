@@ -193,7 +193,7 @@ libsdfgen.sdfgen_lionsos_fs_fat.argtypes = [c_void_p, c_void_p, c_void_p]
 libsdfgen.sdfgen_lionsos_fs_fat_connect.restype = c_bool
 libsdfgen.sdfgen_lionsos_fs_fat_connect.argtypes = [c_void_p]
 libsdfgen.sdfgen_lionsos_fs_nfs.restype = c_void_p
-libsdfgen.sdfgen_lionsos_fs_nfs.argtypes = [c_void_p, c_void_p, c_void_p, c_void_p, c_void_p]
+libsdfgen.sdfgen_lionsos_fs_nfs.argtypes = [c_void_p, c_void_p, c_void_p, c_void_p, c_void_p, c_char_p, c_void_p, c_void_p]
 libsdfgen.sdfgen_lionsos_fs_nfs_connect.restype = c_bool
 libsdfgen.sdfgen_lionsos_fs_nfs_connect.argtypes = [c_void_p]
 
@@ -791,10 +791,21 @@ class LionsOs:
                 sdf: SystemDescription,
                 fs: SystemDescription.ProtectionDomain,
                 client: SystemDescription.ProtectionDomain,
+                *,
                 net: Sddf.Network,
-                net_copier: SystemDescription.ProtectionDomain
+                net_copier: SystemDescription.ProtectionDomain,
+                mac_addr: Optional[str] = None,
+                serial: Sddf.Serial,
+                timer: Sddf.Timer,
             ):
-                self._obj = libsdfgen.sdfgen_lionsos_fs_nfs(sdf._obj, fs._obj, client._obj, net._obj, net_copier._obj)
+                if mac_addr is not None and len(mac_addr) != 17:
+                    raise Exception(f"invalid MAC address length for client '{client.name}', {mac_addr}")
+
+                c_mac_addr = c_char_p(0)
+                if mac_addr is not None:
+                    c_mac_addr = c_char_p(mac_addr.encode("utf-8"))
+
+                self._obj = libsdfgen.sdfgen_lionsos_fs_nfs(sdf._obj, fs._obj, client._obj, net._obj, net_copier._obj, c_mac_addr, serial._obj, timer._obj)
 
             def connect(self) -> bool:
                 return libsdfgen.sdfgen_lionsos_fs_nfs_connect(self._obj)

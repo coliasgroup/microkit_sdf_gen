@@ -584,10 +584,14 @@ export fn sdfgen_lionsos_fs_fat_connect(system: *align(8) anyopaque) bool {
     return true;
 }
 
-export fn sdfgen_lionsos_fs_nfs(c_sdf: *align(8) anyopaque, c_fs: *align(8) anyopaque, c_client: *align(8) anyopaque, c_net: *align(8) anyopaque, c_net_copier: *align(8) anyopaque) *anyopaque {
+export fn sdfgen_lionsos_fs_nfs(c_sdf: *align(8) anyopaque, c_fs: *align(8) anyopaque, c_client: *align(8) anyopaque, c_net: *align(8) anyopaque, c_net_copier: *align(8) anyopaque, mac_addr: [*c]u8, c_serial: *align(8) anyopaque, c_timer: *align(8) anyopaque) *anyopaque {
     const sdf: *SystemDescription = @ptrCast(c_sdf);
     const fs = allocator.create(lionsos.FileSystem.Nfs) catch @panic("OOM");
-    fs.* = lionsos.FileSystem.Nfs.init(allocator, sdf, @ptrCast(c_fs), @ptrCast(c_client), @ptrCast(c_net), @ptrCast(c_net_copier), .{}) catch @panic("TODO");
+    var options: lionsos.FileSystem.Nfs.Options = .{};
+    if (mac_addr) |a| {
+        options.mac_addr = std.mem.span(a);
+    }
+    fs.* = lionsos.FileSystem.Nfs.init(allocator, sdf, @ptrCast(c_fs), @ptrCast(c_client), @ptrCast(c_net), @ptrCast(c_net_copier), @ptrCast(c_serial), @ptrCast(c_timer), options) catch @panic("TODO");
 
     return fs;
 }

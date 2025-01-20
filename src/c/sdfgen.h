@@ -125,5 +125,5 @@ bool sdfgen_sddf_gpu_serialise_config(void *system, char *output_dir);
 void *sdfgen_lionsos_fs_fat(void *sdf, void *fs, void *client);
 bool sdfgen_lionsos_fs_fat_connect(void *system);
 
-void *sdfgen_lionsos_fs_nfs(void *sdf, void *fs, void *client, void *net, void *net_copier);
-bool sdfgen_lionsos_fs_fat_connect(void *system);
+void *sdfgen_lionsos_fs_nfs(void *sdf, void *fs, void *client, void *net, void *net_copier, uint8_t mac_addr[6], void *serial, void *timer);
+bool sdfgen_lionsos_fs_nfs_connect(void *system);
