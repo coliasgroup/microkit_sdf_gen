@@ -9,7 +9,27 @@ process of creating seL4 Microkit systems.
 > but that may change once it has matured (e.g by being apart of the official Microkit
 > repository).
 
-## Problem
+## Use
+
+The sdfgen tooling (name temporary) contains libraries for creating:
+* Microkit System Description Files (SDF),
+* systems using the seL4 Device Driver Framework (sDDF),
+* systems using LionsOS
+
+It has first-class support for use in the following languages:
+* C
+* Python
+* Zig
+
+The Python package is available via `pip` (on [PyPI](https://pypi.org/project/sdfgen/))
+and can be installed simply via `pip install sdfgen`.
+
+Pre-built archives of the C library is available in each
+[release](https://github.com/au-ts/microkit_sdf_gen/releases).
+
+## Motivation
+
+### Problem
 
 In order to remain simple, the seL4 Microkit (intentionally) does not provide one-size-fits-all
 abstractions for creating systems where the information about the design of the system flows into
@@ -29,13 +49,15 @@ makes it an ideal source of truth for the design of the system and hides minimal
 capability distribution and access policy of a system. But the negative of this is that it does not scale
 well, even small changes to a large SDF file are difficult to make and ensure are correct.
 
-## Solution(s)
+### Solution(s)
 
 * Allow for users to easily auto-generate SDF programmatically using a tool called `sdfgen`.
 * Create a graphical user-interface to visually display and produce/maintain the design of a Microkit system.
   This graphical user-interface will sort of act as a 'frontend' for the `sdfgen` tool.
 
-Both of these solutions are very much in a work-in-progress state.
+The `sdfgen` tooling is available and being used by sDDF and LionsOS, although
+still experimental. The GUI for the tooling is still very much a
+work-in-progress.
 
 ## Developing
 
