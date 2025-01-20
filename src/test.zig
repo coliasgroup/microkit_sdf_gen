@@ -1,7 +1,6 @@
 const std = @import("std");
 const mod = @import("sdf");
 const mod_sdf = mod.sdf;
-const mod_vmm = mod.vmm;
 
 const SystemDescription = mod_sdf.SystemDescription;
 const ProtectionDomain = SystemDescription.ProtectionDomain;
@@ -10,8 +9,7 @@ const Map = SystemDescription.Map;
 const Interrupt = SystemDescription.Interrupt;
 const Channel = SystemDescription.Channel;
 const VirtualMachine = SystemDescription.VirtualMachine;
-
-const VirtualMachineSystem = mod_vmm.VirtualMachineSystem;
+const Vmm = mod.Vmm;
 
 const allocator = std.testing.allocator;
 
@@ -135,7 +133,7 @@ test "basic VM" {
 
     var vm = try VirtualMachine.create(allocator, "vm", &.{.{ .id = 0 }}, .{});
 
-    var vmm_system = VirtualMachineSystem.init(allocator, &sdf, &vmm, &vm, guest_dtb, .{});
+    var vmm_system = Vmm.init(allocator, &sdf, &vmm, &vm, guest_dtb, .{});
 
     try vmm_system.connect();
 

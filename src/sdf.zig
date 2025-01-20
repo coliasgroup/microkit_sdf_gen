@@ -87,7 +87,7 @@ pub const SystemDescription = struct {
         pub fn create(allocator: Allocator, name: []const u8, size: u64, options: Options) MemoryRegion {
             return MemoryRegion{
                 .allocator = allocator,
-                .name = allocator.dupe(u8, name) catch "Could not allocate name for MemoryRegion",
+                .name = allocator.dupe(u8, name) catch @panic("Could not allocate name for MemoryRegion"),
                 .size = size,
                 .page_size = options.page_size,
                 .paddr = null,
@@ -103,7 +103,7 @@ pub const SystemDescription = struct {
             }
             return MemoryRegion{
                 .allocator = allocator,
-                .name = allocator.dupe(u8, name) catch "Could not allocate name for MemoryRegion",
+                .name = allocator.dupe(u8, name) catch @panic("Could not allocate name for MemoryRegion"),
                 .size = size,
                 .paddr = paddr,
                 .page_size = options.page_size,

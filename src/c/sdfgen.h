@@ -120,6 +120,8 @@ sdfgen_sddf_status_t sdfgen_sddf_gpu_add_client(void *system, void *client);
 bool sdfgen_sddf_gpu_connect(void *system);
 bool sdfgen_sddf_gpu_serialise_config(void *system, char *output_dir);
 
+/*** Virtual Machine Monitor ***/
+
 /*** LionsOS ***/
 
 void *sdfgen_lionsos_fs_fat(void *sdf, void *fs, void *client);

@@ -188,6 +188,13 @@ libsdfgen.sdfgen_sddf_gpu_connect.argtypes = [c_void_p]
 libsdfgen.sdfgen_sddf_gpu_serialise_config.restype = c_bool
 libsdfgen.sdfgen_sddf_gpu_serialise_config.argtypes = [c_void_p, c_char_p]
 
+libsdfgen.sdfgen_vmm.restype = c_void_p
+libsdfgen.sdfgen_vmm.argtypes = [c_void_p, c_void_p, c_void_p, c_void_p]
+libsdfgen.sdfgen_vmm_add_passthrough_device.restype = c_bool
+libsdfgen.sdfgen_vmm_add_passthrough_device.argtypes = [c_void_p, c_char_p, c_void_p]
+libsdfgen.sdfgen_vmm_connect.restype = c_bool
+libsdfgen.sdfgen_vmm_connect.argtypes = [c_void_p]
+
 libsdfgen.sdfgen_lionsos_fs_fat.restype = c_void_p
 libsdfgen.sdfgen_lionsos_fs_fat.argtypes = [c_void_p, c_void_p, c_void_p]
 libsdfgen.sdfgen_lionsos_fs_fat_connect.restype = c_bool
@@ -765,6 +772,26 @@ class Sddf:
 
         def __del__(self):
             libsdfgen.sdfgen_sddf_gpu_destroy(self._obj)
+
+
+class Vmm:
+    _obj: c_void_p
+
+    def __init__(
+        self,
+        sdf: SystemDescription,
+        vmm: ProtectionDomain,
+        vm: VirtualMachine,
+        dtb: DeviceTree,
+    ):
+        self._obj = libsdfgen.sdfgen_vmm(sdf._obj, vmm._obj, vm._obj, dtb._obj)
+
+    def add_passthrough_device(self, name: str, device: DeviceTree.Node):
+        c_name = c_char_p(name.encode("utf-8"))
+        return libsdfgen.sdfgen_vmm_add_passthrough_device(c_name, device._obj)
+
+    def connect(self) -> bool:
+        return libsdfgen.sdfgen_vmm_connect(self._obj)
 
 
 class LionsOs:

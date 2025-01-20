@@ -11,6 +11,7 @@ const bindings = @cImport({
 const dtb = modsdf.dtb;
 const sddf = modsdf.sddf;
 const lionsos = modsdf.lionsos;
+const Vmm = modsdf.Vmm;
 const SystemDescription = modsdf.sdf.SystemDescription;
 const Pd = SystemDescription.ProtectionDomain;
 const Vm = SystemDescription.VirtualMachine;
@@ -565,6 +566,21 @@ export fn sdfgen_sddf_gpu_connect(system: *align(8) anyopaque) bool {
 export fn sdfgen_sddf_gpu_serialise_config(system: *align(8) anyopaque, output_dir: [*c]u8) bool {
     const gpu: *sddf.GpuSystem = @ptrCast(system);
     gpu.serialiseConfig(std.mem.span(output_dir)) catch return false;
+
+    return true;
+}
+
+export fn sdfgen_vmm(c_sdf: *align(8) anyopaque, vmm_pd: *align(8) anyopaque, vm_pd: *align(8) anyopaque, dtb: *align(8) anyopaque) *anyopaque {
+    const sdf: *SystemDescription = @ptrCast(c_sdf);
+    const vmm = allocator.create(Vmm) catch @panic("OOM");
+    vmm.* = Vmm.init(allocator, sdf, @ptrCast(vmm_pd), @ptrCast(vm_pd), @ptrCast(dtb), .{});
+
+    return vmm;
+}
+
+export fn sdfgen_vmm_add_passthrough_device(c_vmm: *align(8) anyopaque, c_name: [*c]u8, c_device: *align(8) anyopaque) bool {
+    const vmm: *Vmm = @ptrCast(c_vmm);
+    vmm.addPassthroughDevice(std.mem.span(c_name), @ptrCast(c_device), true) catch @panic("TODO");
 
     return true;
 }
