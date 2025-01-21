@@ -134,19 +134,19 @@ libsdfgen.sdfgen_sddf_i2c_connect.argtypes = [c_void_p]
 libsdfgen.sdfgen_sddf_i2c_serialise_config.restype = c_bool
 libsdfgen.sdfgen_sddf_i2c_serialise_config.argtypes = [c_void_p, c_char_p]
 
-libsdfgen.sdfgen_sddf_block.restype = c_void_p
-libsdfgen.sdfgen_sddf_block.argtypes = [c_void_p, c_void_p, c_void_p, c_void_p]
-libsdfgen.sdfgen_sddf_block_destroy.restype = None
-libsdfgen.sdfgen_sddf_block_destroy.argtypes = [c_void_p]
+libsdfgen.sdfgen_sddf_blk.restype = c_void_p
+libsdfgen.sdfgen_sddf_blk.argtypes = [c_void_p, c_void_p, c_void_p, c_void_p]
+libsdfgen.sdfgen_sddf_blk_destroy.restype = None
+libsdfgen.sdfgen_sddf_blk_destroy.argtypes = [c_void_p]
 
-libsdfgen.sdfgen_sddf_block_add_client.restype = c_uint32
-libsdfgen.sdfgen_sddf_block_add_client.argtypes = [c_void_p, c_void_p, c_uint32]
+libsdfgen.sdfgen_sddf_blk_add_client.restype = c_uint32
+libsdfgen.sdfgen_sddf_blk_add_client.argtypes = [c_void_p, c_void_p, c_uint32]
 
-libsdfgen.sdfgen_sddf_block_connect.restype = c_bool
-libsdfgen.sdfgen_sddf_block_connect.argtypes = [c_void_p]
+libsdfgen.sdfgen_sddf_blk_connect.restype = c_bool
+libsdfgen.sdfgen_sddf_blk_connect.argtypes = [c_void_p]
 
-libsdfgen.sdfgen_sddf_block_serialise_config.restype = c_bool
-libsdfgen.sdfgen_sddf_block_serialise_config.argtypes = [c_void_p, c_char_p]
+libsdfgen.sdfgen_sddf_blk_serialise_config.restype = c_bool
+libsdfgen.sdfgen_sddf_blk_serialise_config.argtypes = [c_void_p, c_char_p]
 
 libsdfgen.sdfgen_sddf_serial.restype = c_void_p
 libsdfgen.sdfgen_sddf_serial.argtypes = [c_void_p, c_void_p, c_void_p, c_void_p, c_void_p]
@@ -624,7 +624,7 @@ class Sddf:
         def __del__(self):
             libsdfgen.sdfgen_sddf_i2c_destroy(self._obj)
 
-    class Block:
+    class Blk:
         _obj: c_void_p
 
         def __init__(
@@ -639,10 +639,10 @@ class Sddf:
             else:
                 device_obj = device._obj
 
-            self._obj = libsdfgen.sdfgen_sddf_block(sdf._obj, device_obj, driver._obj, virt._obj)
+            self._obj = libsdfgen.sdfgen_sddf_blk(sdf._obj, device_obj, driver._obj, virt._obj)
 
         def add_client(self, client: SystemDescription.ProtectionDomain, *, partition: int):
-            ret = libsdfgen.sdfgen_sddf_block_add_client(self._obj, client._obj, partition)
+            ret = libsdfgen.sdfgen_sddf_blk_add_client(self._obj, client._obj, partition)
             if ret == SddfStatus.OK:
                 return
             elif ret == SddfStatus.DUPLICATE_CLIENT:
@@ -653,16 +653,16 @@ class Sddf:
                 raise Exception(f"internal error: {ret}")
 
         def connect(self) -> bool:
-            return libsdfgen.sdfgen_sddf_block_connect(self._obj)
+            return libsdfgen.sdfgen_sddf_blk_connect(self._obj)
 
         def serialise_config(self, output_dir: str) -> bool:
             c_output_dir = c_char_p(output_dir.encode("utf-8"))
-            return libsdfgen.sdfgen_sddf_block_serialise_config(self._obj, c_output_dir)
+            return libsdfgen.sdfgen_sddf_blk_serialise_config(self._obj, c_output_dir)
 
         def __del__(self):
-            libsdfgen.sdfgen_sddf_block_destroy(self._obj)
+            libsdfgen.sdfgen_sddf_blk_destroy(self._obj)
 
-    class Network:
+    class Net:
         _obj: c_void_p
 
         def __init__(
@@ -857,7 +857,7 @@ class LionsOs:
                 fs: SystemDescription.ProtectionDomain,
                 client: SystemDescription.ProtectionDomain,
                 *,
-                net: Sddf.Network,
+                net: Sddf.Net,
                 net_copier: SystemDescription.ProtectionDomain,
                 mac_addr: Optional[str] = None,
                 serial: Sddf.Serial,

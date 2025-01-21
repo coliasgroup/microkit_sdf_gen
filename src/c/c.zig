@@ -464,43 +464,43 @@ export fn sdfgen_sddf_i2c_serialise_config(system: *align(8) anyopaque, output_d
     return true;
 }
 
-export fn sdfgen_sddf_block(c_sdf: *align(8) anyopaque, c_device: *align(8) anyopaque, driver: *align(8) anyopaque, virt: *align(8) anyopaque) *anyopaque {
+export fn sdfgen_sddf_blk(c_sdf: *align(8) anyopaque, c_device: *align(8) anyopaque, driver: *align(8) anyopaque, virt: *align(8) anyopaque) *anyopaque {
     const sdf: *SystemDescription = @ptrCast(c_sdf);
-    const block = allocator.create(sddf.BlockSystem) catch @panic("OOM");
-    block.* = sddf.BlockSystem.init(allocator, sdf, @ptrCast(c_device), @ptrCast(driver), @ptrCast(virt), .{});
+    const block = allocator.create(sddf.BlkSystem) catch @panic("OOM");
+    block.* = sddf.BlkSystem.init(allocator, sdf, @ptrCast(c_device), @ptrCast(driver), @ptrCast(virt), .{});
 
     return block;
 }
 
-export fn sdfgen_sddf_block_destroy(system: *align(8) anyopaque) void {
-    const block: *sddf.BlockSystem = @ptrCast(system);
+export fn sdfgen_sddf_blk_destroy(system: *align(8) anyopaque) void {
+    const block: *sddf.BlkSystem = @ptrCast(system);
     block.deinit();
     allocator.destroy(block);
 }
 
-export fn sdfgen_sddf_block_add_client(system: *align(8) anyopaque, client: *align(8) anyopaque, partition: u32) bindings.sdfgen_sddf_status_t {
-    const block: *sddf.BlockSystem = @ptrCast(system);
+export fn sdfgen_sddf_blk_add_client(system: *align(8) anyopaque, client: *align(8) anyopaque, partition: u32) bindings.sdfgen_sddf_status_t {
+    const block: *sddf.BlkSystem = @ptrCast(system);
     block.addClient(@ptrCast(client), partition) catch |e| {
         switch (e) {
-            sddf.BlockSystem.Error.DuplicateClient => return 1,
-            sddf.BlockSystem.Error.InvalidClient => return 2,
+            sddf.BlkSystem.Error.DuplicateClient => return 1,
+            sddf.BlkSystem.Error.InvalidClient => return 2,
             // Should never happen when adding a client
-            sddf.BlockSystem.Error.NotConnected => @panic("internal error"),
+            sddf.BlkSystem.Error.NotConnected => @panic("internal error"),
         }
     };
 
     return 0;
 }
 
-export fn sdfgen_sddf_block_connect(system: *align(8) anyopaque) bool {
-    const block: *sddf.BlockSystem = @ptrCast(system);
+export fn sdfgen_sddf_blk_connect(system: *align(8) anyopaque) bool {
+    const block: *sddf.BlkSystem = @ptrCast(system);
     block.connect() catch return false;
 
     return true;
 }
 
-export fn sdfgen_sddf_block_serialise_config(system: *align(8) anyopaque, output_dir: [*c]u8) bool {
-    const block: *sddf.BlockSystem = @ptrCast(system);
+export fn sdfgen_sddf_blk_serialise_config(system: *align(8) anyopaque, output_dir: [*c]u8) bool {
+    const block: *sddf.BlkSystem = @ptrCast(system);
     block.serialiseConfig(std.mem.span(output_dir)) catch return false;
 
     return true;

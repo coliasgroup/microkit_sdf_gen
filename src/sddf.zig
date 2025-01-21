@@ -871,7 +871,7 @@ pub const I2cSystem = struct {
     }
 };
 
-pub const BlockSystem = struct {
+pub const BlkSystem = struct {
     allocator: Allocator,
     sdf: *SystemDescription,
     driver: *Pd,
@@ -885,13 +885,13 @@ pub const BlockSystem = struct {
     queue_mr_size: usize = 2 * 1024 * 1024,
     // TODO: make configurable
     queue_capacity: u16 = 128,
-    config: BlockSystem.Config,
+    config: BlkSystem.Config,
 
     const Config = struct {
-        driver: ConfigResources.Block.Driver = undefined,
-        virt_driver: ConfigResources.Block.Virt.Driver = undefined,
-        virt_clients: std.ArrayList(ConfigResources.Block.Virt.Client),
-        clients: std.ArrayList(ConfigResources.Block.Client),
+        driver: ConfigResources.Blk.Driver = undefined,
+        virt_driver: ConfigResources.Blk.Virt.Driver = undefined,
+        virt_clients: std.ArrayList(ConfigResources.Blk.Virt.Client),
+        clients: std.ArrayList(ConfigResources.Blk.Client),
     };
 
     pub const Error = SystemError;
@@ -900,9 +900,9 @@ pub const BlockSystem = struct {
 
     const STORAGE_INFO_REGION_SIZE: usize = 0x1000;
 
-    pub fn init(allocator: Allocator, sdf: *SystemDescription, device: *dtb.Node, driver: *Pd, virt: *Pd, _: Options) BlockSystem {
+    pub fn init(allocator: Allocator, sdf: *SystemDescription, device: *dtb.Node, driver: *Pd, virt: *Pd, _: Options) BlkSystem {
         if (std.mem.eql(u8, driver.name, virt.name)) {
-            log.err("invalid block virtualiser, same name as driver '{s}", .{virt.name});
+            log.err("invalid blk virtualiser, same name as driver '{s}", .{virt.name});
             // return Error.InvalidVirt;
             @panic("TODO");
         }
@@ -922,14 +922,14 @@ pub const BlockSystem = struct {
         };
     }
 
-    pub fn deinit(system: *BlockSystem) void {
+    pub fn deinit(system: *BlkSystem) void {
         system.clients.deinit();
         system.client_partitions.deinit();
         system.config.virt_clients.deinit();
         system.config.clients.deinit();
     }
 
-    pub fn addClient(system: *BlockSystem, client: *Pd, partition: u32) Error!void {
+    pub fn addClient(system: *BlkSystem, client: *Pd, partition: u32) Error!void {
         // Check that the client does not already exist
         for (system.clients.items) |existing_client| {
             if (std.mem.eql(u8, existing_client.name, client.name)) {
@@ -937,18 +937,18 @@ pub const BlockSystem = struct {
             }
         }
         if (std.mem.eql(u8, client.name, system.driver.name)) {
-            log.err("invalid block client, same name as driver '{s}", .{client.name});
+            log.err("invalid blk client, same name as driver '{s}", .{client.name});
             return Error.InvalidClient;
         }
         if (std.mem.eql(u8, client.name, system.virt.name)) {
-            log.err("invalid block client, same name as virt '{s}", .{client.name});
+            log.err("invalid blk client, same name as virt '{s}", .{client.name});
             return Error.InvalidClient;
         }
-        system.clients.append(client) catch @panic("Could not add client to BlockSystem");
-        system.client_partitions.append(partition) catch @panic("Could not add client to BlockSystem");
+        system.clients.append(client) catch @panic("Could not add client to BlkSystem");
+        system.client_partitions.append(partition) catch @panic("Could not add client to BlkSystem");
     }
 
-    pub fn connectDriver(system: *BlockSystem) void {
+    pub fn connectDriver(system: *BlkSystem) void {
         const sdf = system.sdf;
         const allocator = system.allocator;
         const driver = system.driver;
@@ -1009,7 +1009,7 @@ pub const BlockSystem = struct {
         };
     }
 
-    pub fn connectClient(system: *BlockSystem, client: *Pd, i: usize) void {
+    pub fn connectClient(system: *BlkSystem, client: *Pd, i: usize) void {
         const sdf = system.sdf;
         const allocator = system.allocator;
         const queue_mr_size = system.queue_mr_size;
@@ -1070,7 +1070,7 @@ pub const BlockSystem = struct {
         }, .data = .createFromMap(map_data_client) }) catch @panic("could not add client config");
     }
 
-    pub fn connect(system: *BlockSystem) !void {
+    pub fn connect(system: *BlkSystem) !void {
         const sdf = system.sdf;
 
         // 1. Create the device resources for the driver
@@ -1085,7 +1085,7 @@ pub const BlockSystem = struct {
         system.connected = true;
     }
 
-    pub fn serialiseConfig(system: *BlockSystem, prefix: []const u8) !void {
+    pub fn serialiseConfig(system: *BlkSystem, prefix: []const u8) !void {
         if (!system.connected) return Error.NotConnected;
 
         const allocator = system.allocator;
@@ -1093,7 +1093,7 @@ pub const BlockSystem = struct {
         const device_res_data_name = fmt(allocator, "{s}_device_resources.data", .{system.driver.name});
         try data.serialize(system.device_res, try fs.path.join(allocator, &.{ prefix, device_res_data_name }));
         try data.serialize(system.config.driver, try fs.path.join(allocator, &.{ prefix, "blk_driver.data" }));
-        const virt_config = ConfigResources.Block.Virt.create(system.config.virt_driver, system.config.virt_clients.items);
+        const virt_config = ConfigResources.Blk.Virt.create(system.config.virt_driver, system.config.virt_clients.items);
         try data.serialize(virt_config, try fs.path.join(allocator, &.{ prefix, "blk_virt.data" }));
 
         for (system.config.clients.items, 0..) |config, i| {

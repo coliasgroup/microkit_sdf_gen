@@ -104,11 +104,11 @@ sdfgen_sddf_status_t sdfgen_sddf_i2c_add_client(void *system, void *client);
 bool sdfgen_sddf_i2c_connect(void *system);
 bool sdfgen_sddf_i2c_serialise_config(void *system, char *output_dir);
 
-void *sdfgen_sddf_block(void *sdf, void *device, void *driver, void *virt);
-void sdfgen_sddf_block_destroy(void *system);
-sdfgen_sddf_status_t sdfgen_sddf_block_add_client(void *system, void *client, uint32_t partition);
-bool sdfgen_sddf_block_connect(void *system);
-bool sdfgen_sddf_block_serialise_config(void *system, char *output_dir);
+void *sdfgen_sddf_blk(void *sdf, void *device, void *driver, void *virt);
+void sdfgen_sddf_blk_destroy(void *system);
+sdfgen_sddf_status_t sdfgen_sddf_blk_add_client(void *system, void *client, uint32_t partition);
+bool sdfgen_sddf_blk_connect(void *system);
+bool sdfgen_sddf_blk_serialise_config(void *system, char *output_dir);
 
 void *sdfgen_sddf_net(void *sdf, void *device, void *driver, void *virt_rx, void *virt_tx);
 void sdfgen_sddf_net_destroy(void *system);

@@ -57,7 +57,7 @@ pub const Resources = struct {
         irqs: [MaxIrqs]Irq,
     };
 
-    pub const Block = struct {
+    pub const Blk = struct {
         const MAGIC: [5]u8 = MAGIC_START ++ .{0x2};
 
         pub const Connection = extern struct {
