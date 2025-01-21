@@ -1,7 +1,7 @@
 # sdfgen
 
-This repository currently holds various programs to help with automating the
-process of creating seL4 Microkit-based systems.
+This repository currently holds libraries to make it easier to develop seL4
+Microkit-based systems.
 
 > [!IMPORTANT]
 > This project is experimental, we are using it internally to get it into a
@@ -106,7 +106,12 @@ zig build zig_example -- --help
 zig build c
 ```
 
-The library will be at `zig-out/lib/csdfgen`.
+The library will be in `zig-out/lib/` and the include headers will be in `zig-out/include`.
+
+If you want to output the artefacts to a specific directory, you can so with:
+```sh
+zig build c -p <install dir>
+```
 
 The source code for the bindings is in `src/c/`.
 
