@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <sdfgen.h>
+#include <assert.h>
 
 void usage() {
     printf("./c_examples [path to sddf]\n");
@@ -13,7 +14,7 @@ int main(int argc, char *argv[]) {
     }
 
     char *sddf = argv[1];
-    sdfgen_sddf_init(sddf);
+    assert(sdfgen_sddf_init(sddf));
 
     void *sdf = sdfgen_create(AARCH64, 0xa0000000);
     void *i2c_reactor_client = sdfgen_pd_create("i2c_reactor_client", "reactor_client.elf");
@@ -34,7 +35,7 @@ int main(int argc, char *argv[]) {
     sdfgen_add_pd(sdf, i2c_reactor_driver);
 
     char *xml = sdfgen_to_xml(sdf);
-    printf("%s", xml);
+    printf("%s\n", xml);
 
     return 0;
 }
