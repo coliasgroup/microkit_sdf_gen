@@ -86,6 +86,7 @@ pub fn build(b: *std.Build) !void {
     csdfgen.installHeader(b.path("src/c/sdfgen.h"), "sdfgen.h");
     csdfgen.addIncludePath(b.path("src/c"));
     csdfgen.root_module.addImport("sdf", modsdf);
+    csdfgen.bundle_compiler_rt = true;
     b.installArtifact(csdfgen);
 
     const c_step = b.step("c", "Library for C bindings");
