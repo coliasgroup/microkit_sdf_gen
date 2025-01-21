@@ -35,6 +35,8 @@ void *sdfgen_dtb_destroy(void *blob);
 
 void *sdfgen_dtb_node(void *blob, char *node);
 
+/*** Microkit abstractions ***/
+
 void *sdfgen_add_pd(void *sdf, void *pd);
 void *sdfgen_add_mr(void *sdf, void *mr);
 void *sdfgen_add_channel(void *sdf, void *ch);

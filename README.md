@@ -1,7 +1,7 @@
-# Higher-level tooling for constructing seL4 Microkit systems
+# sdfgen
 
 This repository currently holds various programs to help with automating the
-process of creating seL4 Microkit systems.
+process of creating seL4 Microkit-based systems.
 
 > [!IMPORTANT]
 > This project is experimental, we are using it internally to get it into a

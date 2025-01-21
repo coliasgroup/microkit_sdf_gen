@@ -1,4 +1,4 @@
-# Useful scripts for developing/maintaning
+# Useful scripts for development and maintenance
 
 ## release.sh
 
