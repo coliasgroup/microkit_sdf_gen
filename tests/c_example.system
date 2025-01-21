@@ -25,11 +25,11 @@
         <map mr="i2c_client_data_i2c_reactor_client" vaddr="0x20002000" perms="rw" />
     </protection_domain>
     <channel>
-        <end pd="i2c_reactor_driver" id="0" notify="true" pp="false" />
-        <end pd="i2c_virt" id="0" notify="true" pp="false" />
+        <end pd="i2c_reactor_driver" id="0" />
+        <end pd="i2c_virt" id="0" />
     </channel>
     <channel>
-        <end pd="i2c_virt" id="1" notify="true" pp="false" />
-        <end pd="i2c_reactor_client" id="0" notify="true" pp="true" />
+        <end pd="i2c_virt" id="1" />
+        <end pd="i2c_reactor_client" id="0" pp="true" />
     </channel>
 </system>

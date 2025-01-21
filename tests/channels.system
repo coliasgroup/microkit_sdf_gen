@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<system>
+    <protection_domain name="hello-1" priority="3">
+        <program_image path="hello.elf" />
+    </protection_domain>
+    <protection_domain name="hello-2" priority="2">
+        <program_image path="hello.elf" />
+    </protection_domain>
+    <protection_domain name="hello-3" priority="1">
+        <program_image path="hello.elf" />
+    </protection_domain>
+    <channel>
+        <end pd="hello-1" id="0" />
+        <end pd="hello-2" id="0" />
+    </channel>
+    <channel>
+        <end pd="hello-1" id="1" notify="false" />
+        <end pd="hello-2" id="1" />
+    </channel>
+    <channel>
+        <end pd="hello-1" id="2" />
+        <end pd="hello-2" id="2" notify="false" />
+    </channel>
+    <channel>
+        <end pd="hello-1" id="3" pp="true" />
+        <end pd="hello-2" id="3" />
+    </channel>
+    <channel>
+        <end pd="hello-1" id="4" />
+        <end pd="hello-2" id="4" pp="true" />
+    </channel>
+    <channel>
+        <end pd="hello-1" id="5" notify="false" pp="true" />
+        <end pd="hello-2" id="5" />
+    </channel>
+    <channel>
+        <end pd="hello-3" id="0" notify="false" />
+        <end pd="hello-1" id="6" notify="false" pp="true" />
+    </channel>
+</system>

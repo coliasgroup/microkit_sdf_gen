@@ -697,15 +697,15 @@ pub const SystemDescription = struct {
         pd_b: *ProtectionDomain,
         pd_a_id: u8,
         pd_b_id: u8,
-        pd_a_notify: bool,
-        pd_b_notify: bool,
+        pd_a_notify: ?bool,
+        pd_b_notify: ?bool,
         pp: ?End,
 
         const End = enum { a, b };
 
         const Options = struct {
-            pd_a_notify: bool = true,
-            pd_b_notify: bool = true,
+            pd_a_notify: ?bool = null,
+            pd_b_notify: ?bool = null,
             pp: ?End = null,
             pd_a_id: ?u8 = null,
             pd_b_id: ?u8 = null,
@@ -730,19 +730,44 @@ pub const SystemDescription = struct {
         }
 
         pub fn toXml(ch: Channel, sdf: *SystemDescription, writer: ArrayList(u8).Writer, separator: []const u8) !void {
+            const allocator = sdf.allocator;
+
             const child_separator = try allocPrint(sdf.allocator, "{s}    ", .{separator});
-            defer sdf.allocator.free(child_separator);
-            const channel_str =
-                \\{s}<channel>{s}{s}<end pd="{s}" id="{}" notify="{}" pp="{}" />{s}{s}<end pd="{s}" id="{}" notify="{}" pp="{}" />{s}{s}</channel>
-            ;
+            defer allocator.free(child_separator);
 
-            const pp_end_a = if (ch.pp) |pp| pp == .a else false;
-            const pp_end_b = if (ch.pp) |pp| pp == .b else false;
-
-            const channel_xml = try allocPrint(sdf.allocator, channel_str, .{ separator, "\n", child_separator, ch.pd_a.name, ch.pd_a_id, ch.pd_a_notify, pp_end_a, "\n", child_separator, ch.pd_b.name, ch.pd_b_id, ch.pd_b_notify, pp_end_b, "\n", separator });
-            defer sdf.allocator.free(channel_xml);
-
+            const channel_xml = try allocPrint(allocator, "{s}<channel>\n{s}<end pd=\"{s}\" id=\"{}\"", .{ separator, child_separator, ch.pd_a.name, ch.pd_a_id });
+            defer allocator.free(channel_xml);
             _ = try writer.write(channel_xml);
+
+            if (ch.pd_a_notify) |notify| {
+                const xml = try allocPrint(allocator, " notify=\"{}\"", .{ notify });
+                defer allocator.free(xml);
+                _ = try writer.write(xml);
+            }
+
+            if (ch.pp != null and ch.pp.? == .a) {
+                _ = try writer.write(" pp=\"true\"");
+            }
+            _ = try writer.write(" />\n");
+
+            const end_b_xml = try allocPrint(allocator, "{s}<end pd=\"{s}\" id=\"{}\"", .{ child_separator, ch.pd_b.name, ch.pd_b_id });
+            defer allocator.free(end_b_xml);
+            _ = try writer.write(end_b_xml);
+
+            if (ch.pd_b_notify) |notify| {
+                const xml = try allocPrint(allocator, " notify=\"{}\"", .{ notify });
+                defer allocator.free(xml);
+                _ = try writer.write(xml);
+            }
+
+            if (ch.pp != null and ch.pp.? == .b) {
+                _ = try writer.write(" pp=\"true\"");
+            }
+
+            _ = try writer.write(" />");
+            _ = try writer.write("\n");
+            _ = try writer.write(separator);
+            _ = try writer.write("</channel>");
             _ = try writer.write("\n");
         }
     };

@@ -92,6 +92,54 @@ test "fixed channel" {
     try std.testing.expectEqualStrings(expected, output);
 }
 
+test "channels" {
+    var sdf = SystemDescription.create(allocator, .aarch64, 0x100_000_000);
+
+    var pd1 = ProtectionDomain.create(allocator, "hello-1", "hello.elf", .{
+        .priority = 3,
+    });
+    var pd2 = ProtectionDomain.create(allocator, "hello-2", "hello.elf", .{
+        .priority = 2,
+    });
+    var pd3 = ProtectionDomain.create(allocator, "hello-3", "hello.elf", .{
+        .priority = 1,
+    });
+
+    sdf.addProtectionDomain(&pd1);
+    sdf.addProtectionDomain(&pd2);
+    sdf.addProtectionDomain(&pd3);
+
+    sdf.addChannel(try Channel.create(&pd1, &pd2, .{}));
+    sdf.addChannel(try Channel.create(&pd1, &pd2, .{
+        .pd_a_notify = false,
+    }));
+    sdf.addChannel(try Channel.create(&pd1, &pd2, .{
+        .pd_b_notify = false,
+    }));
+    sdf.addChannel(try Channel.create(&pd1, &pd2, .{
+        .pp = .a,
+    }));
+    sdf.addChannel(try Channel.create(&pd1, &pd2, .{
+        .pp = .b,
+    }));
+    sdf.addChannel(try Channel.create(&pd1, &pd2, .{
+        .pd_a_notify = false,
+        .pp = .a,
+    }));
+    sdf.addChannel(try Channel.create(&pd3, &pd1, .{
+        .pd_a_notify = false,
+        .pd_b_notify = false,
+        .pp = .b,
+    }));
+
+    const expected = try readTestFile("channels.system");
+    const output = try sdf.toXml();
+    defer allocator.free(expected);
+    defer sdf.destroy();
+
+    try std.testing.expectEqualStrings(expected, output);
+}
+
 test "C example" {
     var example_process = std.process.Child.init(&.{ config.c_example, config.sddf }, allocator);
 

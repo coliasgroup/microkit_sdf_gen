@@ -8,11 +8,11 @@
         <program_image path="hello.elf" />
     </protection_domain>
     <channel>
-        <end pd="hello-1" id="3" notify="true" pp="false" />
-        <end pd="hello-2" id="5" notify="true" pp="false" />
+        <end pd="hello-1" id="3" />
+        <end pd="hello-2" id="5" />
     </channel>
     <channel>
-        <end pd="hello-1" id="1" notify="true" pp="false" />
-        <end pd="hello-2" id="0" notify="true" pp="false" />
+        <end pd="hello-1" id="1" />
+        <end pd="hello-2" id="0" />
     </channel>
 </system>
