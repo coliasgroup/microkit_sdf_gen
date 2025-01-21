@@ -357,11 +357,9 @@ pub const Resources = struct {
         pub const MaxServerUrlLen = 4096;
         pub const MaxExportPathLen = 4096;
 
-        pub const Config = extern struct {
-            magic: [8]u8 = MAGIC,
-            nfs_server: [MaxServerUrlLen]u8,
-            nfs_export: [MaxExportPathLen]u8,
-        };
+        magic: [8]u8 = MAGIC,
+        server: [MaxServerUrlLen]u8,
+        export_path: [MaxExportPathLen]u8,
     };
 };
 

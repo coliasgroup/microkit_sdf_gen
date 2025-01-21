@@ -132,6 +132,7 @@ pub const FileSystem = struct {
 
         const server_config_data_name = fmt(allocator, "fs_server_{s}.data", .{system.fs.name});
         try data.serialize(system.server_config, try std.fs.path.join(allocator, &.{ prefix, server_config_data_name }));
+        // TODO don't output json in non-debug mode
         const server_config_json_name = fmt(allocator, "fs_server_{s}.json", .{system.fs.name});
         try data.jsonify(system.server_config, try std.fs.path.join(allocator, &.{ prefix, server_config_json_name }));
 
@@ -143,10 +144,13 @@ pub const FileSystem = struct {
 
     pub const Nfs = struct {
         fs: FileSystem,
+        data: ConfigResources.Nfs,
 
         const Error = FileSystem.Error || NetworkSystem.Error;
 
         pub const Options = struct {
+            server: []const u8,
+            export_path: []const u8,
             mac_addr: ?[]const u8 = null,
         };
 
@@ -158,8 +162,13 @@ pub const FileSystem = struct {
             try serial.addClient(fs);
             try timer.addClient(fs);
 
+            var nfs_data = std.mem.zeroInit(ConfigResources.Nfs, .{});
+            std.mem.copyForwards(u8, &nfs_data.server, options.server);
+            std.mem.copyForwards(u8, &nfs_data.export_path, options.export_path);
+
             return .{
                 .fs = try FileSystem.init(allocator, sdf, fs, client, .{}),
+                .data = nfs_data,
             };
         }
 
@@ -168,6 +177,8 @@ pub const FileSystem = struct {
         }
 
         pub fn serialiseConfig(nfs: *Nfs, prefix: []const u8) !void {
+            // TODo: json export
+            try data.serialize(nfs.data, try std.fs.path.join(nfs.fs.allocator, &.{ prefix, "nfs_config.data" }));
             nfs.fs.serialiseConfig(prefix) catch @panic("Could not serialise config");
         }
     };

@@ -211,7 +211,7 @@ libsdfgen.sdfgen_lionsos_fs_fat.argtypes = [c_void_p, c_void_p, c_void_p]
 libsdfgen.sdfgen_lionsos_fs_fat_connect.restype = c_bool
 libsdfgen.sdfgen_lionsos_fs_fat_connect.argtypes = [c_void_p]
 libsdfgen.sdfgen_lionsos_fs_nfs.restype = c_void_p
-libsdfgen.sdfgen_lionsos_fs_nfs.argtypes = [c_void_p, c_void_p, c_void_p, c_void_p, c_void_p, c_char_p, c_void_p, c_void_p]
+libsdfgen.sdfgen_lionsos_fs_nfs.argtypes = [c_void_p, c_void_p, c_void_p, c_void_p, c_void_p, c_char_p, c_void_p, c_void_p, c_char_p, c_char_p]
 libsdfgen.sdfgen_lionsos_fs_nfs_connect.restype = c_bool
 libsdfgen.sdfgen_lionsos_fs_nfs_connect.argtypes = [c_void_p]
 libsdfgen.sdfgen_lionsos_fs_nfs_serialise_config.argtypes = [c_void_p, c_char_p]
@@ -860,6 +860,8 @@ class LionsOs:
                 mac_addr: Optional[str] = None,
                 serial: Sddf.Serial,
                 timer: Sddf.Timer,
+                server: str,
+                export_path: str,
             ):
                 if mac_addr is not None and len(mac_addr) != 17:
                     raise Exception(f"invalid MAC address length for client '{client.name}', {mac_addr}")
@@ -868,11 +870,15 @@ class LionsOs:
                 if mac_addr is not None:
                     c_mac_addr = c_char_p(mac_addr.encode("utf-8"))
 
-                self._obj = libsdfgen.sdfgen_lionsos_fs_nfs(sdf._obj, fs._obj, client._obj, net._obj, net_copier._obj, c_mac_addr, serial._obj, timer._obj)
+                # TODO: error checking on export path and server args
+                c_server = c_char_p(server.encode("utf-8"))
+                c_export_path = c_char_p(export_path.encode("utf-8"))
+
+                self._obj = libsdfgen.sdfgen_lionsos_fs_nfs(sdf._obj, fs._obj, client._obj, net._obj, net_copier._obj, c_mac_addr, serial._obj, timer._obj, c_server, c_export_path)
 
             def connect(self) -> bool:
                 return libsdfgen.sdfgen_lionsos_fs_nfs_connect(self._obj)
-            
+
             def serialise_config(self, output_dir: str) -> bool:
                 c_output_dir = c_char_p(output_dir.encode("utf-8"))
                 return libsdfgen.sdfgen_lionsos_fs_nfs_serialise_config(self._obj, c_output_dir)
