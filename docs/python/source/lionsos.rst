@@ -1,4 +1,4 @@
-LionsOs
+LionsOS
 ======================
 
 .. autoclass:: sdfgen.LionsOs

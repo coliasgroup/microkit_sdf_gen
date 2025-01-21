@@ -1,4 +1,4 @@
-DeviceTree
+Device Tree
 ======================
 
 .. autoclass:: sdfgen.DeviceTree

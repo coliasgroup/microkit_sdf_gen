@@ -1,4 +1,4 @@
-Vmm
+libvmm
 ======================
 
 .. autoclass:: sdfgen.Vmm

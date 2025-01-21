@@ -1,4 +1,4 @@
-SystemDescription
+Microkit SDF
 ======================
 
 .. autoclass:: sdfgen.SystemDescription
