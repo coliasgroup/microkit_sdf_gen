@@ -1287,9 +1287,7 @@ pub const SerialSystem = struct {
 
         for (system.clients.items, 0..) |client, i| {
             const data_name = fmt(allocator, "serial_client_{s}.data", .{client.name});
-            const json_name = fmt(allocator, "serial_client_{s}.json", .{client.name});
             try data.serialize(system.client_configs.items[i], try fs.path.join(allocator, &.{ prefix, data_name }));
-            try data.jsonify(system.client_configs.items[i], try fs.path.join(allocator, &.{ prefix, json_name }));
         }
 
         if (serialise_emit_json) {
