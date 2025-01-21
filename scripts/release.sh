@@ -10,6 +10,8 @@ fi
 VERSION=$1
 echo "$VERSION" > VERSION
 
+./scripts/libcsdfgen.sh
+
 git add VERSION
 git commit -m "$VERSION"
 git tag $VERSION
@@ -17,3 +19,4 @@ git tag $VERSION
 git push
 git push origin tag $VERSION
 
+gh release create $VERSION release-$VERSION/*.tar.gz
