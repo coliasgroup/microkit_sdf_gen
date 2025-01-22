@@ -106,7 +106,7 @@ zig build zig_example -- --help
 zig build c
 ```
 
-The library will be in `zig-out/lib/` and the include headers will be in `zig-out/include`.
+The library will be in `zig-out/lib/` and the include headers will be in `zig-out/include/`.
 
 If you want to output the artefacts to a specific directory, you can so with:
 ```sh
