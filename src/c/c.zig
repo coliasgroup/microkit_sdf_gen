@@ -426,25 +426,25 @@ export fn sdfgen_sddf_serial_serialise_config(system: *align(8) anyopaque, outpu
 
 export fn sdfgen_sddf_i2c(c_sdf: *align(8) anyopaque, c_device: ?*align(8) anyopaque, driver: *align(8) anyopaque, virt: *align(8) anyopaque) *anyopaque {
     const sdf: *SystemDescription = @ptrCast(c_sdf);
-    const i2c = allocator.create(sddf.I2cSystem) catch @panic("OOM");
-    i2c.* = sddf.I2cSystem.init(allocator, sdf, @ptrCast(c_device), @ptrCast(driver), @ptrCast(virt), .{});
+    const i2c = allocator.create(sddf.I2c) catch @panic("OOM");
+    i2c.* = sddf.I2c.init(allocator, sdf, @ptrCast(c_device), @ptrCast(driver), @ptrCast(virt), .{});
 
     return i2c;
 }
 
 export fn sdfgen_sddf_i2c_destroy(system: *align(8) anyopaque) void {
-    const i2c: *sddf.I2cSystem = @ptrCast(system);
+    const i2c: *sddf.I2c = @ptrCast(system);
     allocator.destroy(i2c);
 }
 
 export fn sdfgen_sddf_i2c_add_client(system: *align(8) anyopaque, client: *align(8) anyopaque) bindings.sdfgen_sddf_status_t {
-    const i2c: *sddf.I2cSystem = @ptrCast(system);
+    const i2c: *sddf.I2c = @ptrCast(system);
     i2c.addClient(@ptrCast(client)) catch |e| {
         switch (e) {
-            sddf.I2cSystem.Error.DuplicateClient => return 1,
-            sddf.I2cSystem.Error.InvalidClient => return 2,
+            sddf.I2c.Error.DuplicateClient => return 1,
+            sddf.I2c.Error.InvalidClient => return 2,
             // Should never happen when adding a client
-            sddf.I2cSystem.Error.NotConnected => @panic("internal error"),
+            sddf.I2c.Error.NotConnected => @panic("internal error"),
         }
     };
 
@@ -452,14 +452,14 @@ export fn sdfgen_sddf_i2c_add_client(system: *align(8) anyopaque, client: *align
 }
 
 export fn sdfgen_sddf_i2c_connect(system: *align(8) anyopaque) bool {
-    const i2c: *sddf.I2cSystem = @ptrCast(system);
+    const i2c: *sddf.I2c = @ptrCast(system);
     i2c.connect() catch return false;
 
     return true;
 }
 
 export fn sdfgen_sddf_i2c_serialise_config(system: *align(8) anyopaque, output_dir: [*c]u8) bool {
-    const i2c: *sddf.I2cSystem = @ptrCast(system);
+    const i2c: *sddf.I2c = @ptrCast(system);
     i2c.serialiseConfig(std.mem.span(output_dir)) catch return false;
     return true;
 }
@@ -555,26 +555,26 @@ export fn sdfgen_sddf_net_destroy(system: *align(8) anyopaque) void {
 
 export fn sdfgen_sddf_gpu(c_sdf: *align(8) anyopaque, c_device: *align(8) anyopaque, driver: *align(8) anyopaque, virt: *align(8) anyopaque) *anyopaque {
     const sdf: *SystemDescription = @ptrCast(c_sdf);
-    const gpu = allocator.create(sddf.GpuSystem) catch @panic("OOM");
-    gpu.* = sddf.GpuSystem.init(allocator, sdf, @ptrCast(c_device), @ptrCast(driver), @ptrCast(virt), .{});
+    const gpu = allocator.create(sddf.Gpu) catch @panic("OOM");
+    gpu.* = sddf.Gpu.init(allocator, sdf, @ptrCast(c_device), @ptrCast(driver), @ptrCast(virt), .{});
 
     return gpu;
 }
 
 export fn sdfgen_sddf_gpu_destroy(system: *align(8) anyopaque) void {
-    const gpu: *sddf.GpuSystem = @ptrCast(system);
+    const gpu: *sddf.Gpu = @ptrCast(system);
     gpu.deinit();
     allocator.destroy(gpu);
 }
 
 export fn sdfgen_sddf_gpu_add_client(system: *align(8) anyopaque, client: *align(8) anyopaque) bindings.sdfgen_sddf_status_t {
-    const gpu: *sddf.GpuSystem = @ptrCast(system);
+    const gpu: *sddf.Gpu = @ptrCast(system);
     gpu.addClient(@ptrCast(client)) catch |e| {
         switch (e) {
-            sddf.GpuSystem.Error.DuplicateClient => return 1,
-            sddf.GpuSystem.Error.InvalidClient => return 2,
+            sddf.Gpu.Error.DuplicateClient => return 1,
+            sddf.Gpu.Error.InvalidClient => return 2,
             // Should never happen when adding a client
-            sddf.GpuSystem.Error.NotConnected => @panic("internal error"),
+            sddf.Gpu.Error.NotConnected => @panic("internal error"),
         }
     };
 
@@ -582,14 +582,14 @@ export fn sdfgen_sddf_gpu_add_client(system: *align(8) anyopaque, client: *align
 }
 
 export fn sdfgen_sddf_gpu_connect(system: *align(8) anyopaque) bool {
-    const gpu: *sddf.GpuSystem = @ptrCast(system);
+    const gpu: *sddf.Gpu = @ptrCast(system);
     gpu.connect() catch return false;
 
     return true;
 }
 
 export fn sdfgen_sddf_gpu_serialise_config(system: *align(8) anyopaque, output_dir: [*c]u8) bool {
-    const gpu: *sddf.GpuSystem = @ptrCast(system);
+    const gpu: *sddf.Gpu = @ptrCast(system);
     gpu.serialiseConfig(std.mem.span(output_dir)) catch return false;
 
     return true;

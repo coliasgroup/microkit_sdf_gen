@@ -647,7 +647,7 @@ pub const Timer = struct {
     }
 };
 
-pub const I2cSystem = struct {
+pub const I2c = struct {
     allocator: Allocator,
     sdf: *SystemDescription,
     driver: *Pd,
@@ -672,7 +672,7 @@ pub const I2cSystem = struct {
         region_data_size: usize = 0x1000,
     };
 
-    pub fn init(allocator: Allocator, sdf: *SystemDescription, device: ?*dtb.Node, driver: *Pd, virt: *Pd, options: Options) I2cSystem {
+    pub fn init(allocator: Allocator, sdf: *SystemDescription, device: ?*dtb.Node, driver: *Pd, virt: *Pd, options: Options) I2c {
         return .{
             .allocator = allocator,
             .sdf = sdf,
@@ -692,7 +692,7 @@ pub const I2cSystem = struct {
         };
     }
 
-    pub fn addClient(system: *I2cSystem, client: *Pd) Error!void {
+    pub fn addClient(system: *I2c, client: *Pd) Error!void {
         // Check that the client does not already exist
         for (system.clients.items) |existing_client| {
             if (std.mem.eql(u8, existing_client.name, client.name)) {
@@ -707,11 +707,11 @@ pub const I2cSystem = struct {
             log.err("invalid I2C client, same name as virt '{s}", .{client.name});
             return Error.InvalidClient;
         }
-        system.clients.append(client) catch @panic("Could not add client to I2cSystem");
-        system.client_configs.append(std.mem.zeroInit(ConfigResources.I2c.Client, .{})) catch @panic("Could not add client to I2cSystem");
+        system.clients.append(client) catch @panic("Could not add client to I2c");
+        system.client_configs.append(std.mem.zeroInit(ConfigResources.I2c.Client, .{})) catch @panic("Could not add client to I2c");
     }
 
-    pub fn connectDriver(system: *I2cSystem) void {
+    pub fn connectDriver(system: *I2c) void {
         const allocator = system.allocator;
         var sdf = system.sdf;
         var driver = system.driver;
@@ -758,7 +758,7 @@ pub const I2cSystem = struct {
         };
     }
 
-    pub fn connectClient(system: *I2cSystem, client: *Pd, i: usize) void {
+    pub fn connectClient(system: *I2c, client: *Pd, i: usize) void {
         const allocator = system.allocator;
         var sdf = system.sdf;
         const virt = system.virt;
@@ -820,7 +820,7 @@ pub const I2cSystem = struct {
         } };
     }
 
-    pub fn connect(system: *I2cSystem) !void {
+    pub fn connect(system: *I2c) !void {
         const sdf = system.sdf;
 
         // 1. Create the device resources for the driver
@@ -841,7 +841,7 @@ pub const I2cSystem = struct {
         system.connected = true;
     }
 
-    pub fn serialiseConfig(system: *I2cSystem, prefix: []const u8) !void {
+    pub fn serialiseConfig(system: *I2c, prefix: []const u8) !void {
         if (!system.connected) return Error.NotConnected;
 
         const allocator = system.allocator;
@@ -1635,7 +1635,7 @@ pub const Net = struct {
     }
 };
 
-pub const GpuSystem = struct {
+pub const Gpu = struct {
     allocator: Allocator,
     sdf: *SystemDescription,
     driver: *Pd,
@@ -1644,7 +1644,7 @@ pub const GpuSystem = struct {
     virt: *Pd,
     clients: std.ArrayList(*Pd),
     connected: bool = false,
-    config: GpuSystem.Config,
+    config: Gpu.Config,
     // Configurable parameters. Right now we just hard-code
     // these.
     data_region_size: usize = 2 * 1024 * 1024,
@@ -1663,7 +1663,7 @@ pub const GpuSystem = struct {
 
     pub const Options = struct {};
 
-    pub fn init(allocator: Allocator, sdf: *SystemDescription, device: *dtb.Node, driver: *Pd, virt: *Pd, _: Options) GpuSystem {
+    pub fn init(allocator: Allocator, sdf: *SystemDescription, device: *dtb.Node, driver: *Pd, virt: *Pd, _: Options) Gpu {
         if (std.mem.eql(u8, driver.name, virt.name)) {
             @panic("TODO");
         }
@@ -1682,23 +1682,23 @@ pub const GpuSystem = struct {
         };
     }
 
-    pub fn deinit(system: *GpuSystem) void {
+    pub fn deinit(system: *Gpu) void {
         system.clients.deinit();
         system.config.virt_clients.deinit();
         system.config.clients.deinit();
     }
 
-    pub fn addClient(system: *GpuSystem, client: *Pd) Error!void {
+    pub fn addClient(system: *Gpu, client: *Pd) Error!void {
         // Check that the client does not already exist
         for (system.clients.items) |existing_client| {
             if (std.mem.eql(u8, existing_client.name, client.name)) {
                 return Error.DuplicateClient;
             }
         }
-        system.clients.append(client) catch @panic("Could not add client to GpuSystem");
+        system.clients.append(client) catch @panic("Could not add client to Gpu");
     }
 
-    pub fn connectDriver(system: *GpuSystem) void {
+    pub fn connectDriver(system: *Gpu) void {
         const sdf = system.sdf;
         const allocator = system.allocator;
         const driver = system.driver;
@@ -1758,7 +1758,7 @@ pub const GpuSystem = struct {
         };
     }
 
-    pub fn connectClient(system: *GpuSystem, client: *Pd) void {
+    pub fn connectClient(system: *Gpu, client: *Pd) void {
         const sdf = system.sdf;
         const allocator = system.allocator;
 
@@ -1813,7 +1813,7 @@ pub const GpuSystem = struct {
         }, .data = .createFromMap(map_data_client) }) catch @panic("could not add client config");
     }
 
-    pub fn connect(system: *GpuSystem) !void {
+    pub fn connect(system: *Gpu) !void {
         const sdf = system.sdf;
 
         // 1. Create the device resources for the driver
@@ -1828,7 +1828,7 @@ pub const GpuSystem = struct {
         system.connected = true;
     }
 
-    pub fn serialiseConfig(system: *GpuSystem, prefix: []const u8) !void {
+    pub fn serialiseConfig(system: *Gpu, prefix: []const u8) !void {
         if (!system.connected) return error.SystemNotConnected;
 
         const allocator = system.allocator;
