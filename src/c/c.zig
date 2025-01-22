@@ -345,25 +345,25 @@ export fn sdfgen_channel_add(c_sdf: *align(8) anyopaque, c_ch: *align(8) anyopaq
 
 export fn sdfgen_sddf_timer(c_sdf: *align(8) anyopaque, c_device: ?*align(8) anyopaque, driver: *align(8) anyopaque) *anyopaque {
     const sdf: *SystemDescription = @ptrCast(c_sdf);
-    const timer = allocator.create(sddf.TimerSystem) catch @panic("OOM");
-    timer.* = sddf.TimerSystem.init(allocator, sdf, @ptrCast(c_device), @ptrCast(driver));
+    const timer = allocator.create(sddf.Timer) catch @panic("OOM");
+    timer.* = sddf.Timer.init(allocator, sdf, @ptrCast(c_device), @ptrCast(driver));
 
     return timer;
 }
 
 export fn sdfgen_sddf_timer_destroy(system: *align(8) anyopaque) void {
-    const timer: *sddf.TimerSystem = @ptrCast(system);
+    const timer: *sddf.Timer = @ptrCast(system);
     allocator.destroy(timer);
 }
 
 export fn sdfgen_sddf_timer_add_client(system: *align(8) anyopaque, client: *align(8) anyopaque) bindings.sdfgen_sddf_status_t {
-    const timer: *sddf.TimerSystem = @ptrCast(system);
+    const timer: *sddf.Timer = @ptrCast(system);
     timer.addClient(@ptrCast(client)) catch |e| {
         switch (e) {
-            sddf.TimerSystem.Error.DuplicateClient => return 1,
-            sddf.TimerSystem.Error.InvalidClient => return 2,
+            sddf.Timer.Error.DuplicateClient => return 1,
+            sddf.Timer.Error.InvalidClient => return 2,
             // Should never happen when adding a client
-            sddf.TimerSystem.Error.NotConnected => @panic("internal error"),
+            sddf.Timer.Error.NotConnected => @panic("internal error"),
         }
     };
 
@@ -371,14 +371,14 @@ export fn sdfgen_sddf_timer_add_client(system: *align(8) anyopaque, client: *ali
 }
 
 export fn sdfgen_sddf_timer_connect(system: *align(8) anyopaque) bool {
-    const timer: *sddf.TimerSystem = @ptrCast(system);
+    const timer: *sddf.Timer = @ptrCast(system);
     timer.connect() catch return false;
 
     return true;
 }
 
 export fn sdfgen_sddf_timer_serialise_config(system: *align(8) anyopaque, output_dir: [*c]u8) bool {
-    const timer: *sddf.TimerSystem = @ptrCast(system);
+    const timer: *sddf.Timer = @ptrCast(system);
     timer.serialiseConfig(std.mem.span(output_dir)) catch return false;
 
     return true;
@@ -386,25 +386,25 @@ export fn sdfgen_sddf_timer_serialise_config(system: *align(8) anyopaque, output
 
 export fn sdfgen_sddf_serial(c_sdf: *align(8) anyopaque, c_device: ?*align(8) anyopaque, driver: *align(8) anyopaque, virt_tx: *align(8) anyopaque, virt_rx: ?*align(8) anyopaque) *anyopaque {
     const sdf: *SystemDescription = @ptrCast(c_sdf);
-    const serial = allocator.create(sddf.SerialSystem) catch @panic("OOM");
-    serial.* = sddf.SerialSystem.init(allocator, sdf, @ptrCast(c_device), @ptrCast(driver), @ptrCast(virt_tx), .{ .virt_rx = @ptrCast(virt_rx) });
+    const serial = allocator.create(sddf.Serial) catch @panic("OOM");
+    serial.* = sddf.Serial.init(allocator, sdf, @ptrCast(c_device), @ptrCast(driver), @ptrCast(virt_tx), .{ .virt_rx = @ptrCast(virt_rx) });
 
     return serial;
 }
 
 export fn sdfgen_sddf_serial_destroy(system: *align(8) anyopaque) void {
-    const serial: *sddf.SerialSystem = @ptrCast(system);
+    const serial: *sddf.Serial = @ptrCast(system);
     serial.deinit();
 }
 
 export fn sdfgen_sddf_serial_add_client(system: *align(8) anyopaque, client: *align(8) anyopaque) bindings.sdfgen_sddf_status_t {
-    const serial: *sddf.SerialSystem = @ptrCast(system);
+    const serial: *sddf.Serial = @ptrCast(system);
     serial.addClient(@ptrCast(client)) catch |e| {
         switch (e) {
-            sddf.SerialSystem.Error.DuplicateClient => return 1,
-            sddf.SerialSystem.Error.InvalidClient => return 2,
+            sddf.Serial.Error.DuplicateClient => return 1,
+            sddf.Serial.Error.InvalidClient => return 2,
             // Should never happen when adding a client
-            sddf.SerialSystem.Error.NotConnected => @panic("internal error"),
+            sddf.Serial.Error.NotConnected => @panic("internal error"),
         }
     };
 
@@ -412,14 +412,14 @@ export fn sdfgen_sddf_serial_add_client(system: *align(8) anyopaque, client: *al
 }
 
 export fn sdfgen_sddf_serial_connect(system: *align(8) anyopaque) bool {
-    const serial: *sddf.SerialSystem = @ptrCast(system);
+    const serial: *sddf.Serial = @ptrCast(system);
     serial.connect() catch return false;
 
     return true;
 }
 
 export fn sdfgen_sddf_serial_serialise_config(system: *align(8) anyopaque, output_dir: [*c]u8) bool {
-    const serial: *sddf.SerialSystem = @ptrCast(system);
+    const serial: *sddf.Serial = @ptrCast(system);
     serial.serialiseConfig(std.mem.span(output_dir)) catch return false;
     return true;
 }
@@ -466,26 +466,26 @@ export fn sdfgen_sddf_i2c_serialise_config(system: *align(8) anyopaque, output_d
 
 export fn sdfgen_sddf_blk(c_sdf: *align(8) anyopaque, c_device: *align(8) anyopaque, driver: *align(8) anyopaque, virt: *align(8) anyopaque) *anyopaque {
     const sdf: *SystemDescription = @ptrCast(c_sdf);
-    const block = allocator.create(sddf.BlkSystem) catch @panic("OOM");
-    block.* = sddf.BlkSystem.init(allocator, sdf, @ptrCast(c_device), @ptrCast(driver), @ptrCast(virt), .{});
+    const block = allocator.create(sddf.Blk) catch @panic("OOM");
+    block.* = sddf.Blk.init(allocator, sdf, @ptrCast(c_device), @ptrCast(driver), @ptrCast(virt), .{});
 
     return block;
 }
 
 export fn sdfgen_sddf_blk_destroy(system: *align(8) anyopaque) void {
-    const block: *sddf.BlkSystem = @ptrCast(system);
+    const block: *sddf.Blk = @ptrCast(system);
     block.deinit();
     allocator.destroy(block);
 }
 
 export fn sdfgen_sddf_blk_add_client(system: *align(8) anyopaque, client: *align(8) anyopaque, partition: u32) bindings.sdfgen_sddf_status_t {
-    const block: *sddf.BlkSystem = @ptrCast(system);
+    const block: *sddf.Blk = @ptrCast(system);
     block.addClient(@ptrCast(client), partition) catch |e| {
         switch (e) {
-            sddf.BlkSystem.Error.DuplicateClient => return 1,
-            sddf.BlkSystem.Error.InvalidClient => return 2,
+            sddf.Blk.Error.DuplicateClient => return 1,
+            sddf.Blk.Error.InvalidClient => return 2,
             // Should never happen when adding a client
-            sddf.BlkSystem.Error.NotConnected => @panic("internal error"),
+            sddf.Blk.Error.NotConnected => @panic("internal error"),
         }
     };
 
@@ -493,14 +493,14 @@ export fn sdfgen_sddf_blk_add_client(system: *align(8) anyopaque, client: *align
 }
 
 export fn sdfgen_sddf_blk_connect(system: *align(8) anyopaque) bool {
-    const block: *sddf.BlkSystem = @ptrCast(system);
+    const block: *sddf.Blk = @ptrCast(system);
     block.connect() catch return false;
 
     return true;
 }
 
 export fn sdfgen_sddf_blk_serialise_config(system: *align(8) anyopaque, output_dir: [*c]u8) bool {
-    const block: *sddf.BlkSystem = @ptrCast(system);
+    const block: *sddf.Blk = @ptrCast(system);
     block.serialiseConfig(std.mem.span(output_dir)) catch return false;
 
     return true;
@@ -508,27 +508,27 @@ export fn sdfgen_sddf_blk_serialise_config(system: *align(8) anyopaque, output_d
 
 export fn sdfgen_sddf_net(c_sdf: *align(8) anyopaque, c_device: *align(8) anyopaque, driver: *align(8) anyopaque, virt_tx: *align(8) anyopaque, virt_rx: *align(8) anyopaque) *anyopaque {
     const sdf: *SystemDescription = @ptrCast(c_sdf);
-    const net = allocator.create(sddf.NetSystem) catch @panic("OOM");
-    net.* = sddf.NetSystem.init(allocator, sdf, @ptrCast(c_device), @ptrCast(driver), @ptrCast(virt_tx), @ptrCast(virt_rx), .{});
+    const net = allocator.create(sddf.Net) catch @panic("OOM");
+    net.* = sddf.Net.init(allocator, sdf, @ptrCast(c_device), @ptrCast(driver), @ptrCast(virt_tx), @ptrCast(virt_rx), .{});
 
     return net;
 }
 
 export fn sdfgen_sddf_net_add_client_with_copier(system: *align(8) anyopaque, client: *align(8) anyopaque, copier: *align(8) anyopaque, mac_addr: [*c]u8) bindings.sdfgen_sddf_status_t {
-    const net: *sddf.NetSystem = @ptrCast(system);
-    var options: sddf.NetSystem.ClientOptions = .{};
+    const net: *sddf.Net = @ptrCast(system);
+    var options: sddf.Net.ClientOptions = .{};
     if (mac_addr) |a| {
         options.mac_addr = std.mem.span(a);
     }
     net.addClientWithCopier(@ptrCast(client), @ptrCast(copier), options) catch |e| {
         switch (e) {
-            sddf.NetSystem.Error.DuplicateClient => return 1,
-            sddf.NetSystem.Error.InvalidClient => return 2,
-            sddf.NetSystem.Error.DuplicateCopier => return 100,
-            sddf.NetSystem.Error.DuplicateMacAddr => return 101,
-            sddf.NetSystem.Error.InvalidMacAddr => return 102,
+            sddf.Net.Error.DuplicateClient => return 1,
+            sddf.Net.Error.InvalidClient => return 2,
+            sddf.Net.Error.DuplicateCopier => return 100,
+            sddf.Net.Error.DuplicateMacAddr => return 101,
+            sddf.Net.Error.InvalidMacAddr => return 102,
             // Should never happen when adding a client
-            sddf.NetSystem.Error.NotConnected => @panic("internal error"),
+            sddf.Net.Error.NotConnected => @panic("internal error"),
         }
     };
 
@@ -536,20 +536,20 @@ export fn sdfgen_sddf_net_add_client_with_copier(system: *align(8) anyopaque, cl
 }
 
 export fn sdfgen_sddf_net_connect(system: *align(8) anyopaque) bool {
-    const net: *sddf.NetSystem = @ptrCast(system);
+    const net: *sddf.Net = @ptrCast(system);
     net.connect() catch return false;
 
     return true;
 }
 
 export fn sdfgen_sddf_net_serialise_config(system: *align(8) anyopaque, output_dir: [*c]u8) bool {
-    const net: *sddf.NetSystem = @ptrCast(system);
+    const net: *sddf.Net = @ptrCast(system);
     net.serialiseConfig(std.mem.span(output_dir)) catch return false;
     return true;
 }
 
 export fn sdfgen_sddf_net_destroy(system: *align(8) anyopaque) void {
-    const net: *sddf.NetSystem = @ptrCast(system);
+    const net: *sddf.Net = @ptrCast(system);
     allocator.destroy(net);
 }
 

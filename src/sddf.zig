@@ -549,7 +549,7 @@ const SystemError = error{
     DuplicateClient,
 };
 
-pub const TimerSystem = struct {
+pub const Timer = struct {
     allocator: Allocator,
     sdf: *SystemDescription,
     /// Protection Domain that will act as the driver for the timer
@@ -564,7 +564,7 @@ pub const TimerSystem = struct {
 
     pub const Error = SystemError;
 
-    pub fn init(allocator: Allocator, sdf: *SystemDescription, device: *dtb.Node, driver: *Pd) TimerSystem {
+    pub fn init(allocator: Allocator, sdf: *SystemDescription, device: *dtb.Node, driver: *Pd) Timer {
         // First we have to set some properties on the driver. It is currently our policy that every timer
         // driver should be passive.
         driver.passive = true;
@@ -580,11 +580,11 @@ pub const TimerSystem = struct {
         };
     }
 
-    pub fn deinit(system: *TimerSystem) void {
+    pub fn deinit(system: *Timer) void {
         system.clients.deinit();
     }
 
-    pub fn addClient(system: *TimerSystem, client: *Pd) Error!void {
+    pub fn addClient(system: *Timer, client: *Pd) Error!void {
         // Check that the client does not already exist
         for (system.clients.items) |existing_client| {
             if (std.mem.eql(u8, existing_client.name, client.name)) {
@@ -601,11 +601,11 @@ pub const TimerSystem = struct {
             log.err("invalid timer client '{s}', driver '{s}' must have greater priority than client", .{ client.name, system.driver.name });
             return Error.InvalidClient;
         }
-        system.clients.append(client) catch @panic("Could not add client to TimerSystem");
-        system.client_configs.append(std.mem.zeroInit(ConfigResources.Timer.Client, .{})) catch @panic("Could not add client to TimerSystem");
+        system.clients.append(client) catch @panic("Could not add client to Timer");
+        system.client_configs.append(std.mem.zeroInit(ConfigResources.Timer.Client, .{})) catch @panic("Could not add client to Timer");
     }
 
-    pub fn connect(system: *TimerSystem) !void {
+    pub fn connect(system: *Timer) !void {
         // The driver must be passive
         assert(system.driver.passive.?);
 
@@ -624,7 +624,7 @@ pub const TimerSystem = struct {
         system.connected = true;
     }
 
-    pub fn serialiseConfig(system: *TimerSystem, prefix: []const u8) !void {
+    pub fn serialiseConfig(system: *Timer, prefix: []const u8) !void {
         if (!system.connected) return Error.NotConnected;
 
         const allocator = system.allocator;
@@ -871,7 +871,7 @@ pub const I2cSystem = struct {
     }
 };
 
-pub const BlkSystem = struct {
+pub const Blk = struct {
     allocator: Allocator,
     sdf: *SystemDescription,
     driver: *Pd,
@@ -885,7 +885,7 @@ pub const BlkSystem = struct {
     queue_mr_size: usize = 2 * 1024 * 1024,
     // TODO: make configurable
     queue_capacity: u16 = 128,
-    config: BlkSystem.Config,
+    config: Blk.Config,
 
     const Config = struct {
         driver: ConfigResources.Blk.Driver = undefined,
@@ -900,7 +900,7 @@ pub const BlkSystem = struct {
 
     const STORAGE_INFO_REGION_SIZE: usize = 0x1000;
 
-    pub fn init(allocator: Allocator, sdf: *SystemDescription, device: *dtb.Node, driver: *Pd, virt: *Pd, _: Options) BlkSystem {
+    pub fn init(allocator: Allocator, sdf: *SystemDescription, device: *dtb.Node, driver: *Pd, virt: *Pd, _: Options) Blk {
         if (std.mem.eql(u8, driver.name, virt.name)) {
             log.err("invalid blk virtualiser, same name as driver '{s}", .{virt.name});
             // return Error.InvalidVirt;
@@ -922,14 +922,14 @@ pub const BlkSystem = struct {
         };
     }
 
-    pub fn deinit(system: *BlkSystem) void {
+    pub fn deinit(system: *Blk) void {
         system.clients.deinit();
         system.client_partitions.deinit();
         system.config.virt_clients.deinit();
         system.config.clients.deinit();
     }
 
-    pub fn addClient(system: *BlkSystem, client: *Pd, partition: u32) Error!void {
+    pub fn addClient(system: *Blk, client: *Pd, partition: u32) Error!void {
         // Check that the client does not already exist
         for (system.clients.items) |existing_client| {
             if (std.mem.eql(u8, existing_client.name, client.name)) {
@@ -944,11 +944,11 @@ pub const BlkSystem = struct {
             log.err("invalid blk client, same name as virt '{s}", .{client.name});
             return Error.InvalidClient;
         }
-        system.clients.append(client) catch @panic("Could not add client to BlkSystem");
-        system.client_partitions.append(partition) catch @panic("Could not add client to BlkSystem");
+        system.clients.append(client) catch @panic("Could not add client to Blk");
+        system.client_partitions.append(partition) catch @panic("Could not add client to Blk");
     }
 
-    pub fn connectDriver(system: *BlkSystem) void {
+    pub fn connectDriver(system: *Blk) void {
         const sdf = system.sdf;
         const allocator = system.allocator;
         const driver = system.driver;
@@ -1009,7 +1009,7 @@ pub const BlkSystem = struct {
         };
     }
 
-    pub fn connectClient(system: *BlkSystem, client: *Pd, i: usize) void {
+    pub fn connectClient(system: *Blk, client: *Pd, i: usize) void {
         const sdf = system.sdf;
         const allocator = system.allocator;
         const queue_mr_size = system.queue_mr_size;
@@ -1070,7 +1070,7 @@ pub const BlkSystem = struct {
         }, .data = .createFromMap(map_data_client) }) catch @panic("could not add client config");
     }
 
-    pub fn connect(system: *BlkSystem) !void {
+    pub fn connect(system: *Blk) !void {
         const sdf = system.sdf;
 
         // 1. Create the device resources for the driver
@@ -1085,7 +1085,7 @@ pub const BlkSystem = struct {
         system.connected = true;
     }
 
-    pub fn serialiseConfig(system: *BlkSystem, prefix: []const u8) !void {
+    pub fn serialiseConfig(system: *Blk, prefix: []const u8) !void {
         if (!system.connected) return Error.NotConnected;
 
         const allocator = system.allocator;
@@ -1116,7 +1116,7 @@ pub const BlkSystem = struct {
     }
 };
 
-pub const SerialSystem = struct {
+pub const Serial = struct {
     allocator: Allocator,
     sdf: *SystemDescription,
     data_size: usize,
@@ -1142,7 +1142,7 @@ pub const SerialSystem = struct {
         virt_rx: ?*Pd = null,
     };
 
-    pub fn init(allocator: Allocator, sdf: *SystemDescription, device: *dtb.Node, driver: *Pd, virt_tx: *Pd, options: Options) SerialSystem {
+    pub fn init(allocator: Allocator, sdf: *SystemDescription, device: *dtb.Node, driver: *Pd, virt_tx: *Pd, options: Options) Serial {
         if (std.mem.eql(u8, driver.name, virt_tx.name)) {
             log.err("invalid serial tx virtualiser, same name as driver '{s}", .{virt_tx.name});
             // return Error.InvalidVirt;
@@ -1179,26 +1179,26 @@ pub const SerialSystem = struct {
         };
     }
 
-    pub fn deinit(system: *SerialSystem) void {
+    pub fn deinit(system: *Serial) void {
         system.clients.deinit();
     }
 
-    pub fn addClient(system: *SerialSystem, client: *Pd) Error!void {
+    pub fn addClient(system: *Serial, client: *Pd) Error!void {
         // Check that the client does not already exist
         for (system.clients.items) |existing_client| {
             if (std.mem.eql(u8, existing_client.name, client.name)) {
                 return Error.DuplicateClient;
             }
         }
-        system.clients.append(client) catch @panic("Could not add client to SerialSystem");
-        system.client_configs.append(std.mem.zeroInit(ConfigResources.Serial.Client, .{})) catch @panic("Could not add client to SerialSystem");
+        system.clients.append(client) catch @panic("Could not add client to Serial");
+        system.client_configs.append(std.mem.zeroInit(ConfigResources.Serial.Client, .{})) catch @panic("Could not add client to Serial");
     }
 
-    fn hasRx(system: *SerialSystem) bool {
+    fn hasRx(system: *Serial) bool {
         return system.virt_rx != null;
     }
 
-    fn createConnection(system: *SerialSystem, server: *Pd, client: *Pd, server_conn: *ConfigResources.Serial.Connection, client_conn: *ConfigResources.Serial.Connection) void {
+    fn createConnection(system: *Serial, server: *Pd, client: *Pd, server_conn: *ConfigResources.Serial.Connection, client_conn: *ConfigResources.Serial.Connection) void {
         const queue_mr_name = fmt(system.allocator, "{s}/serial/queue/{s}/{s}", .{ system.device.name, server.name, client.name });
         const queue_mr = Mr.create(system.allocator, queue_mr_name, system.queue_size, .{});
         system.sdf.addMemoryRegion(queue_mr);
@@ -1230,7 +1230,7 @@ pub const SerialSystem = struct {
         client_conn.id = channel.pd_b_id;
     }
 
-    pub fn connect(system: *SerialSystem) !void {
+    pub fn connect(system: *Serial) !void {
         try createDriver(system.sdf, system.driver, system.device, .serial, &system.device_res);
 
         system.driver_config.default_baud = 115200;
@@ -1274,7 +1274,7 @@ pub const SerialSystem = struct {
         system.connected = true;
     }
 
-    pub fn serialiseConfig(system: *SerialSystem, prefix: []const u8) !void {
+    pub fn serialiseConfig(system: *Serial, prefix: []const u8) !void {
         if (!system.connected) return Error.NotConnected;
 
         const allocator = system.allocator;
@@ -1304,7 +1304,7 @@ pub const SerialSystem = struct {
     }
 };
 
-pub const NetSystem = struct {
+pub const Net = struct {
     const BUFFER_SIZE = 2048;
 
     pub const Error = SystemError || error{
@@ -1352,7 +1352,7 @@ pub const NetSystem = struct {
     rx_buffers: usize,
     client_info: std.ArrayList(ClientInfo),
 
-    pub fn init(allocator: Allocator, sdf: *SystemDescription, device: *dtb.Node, driver: *Pd, virt_tx: *Pd, virt_rx: *Pd, options: Options) NetSystem {
+    pub fn init(allocator: Allocator, sdf: *SystemDescription, device: *dtb.Node, driver: *Pd, virt_tx: *Pd, virt_rx: *Pd, options: Options) Net {
         return .{
             .allocator = allocator,
             .sdf = sdf,
@@ -1384,7 +1384,7 @@ pub const NetSystem = struct {
         return mac_arr;
     }
 
-    pub fn addClientWithCopier(system: *NetSystem, client: *Pd, copier: *Pd, options: ClientOptions) Error!void {
+    pub fn addClientWithCopier(system: *Net, client: *Pd, copier: *Pd, options: ClientOptions) Error!void {
         const client_idx = system.clients.items.len;
 
         // Check that the MAC address isn't present already
@@ -1410,12 +1410,12 @@ pub const NetSystem = struct {
             }
         }
 
-        system.clients.append(client) catch @panic("Could not add client with copier to NetSystem");
-        system.copiers.append(copier) catch @panic("Could not add client with copier to NetSystem");
-        system.client_configs.append(std.mem.zeroInit(ConfigResources.Net.Client, .{})) catch @panic("Could not add client with copier to NetSystem");
-        system.copy_configs.append(std.mem.zeroInit(ConfigResources.Net.Copy, .{})) catch @panic("Could not add client with copier to NetSystem");
+        system.clients.append(client) catch @panic("Could not add client with copier to Net");
+        system.copiers.append(copier) catch @panic("Could not add client with copier to Net");
+        system.client_configs.append(std.mem.zeroInit(ConfigResources.Net.Client, .{})) catch @panic("Could not add client with copier to Net");
+        system.copy_configs.append(std.mem.zeroInit(ConfigResources.Net.Copy, .{})) catch @panic("Could not add client with copier to Net");
 
-        system.client_info.append(std.mem.zeroInit(ClientInfo, .{})) catch @panic("Could not add client with copier to NetSystem");
+        system.client_info.append(std.mem.zeroInit(ClientInfo, .{})) catch @panic("Could not add client with copier to Net");
         if (options.mac_addr) |mac_addr| {
             system.client_info.items[client_idx].mac_addr = parseMacAddr(mac_addr) catch return Error.InvalidMacAddr;
         }
@@ -1427,7 +1427,7 @@ pub const NetSystem = struct {
         return round_to_page(8 + 16 * n_buffers);
     }
 
-    fn createConnection(system: *NetSystem, server: *Pd, client: *Pd, server_conn: *ConfigResources.Net.Connection, client_conn: *ConfigResources.Net.Connection, num_buffers: u64) void {
+    fn createConnection(system: *Net, server: *Pd, client: *Pd, server_conn: *ConfigResources.Net.Connection, client_conn: *ConfigResources.Net.Connection, num_buffers: u64) void {
         const queue_mr_size = queueMrSize(num_buffers);
 
         server_conn.num_buffers = @intCast(num_buffers);
@@ -1463,7 +1463,7 @@ pub const NetSystem = struct {
         client_conn.id = channel.pd_b_id;
     }
 
-    fn rxConnectDriver(system: *NetSystem) Mr {
+    fn rxConnectDriver(system: *Net) Mr {
         system.createConnection(system.driver, system.virt_rx, &system.driver_config.virt_rx, &system.virt_rx_config.driver, system.rx_buffers);
 
         const rx_dma_mr_name = fmt(system.allocator, "{s}/net/rx/data/device", .{system.device.name});
@@ -1485,7 +1485,7 @@ pub const NetSystem = struct {
         return rx_dma_mr;
     }
 
-    fn txConnectDriver(system: *NetSystem) void {
+    fn txConnectDriver(system: *Net) void {
         var num_buffers: usize = 0;
         for (system.client_info.items) |client_info| {
             num_buffers += client_info.tx_buffers;
@@ -1494,7 +1494,7 @@ pub const NetSystem = struct {
         system.createConnection(system.driver, system.virt_tx, &system.driver_config.virt_tx, &system.virt_tx_config.driver, num_buffers);
     }
 
-    fn clientRxConnect(system: *NetSystem, rx_dma: Mr, client_idx: usize) void {
+    fn clientRxConnect(system: *Net, rx_dma: Mr, client_idx: usize) void {
         const client_info = system.client_info.items[client_idx];
         const client = system.clients.items[client_idx];
         const copier = system.copiers.items[client_idx];
@@ -1523,7 +1523,7 @@ pub const NetSystem = struct {
         copier_config.client_data = ConfigResources.Region.createFromMap(client_data_copier_map);
     }
 
-    fn clientTxConnect(system: *NetSystem, client_id: usize) void {
+    fn clientTxConnect(system: *Net, client_id: usize) void {
         const client_info = &system.client_info.items[client_id];
         const client = system.clients.items[client_id];
         var client_config = &system.client_configs.items[client_id];
@@ -1545,7 +1545,7 @@ pub const NetSystem = struct {
         client_config.tx_data = ConfigResources.Region.createFromMap(data_mr_client_map);
     }
 
-    pub fn generateMacAddrs(system: *NetSystem) void {
+    pub fn generateMacAddrs(system: *Net) void {
         const rand = std.crypto.random;
         for (system.clients.items, 0..) |_, i| {
             if (system.client_info.items[i].mac_addr == null) {
@@ -1568,7 +1568,7 @@ pub const NetSystem = struct {
         }
     }
 
-    pub fn connect(system: *NetSystem) !void {
+    pub fn connect(system: *Net) !void {
         try createDriver(system.sdf, system.driver, system.device, .network, &system.device_res);
 
         const rx_dma_mr = system.rxConnectDriver();
@@ -1590,7 +1590,7 @@ pub const NetSystem = struct {
         system.connected = true;
     }
 
-    pub fn serialiseConfig(system: *NetSystem, prefix: []const u8) !void {
+    pub fn serialiseConfig(system: *Net, prefix: []const u8) !void {
         if (!system.connected) return Error.NotConnected;
 
         const allocator = system.allocator;

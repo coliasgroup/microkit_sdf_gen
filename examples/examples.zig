@@ -19,8 +19,6 @@ const Map = SystemDescription.Map;
 const Irq = SystemDescription.Interrupt;
 const Channel = SystemDescription.Channel;
 
-const VirtualMachineSystem = mod_vmm.VirtualMachineSystem;
-
 const MicrokitBoard = enum {
     star64,
     qemu_virt_aarch64,
@@ -300,7 +298,7 @@ fn i2c(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !void {
 
     timer_driver.priority = 101;
 
-    var timer_system = sddf.TimerSystem.init(allocator, sdf, timer_node, &timer_driver);
+    var timer_system = sddf.Timer.init(allocator, sdf, timer_node, &timer_driver);
     try timer_system.addClient(&client_ds3231);
     try timer_system.addClient(&client_pn532);
 
@@ -323,7 +321,7 @@ fn blk(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !void {
     var blk_virt = Pd.create(allocator, "blk_virt", "blk_virt.elf", .{});
     sdf.addProtectionDomain(&blk_virt);
 
-    var blk_system = sddf.BlkSystem.init(allocator, sdf, blk_node, &blk_driver, &blk_virt, .{});
+    var blk_system = sddf.Blk.init(allocator, sdf, blk_node, &blk_driver, &blk_virt, .{});
     try blk_system.addClient(&client, 0);
 
     _ = try blk_system.connect();
@@ -343,7 +341,7 @@ fn timer(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !void {
     var client = Pd.create(allocator, "client", "client.elf", .{});
     sdf.addProtectionDomain(&client);
 
-    var timer_system = sddf.TimerSystem.init(allocator, sdf, timer_node, &timer_driver);
+    var timer_system = sddf.Timer.init(allocator, sdf, timer_node, &timer_driver);
     try timer_system.addClient(&client);
 
     try timer_system.connect();
@@ -384,11 +382,11 @@ fn webserver(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !vo
     var fatfs = Pd.create(allocator, "fatfs", "fatfs.elf", .{});
     sdf.addProtectionDomain(&fatfs);
 
-    var timer_system = sddf.TimerSystem.init(allocator, sdf, timer_node, &timer_driver);
+    var timer_system = sddf.Timer.init(allocator, sdf, timer_node, &timer_driver);
     try timer_system.addClient(&micropython);
     // timer_system.addClient(&nfs);
 
-    var serial_system = sddf.SerialSystem.init(allocator, sdf, uart_node, &uart_driver, &serial_virt_tx, .{});
+    var serial_system = sddf.Serial.init(allocator, sdf, uart_node, &uart_driver, &serial_virt_tx, .{});
     try serial_system.addClient(&micropython);
     // serial_system.addClient(&nfs);
 
@@ -399,7 +397,7 @@ fn webserver(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !vo
     var blk_virt = Pd.create(allocator, "blk_virt", "blk_virt.elf", .{});
     sdf.addProtectionDomain(&blk_virt);
 
-    var blk_system = sddf.BlkSystem.init(allocator, sdf, blk_node, &blk_driver, &blk_virt, .{});
+    var blk_system = sddf.Blk.init(allocator, sdf, blk_node, &blk_driver, &blk_virt, .{});
     try blk_system.addClient(&fatfs, 0);
 
     const eth_node = board.defaultEthernetNode(blob);
@@ -411,7 +409,7 @@ fn webserver(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !vo
     // var eth_copy_nfs = Pd.create(sdf, "eth_copy_nfs", "copy.elf");
     // sdf.addProtectionDomain(&eth_copy_nfs);
 
-    var eth_system = sddf.NetSystem.init(allocator, sdf, eth_node, &eth_driver, &eth_virt_tx, &eth_virt_rx, .{});
+    var eth_system = sddf.Net.init(allocator, sdf, eth_node, &eth_driver, &eth_virt_tx, &eth_virt_rx, .{});
     // eth_system.addClientWithCopier(&nfs, &eth_copy_nfs);
     try eth_system.addClientWithCopier(&micropython, &eth_copy_mp, .{});
 
@@ -475,7 +473,7 @@ fn kitty(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !void {
     var serial_virt_tx = Pd.create(sdf, "serial_virt_tx", "serial_virt_tx.elf");
     sdf.addProtectionDomain(&serial_virt_tx);
 
-    var serial_system = sddf.SerialSystem.init(allocator, sdf, uart_node, &uart_driver, &serial_virt_rx, &serial_virt_tx, .{});
+    var serial_system = sddf.Serial.init(allocator, sdf, uart_node, &uart_driver, &serial_virt_rx, &serial_virt_tx, .{});
 
     const timer_node = board.defaultTimerNode(blob);
 
@@ -485,7 +483,7 @@ fn kitty(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !void {
     var timer_driver = Pd.create(sdf, "timer_driver", "timer_driver.elf");
     sdf.addProtectionDomain(&timer_driver);
 
-    var timer_system = sddf.TimerSystem.init(allocator, sdf, &timer_driver, timer_node);
+    var timer_system = sddf.Timer.init(allocator, sdf, &timer_driver, timer_node);
     timer_system.addClient(&timer_client);
     try timer_system.connect();
 
@@ -499,14 +497,14 @@ fn echo_server(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !
 
     const timer_node = board.defaultTimerNode(blob);
     var timer_driver = Pd.create(allocator, "timer_driver", "timer_driver.elf", .{});
-    var timer_system = sddf.TimerSystem.init(allocator, sdf, timer_node, &timer_driver);
+    var timer_system = sddf.Timer.init(allocator, sdf, timer_node, &timer_driver);
 
     // Serial system
 
     const uart_node = board.defaultUartNode(blob);
     var uart_driver = Pd.create(allocator, "uart_driver", "uart_driver.elf", .{});
     var serial_virt_tx = Pd.create(allocator, "serial_virt_tx", "serial_virt_tx.elf", .{});
-    var serial_system = sddf.SerialSystem.init(allocator, sdf, uart_node, &uart_driver, &serial_virt_tx, .{});
+    var serial_system = sddf.Serial.init(allocator, sdf, uart_node, &uart_driver, &serial_virt_tx, .{});
 
     // Ethernet system
 
@@ -518,7 +516,7 @@ fn echo_server(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !
     var eth_virt_rx = Pd.create(allocator, "eth_virt_rx", "network_virt_rx.elf", .{});
     var eth_virt_tx = Pd.create(allocator, "eth_virt_tx", "network_virt_tx.elf", .{});
     var eth_copy_client0 = Pd.create(allocator, "eth_copy_client0", "copy.elf", .{});
-    var eth_system = sddf.NetSystem.init(allocator, sdf, eth_node, &eth_driver, &eth_virt_tx, &eth_virt_rx, .{});
+    var eth_system = sddf.Net.init(allocator, sdf, eth_node, &eth_driver, &eth_virt_tx, &eth_virt_rx, .{});
 
     // Benchmark PDs
 
@@ -666,7 +664,7 @@ fn serial(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !void 
     var client1 = Pd.create(allocator, "client1", "serial_server.elf", .{});
     sdf.addProtectionDomain(&client1);
 
-    var serial_system = sddf.SerialSystem.init(allocator, sdf, uart_node, &uart_driver, &serial_virt_tx, .{ .virt_rx = &serial_virt_rx });
+    var serial_system = sddf.Serial.init(allocator, sdf, uart_node, &uart_driver, &serial_virt_tx, .{ .virt_rx = &serial_virt_rx });
     try serial_system.addClient(&client0);
     try serial_system.addClient(&client1);
 
