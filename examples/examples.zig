@@ -323,7 +323,7 @@ fn blk(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !void {
     var blk_virt = Pd.create(allocator, "blk_virt", "blk_virt.elf", .{});
     sdf.addProtectionDomain(&blk_virt);
 
-    var blk_system = sddf.BlockSystem.init(allocator, sdf, blk_node, &blk_driver, &blk_virt, .{});
+    var blk_system = sddf.BlkSystem.init(allocator, sdf, blk_node, &blk_driver, &blk_virt, .{});
     try blk_system.addClient(&client, 0);
 
     _ = try blk_system.connect();
@@ -399,7 +399,7 @@ fn webserver(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !vo
     var blk_virt = Pd.create(allocator, "blk_virt", "blk_virt.elf", .{});
     sdf.addProtectionDomain(&blk_virt);
 
-    var blk_system = sddf.BlockSystem.init(allocator, sdf, blk_node, &blk_driver, &blk_virt, .{});
+    var blk_system = sddf.BlkSystem.init(allocator, sdf, blk_node, &blk_driver, &blk_virt, .{});
     try blk_system.addClient(&fatfs, 0);
 
     const eth_node = board.defaultEthernetNode(blob);
@@ -411,7 +411,7 @@ fn webserver(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !vo
     // var eth_copy_nfs = Pd.create(sdf, "eth_copy_nfs", "copy.elf");
     // sdf.addProtectionDomain(&eth_copy_nfs);
 
-    var eth_system = sddf.NetworkSystem.init(allocator, sdf, eth_node, &eth_driver, &eth_virt_tx, &eth_virt_rx, .{});
+    var eth_system = sddf.NetSystem.init(allocator, sdf, eth_node, &eth_driver, &eth_virt_tx, &eth_virt_rx, .{});
     // eth_system.addClientWithCopier(&nfs, &eth_copy_nfs);
     try eth_system.addClientWithCopier(&micropython, &eth_copy_mp, .{});
 
@@ -458,7 +458,7 @@ fn webserver(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !vo
     fatfs.addMap(.create(fatfs_metadata, 0x40_000_000, .rw, .{ .setvar_vaddr = "fs_metadata" }));
     sdf.addMemoryRegion(fatfs_metadata);
 
-    const fs = try lionsos.FileSystem.init(allocator, sdf, &fatfs, &micropython, .{});
+    var fs = try lionsos.FileSystem.init(allocator, sdf, &fatfs, &micropython, .{});
     fs.connect();
 
     try sdf.print();
@@ -518,7 +518,7 @@ fn echo_server(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !
     var eth_virt_rx = Pd.create(allocator, "eth_virt_rx", "network_virt_rx.elf", .{});
     var eth_virt_tx = Pd.create(allocator, "eth_virt_tx", "network_virt_tx.elf", .{});
     var eth_copy_client0 = Pd.create(allocator, "eth_copy_client0", "copy.elf", .{});
-    var eth_system = sddf.NetworkSystem.init(allocator, sdf, eth_node, &eth_driver, &eth_virt_tx, &eth_virt_rx, .{});
+    var eth_system = sddf.NetSystem.init(allocator, sdf, eth_node, &eth_driver, &eth_virt_tx, &eth_virt_rx, .{});
 
     // Benchmark PDs
 
@@ -631,13 +631,13 @@ fn echo_server(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !
     idle_config.init_channel = bench_init_channel.pd_b_id;
 
     try data.serialize(bench_config, try std.fs.path.join(allocator, &.{ data_output, "benchmark_config.data" }));
-    try data.jsonify(bench_config, try std.fs.path.join(allocator, &.{ data_output, "benchmark_config.json" }), .{ .whitespace = .indent_4 });
+    try data.jsonify(bench_config, try std.fs.path.join(allocator, &.{ data_output, "benchmark_config.json" }));
 
     try data.serialize(bench_client_config, try std.fs.path.join(allocator, &.{ data_output, "benchmark_client_config.data" }));
-    try data.jsonify(bench_client_config, try std.fs.path.join(allocator, &.{ data_output, "benchmark_client_config.json" }), .{ .whitespace = .indent_4 });
+    try data.jsonify(bench_client_config, try std.fs.path.join(allocator, &.{ data_output, "benchmark_client_config.json" }));
 
     try data.serialize(idle_config, try std.fs.path.join(allocator, &.{ data_output, "benchmark_idle_config.data" }));
-    try data.jsonify(idle_config, try std.fs.path.join(allocator, &.{ data_output, "benchmark_idle_config.json" }), .{ .whitespace = .indent_4 });
+    try data.jsonify(idle_config, try std.fs.path.join(allocator, &.{ data_output, "benchmark_idle_config.json" }));
 
     try eth_system.connect();
     try timer_system.connect();

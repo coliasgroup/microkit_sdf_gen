@@ -1304,7 +1304,7 @@ pub const SerialSystem = struct {
     }
 };
 
-pub const NetworkSystem = struct {
+pub const NetSystem = struct {
     const BUFFER_SIZE = 2048;
 
     pub const Error = SystemError || error{
@@ -1352,7 +1352,7 @@ pub const NetworkSystem = struct {
     rx_buffers: usize,
     client_info: std.ArrayList(ClientInfo),
 
-    pub fn init(allocator: Allocator, sdf: *SystemDescription, device: *dtb.Node, driver: *Pd, virt_tx: *Pd, virt_rx: *Pd, options: Options) NetworkSystem {
+    pub fn init(allocator: Allocator, sdf: *SystemDescription, device: *dtb.Node, driver: *Pd, virt_tx: *Pd, virt_rx: *Pd, options: Options) NetSystem {
         return .{
             .allocator = allocator,
             .sdf = sdf,
@@ -1384,7 +1384,7 @@ pub const NetworkSystem = struct {
         return mac_arr;
     }
 
-    pub fn addClientWithCopier(system: *NetworkSystem, client: *Pd, copier: *Pd, options: ClientOptions) Error!void {
+    pub fn addClientWithCopier(system: *NetSystem, client: *Pd, copier: *Pd, options: ClientOptions) Error!void {
         const client_idx = system.clients.items.len;
 
         // Check that the MAC address isn't present already
@@ -1410,12 +1410,12 @@ pub const NetworkSystem = struct {
             }
         }
 
-        system.clients.append(client) catch @panic("Could not add client with copier to NetworkSystem");
-        system.copiers.append(copier) catch @panic("Could not add client with copier to NetworkSystem");
-        system.client_configs.append(std.mem.zeroInit(ConfigResources.Net.Client, .{})) catch @panic("Could not add client with copier to NetworkSystem");
-        system.copy_configs.append(std.mem.zeroInit(ConfigResources.Net.Copy, .{})) catch @panic("Could not add client with copier to NetworkSystem");
+        system.clients.append(client) catch @panic("Could not add client with copier to NetSystem");
+        system.copiers.append(copier) catch @panic("Could not add client with copier to NetSystem");
+        system.client_configs.append(std.mem.zeroInit(ConfigResources.Net.Client, .{})) catch @panic("Could not add client with copier to NetSystem");
+        system.copy_configs.append(std.mem.zeroInit(ConfigResources.Net.Copy, .{})) catch @panic("Could not add client with copier to NetSystem");
 
-        system.client_info.append(std.mem.zeroInit(ClientInfo, .{})) catch @panic("Could not add client with copier to NetworkSystem");
+        system.client_info.append(std.mem.zeroInit(ClientInfo, .{})) catch @panic("Could not add client with copier to NetSystem");
         if (options.mac_addr) |mac_addr| {
             system.client_info.items[client_idx].mac_addr = parseMacAddr(mac_addr) catch return Error.InvalidMacAddr;
         }
@@ -1427,7 +1427,7 @@ pub const NetworkSystem = struct {
         return round_to_page(8 + 16 * n_buffers);
     }
 
-    fn createConnection(system: *NetworkSystem, server: *Pd, client: *Pd, server_conn: *ConfigResources.Net.Connection, client_conn: *ConfigResources.Net.Connection, num_buffers: u64) void {
+    fn createConnection(system: *NetSystem, server: *Pd, client: *Pd, server_conn: *ConfigResources.Net.Connection, client_conn: *ConfigResources.Net.Connection, num_buffers: u64) void {
         const queue_mr_size = queueMrSize(num_buffers);
 
         server_conn.num_buffers = @intCast(num_buffers);
@@ -1463,7 +1463,7 @@ pub const NetworkSystem = struct {
         client_conn.id = channel.pd_b_id;
     }
 
-    fn rxConnectDriver(system: *NetworkSystem) Mr {
+    fn rxConnectDriver(system: *NetSystem) Mr {
         system.createConnection(system.driver, system.virt_rx, &system.driver_config.virt_rx, &system.virt_rx_config.driver, system.rx_buffers);
 
         const rx_dma_mr_name = fmt(system.allocator, "{s}/net/rx/data/device", .{system.device.name});
@@ -1485,7 +1485,7 @@ pub const NetworkSystem = struct {
         return rx_dma_mr;
     }
 
-    fn txConnectDriver(system: *NetworkSystem) void {
+    fn txConnectDriver(system: *NetSystem) void {
         var num_buffers: usize = 0;
         for (system.client_info.items) |client_info| {
             num_buffers += client_info.tx_buffers;
@@ -1494,7 +1494,7 @@ pub const NetworkSystem = struct {
         system.createConnection(system.driver, system.virt_tx, &system.driver_config.virt_tx, &system.virt_tx_config.driver, num_buffers);
     }
 
-    fn clientRxConnect(system: *NetworkSystem, rx_dma: Mr, client_idx: usize) void {
+    fn clientRxConnect(system: *NetSystem, rx_dma: Mr, client_idx: usize) void {
         const client_info = system.client_info.items[client_idx];
         const client = system.clients.items[client_idx];
         const copier = system.copiers.items[client_idx];
@@ -1523,7 +1523,7 @@ pub const NetworkSystem = struct {
         copier_config.client_data = ConfigResources.Region.createFromMap(client_data_copier_map);
     }
 
-    fn clientTxConnect(system: *NetworkSystem, client_id: usize) void {
+    fn clientTxConnect(system: *NetSystem, client_id: usize) void {
         const client_info = &system.client_info.items[client_id];
         const client = system.clients.items[client_id];
         var client_config = &system.client_configs.items[client_id];
@@ -1545,7 +1545,7 @@ pub const NetworkSystem = struct {
         client_config.tx_data = ConfigResources.Region.createFromMap(data_mr_client_map);
     }
 
-    pub fn generateMacAddrs(system: *NetworkSystem) void {
+    pub fn generateMacAddrs(system: *NetSystem) void {
         const rand = std.crypto.random;
         for (system.clients.items, 0..) |_, i| {
             if (system.client_info.items[i].mac_addr == null) {
@@ -1568,7 +1568,7 @@ pub const NetworkSystem = struct {
         }
     }
 
-    pub fn connect(system: *NetworkSystem) !void {
+    pub fn connect(system: *NetSystem) !void {
         try createDriver(system.sdf, system.driver, system.device, .network, &system.device_res);
 
         const rx_dma_mr = system.rxConnectDriver();
@@ -1590,7 +1590,7 @@ pub const NetworkSystem = struct {
         system.connected = true;
     }
 
-    pub fn serialiseConfig(system: *NetworkSystem, prefix: []const u8) !void {
+    pub fn serialiseConfig(system: *NetSystem, prefix: []const u8) !void {
         if (!system.connected) return Error.NotConnected;
 
         const allocator = system.allocator;
