@@ -508,27 +508,27 @@ export fn sdfgen_sddf_blk_serialise_config(system: *align(8) anyopaque, output_d
 
 export fn sdfgen_sddf_net(c_sdf: *align(8) anyopaque, c_device: *align(8) anyopaque, driver: *align(8) anyopaque, virt_tx: *align(8) anyopaque, virt_rx: *align(8) anyopaque) *anyopaque {
     const sdf: *SystemDescription = @ptrCast(c_sdf);
-    const net = allocator.create(sddf.NetworkSystem) catch @panic("OOM");
-    net.* = sddf.NetworkSystem.init(allocator, sdf, @ptrCast(c_device), @ptrCast(driver), @ptrCast(virt_tx), @ptrCast(virt_rx), .{});
+    const net = allocator.create(sddf.NetSystem) catch @panic("OOM");
+    net.* = sddf.NetSystem.init(allocator, sdf, @ptrCast(c_device), @ptrCast(driver), @ptrCast(virt_tx), @ptrCast(virt_rx), .{});
 
     return net;
 }
 
 export fn sdfgen_sddf_net_add_client_with_copier(system: *align(8) anyopaque, client: *align(8) anyopaque, copier: *align(8) anyopaque, mac_addr: [*c]u8) bindings.sdfgen_sddf_status_t {
-    const net: *sddf.NetworkSystem = @ptrCast(system);
-    var options: sddf.NetworkSystem.ClientOptions = .{};
+    const net: *sddf.NetSystem = @ptrCast(system);
+    var options: sddf.NetSystem.ClientOptions = .{};
     if (mac_addr) |a| {
         options.mac_addr = std.mem.span(a);
     }
     net.addClientWithCopier(@ptrCast(client), @ptrCast(copier), options) catch |e| {
         switch (e) {
-            sddf.NetworkSystem.Error.DuplicateClient => return 1,
-            sddf.NetworkSystem.Error.InvalidClient => return 2,
-            sddf.NetworkSystem.Error.DuplicateCopier => return 100,
-            sddf.NetworkSystem.Error.DuplicateMacAddr => return 101,
-            sddf.NetworkSystem.Error.InvalidMacAddr => return 102,
+            sddf.NetSystem.Error.DuplicateClient => return 1,
+            sddf.NetSystem.Error.InvalidClient => return 2,
+            sddf.NetSystem.Error.DuplicateCopier => return 100,
+            sddf.NetSystem.Error.DuplicateMacAddr => return 101,
+            sddf.NetSystem.Error.InvalidMacAddr => return 102,
             // Should never happen when adding a client
-            sddf.NetworkSystem.Error.NotConnected => @panic("internal error"),
+            sddf.NetSystem.Error.NotConnected => @panic("internal error"),
         }
     };
 
@@ -536,20 +536,20 @@ export fn sdfgen_sddf_net_add_client_with_copier(system: *align(8) anyopaque, cl
 }
 
 export fn sdfgen_sddf_net_connect(system: *align(8) anyopaque) bool {
-    const net: *sddf.NetworkSystem = @ptrCast(system);
+    const net: *sddf.NetSystem = @ptrCast(system);
     net.connect() catch return false;
 
     return true;
 }
 
 export fn sdfgen_sddf_net_serialise_config(system: *align(8) anyopaque, output_dir: [*c]u8) bool {
-    const net: *sddf.NetworkSystem = @ptrCast(system);
+    const net: *sddf.NetSystem = @ptrCast(system);
     net.serialiseConfig(std.mem.span(output_dir)) catch return false;
     return true;
 }
 
 export fn sdfgen_sddf_net_destroy(system: *align(8) anyopaque) void {
-    const net: *sddf.NetworkSystem = @ptrCast(system);
+    const net: *sddf.NetSystem = @ptrCast(system);
     allocator.destroy(net);
 }
 

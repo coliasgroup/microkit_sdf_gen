@@ -12,7 +12,7 @@ const Channel = SystemDescription.Channel;
 
 const ConfigResources = data.Resources;
 
-const NetworkSystem = mod_sddf.NetworkSystem;
+const NetSystem = mod_sddf.NetSystem;
 const SerialSystem = mod_sddf.SerialSystem;
 const TimerSystem = mod_sddf.TimerSystem;
 
@@ -146,7 +146,7 @@ pub const FileSystem = struct {
         fs: FileSystem,
         data: ConfigResources.Nfs,
 
-        const Error = FileSystem.Error || NetworkSystem.Error;
+        const Error = FileSystem.Error || NetSystem.Error;
 
         pub const Options = struct {
             server: []const u8,
@@ -154,7 +154,7 @@ pub const FileSystem = struct {
             mac_addr: ?[]const u8 = null,
         };
 
-        pub fn init(allocator: Allocator, sdf: *SystemDescription, fs: *Pd, client: *Pd, net: *NetworkSystem, net_copier: *Pd, serial: *SerialSystem, timer: *TimerSystem, options: Nfs.Options) Nfs.Error!Nfs {
+        pub fn init(allocator: Allocator, sdf: *SystemDescription, fs: *Pd, client: *Pd, net: *NetSystem, net_copier: *Pd, serial: *SerialSystem, timer: *TimerSystem, options: Nfs.Options) Nfs.Error!Nfs {
             // NFS depends on being connected via the network, serial, and timer sub-sytems.
             try net.addClientWithCopier(fs, net_copier, .{
                 .mac_addr = options.mac_addr,
