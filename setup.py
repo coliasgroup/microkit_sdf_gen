@@ -13,11 +13,13 @@ class ZigBuilder(build_ext):
         modpath = self.get_ext_fullpath(ext.name).split('/')
         modpath = os.path.abspath('/'.join(modpath[0:-1]))
 
+        optimize = "Debug" if os.environ.get("PYSDFGEN_DEBUG", False) != '0' else "ReleaseSafe"
+
         args = [
             "zig",
             "build",
             "c",
-            "-Doptimize=ReleaseSafe",
+            f"-Doptimize={optimize}",
             "-Dc-dynamic=true",
             f"-Dc-emit={self.get_ext_filename(ext.name)}",
             "--prefix-lib-dir",
