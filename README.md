@@ -32,6 +32,60 @@ Documentation for the Python package can be found
 Pre-built archives of the C library are available in each
 [release](https://github.com/au-ts/microkit_sdf_gen/releases).
 
+## Building from source
+
+### Dependencies
+
+* Zig (`0.14.0-dev.2079+ba2d00663` or higher)
+  * See https://ziglang.org/download/, until 0.14.0 is released we rely on a
+    master version of Zig. Once 0.14.0 is released (most likely Feb'25) we can
+    pin to that release.
+
+### C library (libcsdfgen)
+
+The C library can be built with:
+```sh
+zig build c
+```
+
+The library will be in `zig-out/lib/` and the include headers will be in
+`zig-out/include/`. On Linux we default to a static binary for the C library,
+if you want a dynamic library you can add the `-Dc-dynamic=true` option.
+
+If you want to output the artefacts to a specific directory, you can so with:
+```sh
+zig build c -p <install dir>
+```
+
+### Python
+
+The Python package is supported for versions 3.9 to 3.13.
+Linux (x86-64) and macOS (Intel/Apple Silicon) are supported.
+
+To build a usable Python package run the following:
+```sh
+python3 -m venv venv
+./venv/bin/pip install .
+```
+
+Now you should be able to import and use the bindings:
+```sh
+./venv/bin/python3
+>>> import sdfgen
+>>> help(sdfgen)
+```
+
+### Zig
+
+With Zig you will add this repository to your `build.zig.zon` either
+via a URL or path depending on your preference, and then change your
+`build.zig` to include the `sdf` module.
+
+## Developing
+
+If you want to modify the tooling, please look at [docs/developing.md]
+(docs/developing.md).
+
 ## Motivation
 
 ### Problem
@@ -70,51 +124,3 @@ The `sdfgen` tooling is available and being used by sDDF and LionsOS, although
 still experimental. The GUI for the tooling is still very much a
 work-in-progress and not ready for use.
 
-## Building from source
-
-### Dependencies
-
-* Zig (`0.14.0-dev.2079+ba2d00663` or higher)
-  * See https://ziglang.org/download/, until 0.14.0 is released we rely on a
-    master version of Zig. Once 0.14.0 is released (most likely Feb'25) we can
-    pin to that release.
-
-### C library (libcsdfgen)
-
-The C library can be built with:
-```sh
-zig build c
-```
-
-The library will be in `zig-out/lib/` and the include headers will be in
-`zig-out/include/`. On Linux we default to a static binary for the C library,
-if you want a dynamic library you can add the `-Dc-dynamic=true` option.
-
-If you want to output the artefacts to a specific directory, you can so with:
-```sh
-zig build c -p <install dir>
-```
-
-## Python
-
-The Python package is supported for versions 3.9 to 3.13.
-Linux (x86-64) and macOS (Intel/Apple Silicon) are supported.
-
-To build a usable Python package run the following:
-```sh
-python3 -m venv venv
-./venv/bin/pip install .
-```
-
-Now you should be able to import and use the bindings:
-```sh
-./venv/bin/python3
->>> import sdfgen
->>> help(sdfgen)
-```
-
-## Zig
-
-With Zig you will add this repository to your `build.zig.zon` either
-via a URL or path depending on your preference, and then change your
-`build.zig` to include the `sdf` module.
