@@ -106,8 +106,8 @@ all the wheels (`*.whl`).
 
 For any new tags to the repository, the CI also uploads a new version of the
 package to PyPI automatically. Note that each tag should have a new version in
-the `VERSION` file at the root of the source. See [Making releases](#releases)
-for doing this.
+the `VERSION` file at the root of the source.
+See [Making releases](#making-releases) for doing this.
 
 The publishing job works by authenticating the repository's GitHub workflow with
 the package on PyPI, there are no tokens etc stored on GitHub.
@@ -139,7 +139,7 @@ If there are not, your next step is to check:
 2. The C API is correctly casting/using and pointers and the Python wrapper is
    passing the right pointers.
 
-## Making releases {#releases}
+## Making releases
 
 Very simple script to automate new releases to PyPI.
 
