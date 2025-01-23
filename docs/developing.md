@@ -117,7 +117,7 @@ look at `.github/workflows/pysdfgen.yml`.
 
 ## Debugging
 
-A common exmaple might be someone ran into a segmentation fault while using the
+A common example might be someone ran into a segmentation fault while using the
 Python bindings which means there are a couple possibilities:
 * the Zig code has a memory safety issue.
 * the C bindings have a memory safety issue.
@@ -141,15 +141,15 @@ If there are not, your next step is to check:
 
 ## Making releases
 
-Very simple script to automate new releases to PyPI.
+There is a script for automating the release process, it creates a new tag
+and a corresponding GitHub release for the tag
 
 ```sh
 # Make sure to run from root of repository
 ./scripts/release.sh <VERSION>
 ```
 
-For example: `./scripts/release.sh 0.8.0` will create a tag called 0.8.0 and
-that will cause the CI to automatically build and push the Python package to
-PyPI with version 0.8.0.
-
-The script will also generate a corresponding GitHub release for the tag.
+For example running `./scripts/release.sh 0.8.0` will create a tag called
+0.8.0 and push it to the repo which will cause the CI to automatically build
+and push the Python package to PyPI with version 0.8.0 as well as upload
+pre-built versions of the C library.
