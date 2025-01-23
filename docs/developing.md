@@ -139,7 +139,7 @@ If there are not, your next step is to check:
 2. The C API is correctly casting/using and pointers and the Python wrapper is
    passing the right pointers.
 
-## Making releases (#releases)
+## Making releases {#releases}
 
 Very simple script to automate new releases to PyPI.
 

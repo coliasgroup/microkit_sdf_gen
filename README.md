@@ -83,8 +83,8 @@ via a URL or path depending on your preference, and then change your
 
 ## Developing
 
-If you want to modify the tooling, please look at [docs/developing.md]
-(docs/developing.md).
+If you want to modify the tooling, please look at
+[docs/developing.md](docs/developing.md).
 
 ## Motivation
 
