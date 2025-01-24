@@ -26,7 +26,7 @@ pub fn build(b: *std.Build) !void {
         const dtc_cmd = b.addSystemCommand(&[_][]const u8{
             "dtc", "-q", "-I", "dts", "-O", "dtb"
         });
-        const device_tree_path = b.path(b.fmt("dts/{s}.dts", .{ device_tree }));
+        const device_tree_path = b.path(b.fmt("examples/dts/{s}.dts", .{ device_tree }));
         dtc_cmd.addFileInput(device_tree_path);
         dtc_cmd.addFileArg(device_tree_path);
         const dtb = dtc_cmd.captureStdOut();
