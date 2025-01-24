@@ -1205,11 +1205,11 @@ pub const Serial = struct {
 
         const queue_mr_server_map = Map.create(queue_mr, server.getMapVaddr(&queue_mr), .rw, .{});
         server.addMap(queue_mr_server_map);
-        server_conn.queue = ConfigResources.Region.createFromMap(queue_mr_server_map);
+        server_conn.queue = .createFromMap(queue_mr_server_map);
 
         const queue_mr_client_map = Map.create(queue_mr, client.getMapVaddr(&queue_mr), .rw, .{});
         client.addMap(queue_mr_client_map);
-        client_conn.queue = ConfigResources.Region.createFromMap(queue_mr_client_map);
+        client_conn.queue = .createFromMap(queue_mr_client_map);
 
         const data_mr_name = fmt(system.allocator, "{s}/serial/data/{s}/{s}", .{ system.device.name, server.name, client.name });
         const data_mr = Mr.create(system.allocator, data_mr_name, system.data_size, .{});
@@ -1218,11 +1218,11 @@ pub const Serial = struct {
         // TOOD: the permissions are incorrect, virtualisers should not have write access to the data
         const data_mr_server_map = Map.create(data_mr, server.getMapVaddr(&data_mr), .rw, .{});
         server.addMap(data_mr_server_map);
-        server_conn.data = ConfigResources.Region.createFromMap(data_mr_server_map);
+        server_conn.data = .createFromMap(data_mr_server_map);
 
         const data_mr_client_map = Map.create(data_mr, client.getMapVaddr(&data_mr), .rw, .{});
         client.addMap(data_mr_client_map);
-        client_conn.data = ConfigResources.Region.createFromMap(data_mr_client_map);
+        client_conn.data = .createFromMap(data_mr_client_map);
 
         const channel = Channel.create(server, client, .{}) catch unreachable;
         system.sdf.addChannel(channel);
@@ -1439,11 +1439,11 @@ pub const Net = struct {
 
         const free_mr_server_map = Map.create(free_mr, server.getMapVaddr(&free_mr), .rw, .{});
         server.addMap(free_mr_server_map);
-        server_conn.free_queue = ConfigResources.Region.createFromMap(free_mr_server_map);
+        server_conn.free_queue = .createFromMap(free_mr_server_map);
 
         const free_mr_client_map = Map.create(free_mr, client.getMapVaddr(&free_mr), .rw, .{});
         client.addMap(free_mr_client_map);
-        client_conn.free_queue = ConfigResources.Region.createFromMap(free_mr_client_map);
+        client_conn.free_queue = .createFromMap(free_mr_client_map);
 
         const active_mr_name = fmt(system.allocator, "{s}/net/queue/{s}/{s}/active", .{ system.device.name, server.name, client.name });
         const active_mr = Mr.create(system.allocator, active_mr_name, queue_mr_size, .{});
@@ -1451,11 +1451,11 @@ pub const Net = struct {
 
         const active_mr_server_map = Map.create(active_mr, server.getMapVaddr(&active_mr), .rw, .{});
         server.addMap(active_mr_server_map);
-        server_conn.active_queue = ConfigResources.Region.createFromMap(active_mr_server_map);
+        server_conn.active_queue = .createFromMap(active_mr_server_map);
 
         const active_mr_client_map = Map.create(active_mr, client.getMapVaddr(&active_mr), .rw, .{});
         client.addMap(active_mr_client_map);
-        client_conn.active_queue = ConfigResources.Region.createFromMap(active_mr_client_map);
+        client_conn.active_queue = .createFromMap(active_mr_client_map);
 
         const channel = Channel.create(server, client, .{}) catch @panic("failed to create connection channel");
         system.sdf.addChannel(channel);
@@ -1472,7 +1472,7 @@ pub const Net = struct {
         system.sdf.addMemoryRegion(rx_dma_mr);
         const rx_dma_virt_map = Map.create(rx_dma_mr, system.virt_rx.getMapVaddr(&rx_dma_mr), .r, .{});
         system.virt_rx.addMap(rx_dma_virt_map);
-        system.virt_rx_config.data_region = ConfigResources.Device.Region.createFromMap(rx_dma_virt_map);
+        system.virt_rx_config.data_region = .createFromMap(rx_dma_virt_map);
 
         const virt_rx_metadata_mr_name = fmt(system.allocator, "{s}/net/rx/virt_metadata", .{system.device.name});
         const virt_rx_metadata_mr_size = round_to_page(system.rx_buffers * 4);
@@ -1480,7 +1480,7 @@ pub const Net = struct {
         system.sdf.addMemoryRegion(virt_rx_metadata_mr);
         const virt_rx_metadata_map = Map.create(virt_rx_metadata_mr, system.virt_rx.getMapVaddr(&virt_rx_metadata_mr), .rw, .{});
         system.virt_rx.addMap(virt_rx_metadata_map);
-        system.virt_rx_config.buffer_metadata = ConfigResources.Region.createFromMap(virt_rx_metadata_map);
+        system.virt_rx_config.buffer_metadata = .createFromMap(virt_rx_metadata_map);
 
         return rx_dma_mr;
     }
@@ -1507,7 +1507,7 @@ pub const Net = struct {
 
         const rx_dma_copier_map = Map.create(rx_dma, copier.getMapVaddr(&rx_dma), .rw, .{});
         copier.addMap(rx_dma_copier_map);
-        copier_config.device_data = ConfigResources.Region.createFromMap(rx_dma_copier_map);
+        copier_config.device_data = .createFromMap(rx_dma_copier_map);
 
         const client_data_mr_size = round_to_page(system.rx_buffers * BUFFER_SIZE);
         const client_data_mr_name = fmt(system.allocator, "{s}/net/rx/data/client/{s}", .{ system.device.name, client.name });
@@ -1516,11 +1516,11 @@ pub const Net = struct {
 
         const client_data_client_map = Map.create(client_data_mr, client.getMapVaddr(&client_data_mr), .rw, .{});
         client.addMap(client_data_client_map);
-        client_config.rx_data = ConfigResources.Region.createFromMap(client_data_client_map);
+        client_config.rx_data = .createFromMap(client_data_client_map);
 
         const client_data_copier_map = Map.create(client_data_mr, copier.getMapVaddr(&client_data_mr), .rw, .{});
         copier.addMap(client_data_copier_map);
-        copier_config.client_data = ConfigResources.Region.createFromMap(client_data_copier_map);
+        copier_config.client_data = .createFromMap(client_data_copier_map);
     }
 
     fn clientTxConnect(system: *Net, client_id: usize) void {
@@ -1538,11 +1538,11 @@ pub const Net = struct {
 
         const data_mr_virt_map = Map.create(data_mr, system.virt_tx.getMapVaddr(&data_mr), .r, .{});
         system.virt_tx.addMap(data_mr_virt_map);
-        virt_client_config.data = ConfigResources.Device.Region.createFromMap(data_mr_virt_map);
+        virt_client_config.data = .createFromMap(data_mr_virt_map);
 
         const data_mr_client_map = Map.create(data_mr, client.getMapVaddr(&data_mr), .rw, .{});
         client.addMap(data_mr_client_map);
-        client_config.tx_data = ConfigResources.Region.createFromMap(data_mr_client_map);
+        client_config.tx_data = .createFromMap(data_mr_client_map);
     }
 
     pub fn generateMacAddrs(system: *Net) void {
