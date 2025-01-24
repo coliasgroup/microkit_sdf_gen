@@ -198,7 +198,7 @@ libsdfgen.sdfgen_sddf_gpu_serialise_config.argtypes = [c_void_p, c_char_p]
 libsdfgen.sdfgen_vmm.restype = c_void_p
 libsdfgen.sdfgen_vmm.argtypes = [c_void_p, c_void_p, c_void_p, c_void_p, c_bool]
 libsdfgen.sdfgen_vmm_add_passthrough_device.restype = c_bool
-libsdfgen.sdfgen_vmm_add_passthrough_device.argtypes = [c_void_p, c_char_p, c_void_p]
+libsdfgen.sdfgen_vmm_add_passthrough_device.argtypes = [c_void_p, c_char_p, c_void_p, POINTER(c_uint8), c_uint8]
 libsdfgen.sdfgen_vmm_add_passthrough_irq.restype = c_bool
 libsdfgen.sdfgen_vmm_add_passthrough_irq.argtypes = [c_void_p, c_void_p]
 libsdfgen.sdfgen_vmm_connect.restype = c_bool
@@ -817,9 +817,10 @@ class Vmm:
     ):
         self._obj = libsdfgen.sdfgen_vmm(sdf._obj, vmm._obj, vm._obj, dtb._obj, one_to_one_ram)
 
-    def add_passthrough_device(self, name: str, device: DeviceTree.Node):
+    def add_passthrough_device(self, name: str, device: DeviceTree.Node, *, irqs: List[int]=[]):
         c_name = c_char_p(name.encode("utf-8"))
-        return libsdfgen.sdfgen_vmm_add_passthrough_device(self._obj, c_name, device._obj)
+        c_irqs = (c_uint8 * len(irqs))(*irqs)
+        return libsdfgen.sdfgen_vmm_add_passthrough_device(self._obj, c_name, device._obj, cast(c_irqs, POINTER(c_uint8)), len(irqs))
 
     def add_passthrough_irq(self, irq: Irq):
         return libsdfgen.sdfgen_vmm_add_passthrough_irq(self._obj, irq._obj)

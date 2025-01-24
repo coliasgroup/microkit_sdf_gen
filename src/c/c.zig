@@ -605,9 +605,11 @@ export fn sdfgen_vmm(c_sdf: *align(8) anyopaque, vmm_pd: *align(8) anyopaque, vm
     return vmm;
 }
 
-export fn sdfgen_vmm_add_passthrough_device(c_vmm: *align(8) anyopaque, c_name: [*c]u8, c_device: *align(8) anyopaque) bool {
+export fn sdfgen_vmm_add_passthrough_device(c_vmm: *align(8) anyopaque, c_name: [*c]u8, c_device: *align(8) anyopaque, irqs: [*c]u8, num_irqs: u8) bool {
     const vmm: *Vmm = @ptrCast(c_vmm);
-    vmm.addPassthroughDevice(std.mem.span(c_name), @ptrCast(c_device), true) catch @panic("TODO");
+    vmm.addPassthroughDevice(std.mem.span(c_name), @ptrCast(c_device), .{
+        .dt_irqs = irqs[0..num_irqs],
+    }) catch @panic("TODO");
 
     return true;
 }

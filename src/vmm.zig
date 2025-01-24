@@ -77,10 +77,15 @@ fn fmt(allocator: Allocator, comptime s: []const u8, args: anytype) []u8 {
     return std.fmt.allocPrint(allocator, s, args) catch @panic("OOM");
 }
 
+const PassthroughOptions = struct {
+    /// Indices into the Device Tree node's interrupts to passthrough
+    dt_irqs: []const u8 = &.{},
+};
+
 /// A currently naive approach to adding passthrough for a particular device
 /// to a virtual machine.
 /// This adds the required interrupts to be given to the VMM, and the TODO finish description
-pub fn addPassthroughDevice(system: *Self, name: []const u8, device: *mod_dtb.Node, irqs: bool) !void {
+pub fn addPassthroughDevice(system: *Self, name: []const u8, device: *mod_dtb.Node, options: PassthroughOptions) !void {
     const allocator = system.allocator;
     // Find the device, get it's memory regions and add it to the guest. Add its IRQs to the VMM.
     if (device.prop(.Reg)) |device_reg| {
@@ -102,24 +107,31 @@ pub fn addPassthroughDevice(system: *Self, name: []const u8, device: *mod_dtb.No
         }
     }
 
-    if (irqs) {
-        const maybe_interrupts = device.prop(.Interrupts);
-        if (maybe_interrupts) |interrupts| {
-            for (interrupts) |interrupt| {
-                // Determine the IRQ trigger and (software-observable) number based on the device tree.
-                const irq_type = sddf.DeviceTree.armGicIrqType(interrupt[0]);
-                const irq_number = sddf.DeviceTree.armGicIrqNumber(interrupt[1], irq_type);
-                const irq_trigger = DeviceTree.armGicTrigger(interrupt[2]);
-                const irq_id = try system.vmm.addIrq(.create(irq_number, .{
-                    .trigger = irq_trigger
-                }));
-                system.data.irqs[system.data.num_irqs] = .{
-                    .id = irq_id,
-                    .irq = irq_number,
-                };
-                system.data.num_irqs += 1;
-            }
+    const maybe_interrupts = device.prop(.Interrupts);
+    if (maybe_interrupts == null and options.dt_irqs.len != 0) {
+        // TODO: improve error
+        return error.InvalidIrqs;
+    }
+
+    for (options.dt_irqs) |dt_irq| {
+        const interrupts = maybe_interrupts.?;
+        if (dt_irq >= interrupts.len) {
+            // TODO: improve error
+            return error.InvalidIrqs;
         }
+        const interrupt = interrupts[dt_irq];
+        // Determine the IRQ trigger and (software-observable) number based on the device tree.
+        const irq_type = sddf.DeviceTree.armGicIrqType(interrupt[0]);
+        const irq_number = sddf.DeviceTree.armGicIrqNumber(interrupt[1], irq_type);
+        const irq_trigger = DeviceTree.armGicTrigger(interrupt[2]);
+        const irq_id = try system.vmm.addIrq(.create(irq_number, .{
+            .trigger = irq_trigger
+        }));
+        system.data.irqs[system.data.num_irqs] = .{
+            .id = irq_id,
+            .irq = irq_number,
+        };
+        system.data.num_irqs += 1;
     }
 }
 
