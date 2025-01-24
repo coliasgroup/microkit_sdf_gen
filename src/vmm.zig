@@ -94,7 +94,9 @@ pub fn addPassthroughDevice(system: *Self, name: []const u8, device: *mod_dtb.No
             } else {
                 mr_name = name;
             }
-            const device_mr = Mr.physical(allocator, system.sdf, mr_name, device_size, .{});
+            const device_mr = Mr.physical(allocator, system.sdf, mr_name, device_size, .{
+                .paddr = device_paddr,
+            });
             system.sdf.addMemoryRegion(device_mr);
             system.vm.addMap(.create(device_mr, device_paddr, .rw, .{ .cached = false }));
         }
