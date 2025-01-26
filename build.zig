@@ -7,9 +7,14 @@ const test_device_trees = .{
     "maaxboard",
 };
 
+const VERSION_FILE = "VERSION";
+
 pub fn build(b: *std.Build) !void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
+
+    const version_bytes = try (try std.fs.cwd().openFile(VERSION_FILE, .{})).readToEndAlloc(b.allocator, 100);
+    const version = try std.SemanticVersion.parse(version_bytes);
 
     const dtbzig_dep = b.dependency("dtb.zig", .{});
     const dtb_module = dtbzig_dep.module("dtb");
@@ -72,6 +77,7 @@ pub fn build(b: *std.Build) !void {
                 .root_source_file = b.path("src/c/c.zig"),
                 .target = target,
                 .optimize = optimize,
+                .version = version,
             });
         } else {
             break :blk b.addSharedLibrary(.{
@@ -79,6 +85,7 @@ pub fn build(b: *std.Build) !void {
                 .root_source_file = b.path("src/c/c.zig"),
                 .target = target,
                 .optimize = optimize,
+                .version = version,
             });
         }
     };

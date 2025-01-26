@@ -10,7 +10,7 @@ project = 'pysdfgen'
 copyright = '2024, UNSW'
 author = 'Trustworthy Systems'
 
-version = open("../../../VERSION").read().strip()
+version = open("../../../VERSION").read()
 release = version
 
 # -- General configuration ---------------------------------------------------

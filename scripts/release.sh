@@ -8,7 +8,7 @@ if [ "$#" -ne 1 ]; then
 fi
 
 VERSION=$1
-echo "$VERSION" > VERSION
+echo -n "$VERSION" > VERSION
 
 ./scripts/libcsdfgen.sh
 
