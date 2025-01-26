@@ -280,7 +280,7 @@ fn i2c(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !void {
     var i2c_virt = Pd.create(allocator, "i2c_virt", "i2c_virt.elf", .{});
     sdf.addProtectionDomain(&i2c_virt);
 
-    var i2c_system = sddf.I2cSystem.init(allocator, sdf, i2c_node, &i2c_driver, &i2c_virt, .{});
+    var i2c_system = sddf.I2c.init(allocator, sdf, i2c_node, &i2c_driver, &i2c_virt, .{});
     try i2c_system.addClient(&client_ds3231);
     try i2c_system.addClient(&client_pn532);
 
@@ -376,7 +376,9 @@ fn webserver(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !vo
     var timer_driver = Pd.create(allocator, "timer_driver", "timer_driver.elf", .{});
     sdf.addProtectionDomain(&timer_driver);
 
-    var micropython = Pd.create(allocator, "micropython", "micropython.elf", .{});
+    var micropython = Pd.create(allocator, "micropython", "micropython.elf", .{
+        .priority = 1,
+    });
     sdf.addProtectionDomain(&micropython);
 
     var fatfs = Pd.create(allocator, "fatfs", "fatfs.elf", .{});
@@ -644,7 +646,10 @@ fn echo_server(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !
     try timer_system.serialiseConfig(data_output);
     try serial_system.serialiseConfig(data_output);
 
-    try sdf.print();
+    const out = try sdf.toXml();
+    const sdf_file = try std.fs.cwd().createFile(try std.fs.path.join(allocator, &.{ data_output, "echo_server.system" }), .{});
+    defer sdf_file.close();
+    try sdf_file.writeAll(out);
 }
 
 fn serial(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !void {
