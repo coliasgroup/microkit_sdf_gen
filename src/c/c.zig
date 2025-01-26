@@ -63,10 +63,10 @@ export fn sdfgen_add_channel(c_sdf: *align(8) anyopaque, c_ch: *align(8) anyopaq
     sdf.addChannel(ch.*);
 }
 
-export fn sdfgen_to_xml(c_sdf: *align(8) anyopaque) [*c]u8 {
+export fn sdfgen_render(c_sdf: *align(8) anyopaque) [*c]u8 {
     const sdf: *SystemDescription = @ptrCast(c_sdf);
-    const xml = sdf.toXml() catch @panic("Cannot convert to XML");
-    return @constCast(xml);
+    const rendered = sdf.render() catch @panic("Cannot convert to XML");
+    return @constCast(rendered);
 }
 
 export fn sdfgen_dtb_parse(path: [*c]u8) ?*anyopaque {
@@ -480,7 +480,7 @@ export fn sdfgen_sddf_blk_destroy(system: *align(8) anyopaque) void {
 
 export fn sdfgen_sddf_blk_add_client(system: *align(8) anyopaque, client: *align(8) anyopaque, partition: u32) bindings.sdfgen_sddf_status_t {
     const block: *sddf.Blk = @ptrCast(system);
-    block.addClient(@ptrCast(client), partition) catch |e| {
+    block.addClient(@ptrCast(client), .{ .partition = partition }) catch |e| {
         switch (e) {
             sddf.Blk.Error.DuplicateClient => return 1,
             sddf.Blk.Error.InvalidClient => return 2,
@@ -605,10 +605,11 @@ export fn sdfgen_vmm(c_sdf: *align(8) anyopaque, vmm_pd: *align(8) anyopaque, vm
     return vmm;
 }
 
-export fn sdfgen_vmm_add_passthrough_device(c_vmm: *align(8) anyopaque, c_name: [*c]u8, c_device: *align(8) anyopaque, irqs: [*c]u8, num_irqs: u8) bool {
+export fn sdfgen_vmm_add_passthrough_device(c_vmm: *align(8) anyopaque, c_name: [*c]u8, c_device: *align(8) anyopaque, regions: [*c]u8, num_regions: u8, irqs: [*c]u8, num_irqs: u8) bool {
     const vmm: *Vmm = @ptrCast(c_vmm);
     vmm.addPassthroughDevice(std.mem.span(c_name), @ptrCast(c_device), .{
-        .dt_irqs = irqs[0..num_irqs],
+        .regions = regions[0..num_regions],
+        .irqs = irqs[0..num_irqs],
     }) catch @panic("TODO");
 
     return true;
@@ -618,6 +619,22 @@ export fn sdfgen_vmm_add_passthrough_irq(c_vmm: *align(8) anyopaque, c_irq: *ali
     const vmm: *Vmm = @ptrCast(c_vmm);
     const irq: *Irq = @ptrCast(c_irq);
     vmm.addPassthroughIrq(irq.*) catch @panic("TODO");
+
+    return true;
+}
+
+export fn sdfgen_vmm_add_virtio_console(c_vmm: *align(8) anyopaque, c_device: *align(8) anyopaque, serial: *align(8) anyopaque) bool {
+    const vmm: *Vmm = @ptrCast(c_vmm);
+    vmm.addVirtioConsole(@ptrCast(c_device), @ptrCast(serial)) catch @panic("TODO");
+
+    return true;
+}
+
+export fn sdfgen_vmm_add_virtio_blk(c_vmm: *align(8) anyopaque, c_device: *align(8) anyopaque, blk: *align(8) anyopaque, partition: u32) bool {
+    const vmm: *Vmm = @ptrCast(c_vmm);
+    vmm.addVirtioBlk(@ptrCast(c_device), @ptrCast(blk), .{
+        .partition = partition,
+    }) catch @panic("TODO");
 
     return true;
 }

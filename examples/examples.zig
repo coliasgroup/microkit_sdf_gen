@@ -488,8 +488,7 @@ fn kitty(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !void {
     try timer_system.connect();
 
     try serial_system.connect();
-    const xml = try sdf.toXml();
-    std.debug.print("{s}", .{xml});
+    std.debug.print("{s}", .{ try sdf.render() });
 }
 
 fn echo_server(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !void {

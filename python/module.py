@@ -54,8 +54,8 @@ libsdfgen.sdfgen_pd_set_stack_size.argtypes = [c_void_p, c_uint32]
 libsdfgen.sdfgen_pd_set_cpu.restype = None
 libsdfgen.sdfgen_pd_set_cpu.argtypes = [c_void_p, c_uint8]
 
-libsdfgen.sdfgen_to_xml.restype = c_char_p
-libsdfgen.sdfgen_to_xml.argtypes = [c_void_p]
+libsdfgen.sdfgen_render.restype = c_char_p
+libsdfgen.sdfgen_render.argtypes = [c_void_p]
 
 libsdfgen.sdfgen_channel_create.restype = c_void_p
 libsdfgen.sdfgen_channel_create.argtypes = [c_void_p, c_void_p]
@@ -201,6 +201,8 @@ libsdfgen.sdfgen_vmm_add_passthrough_device.restype = c_bool
 libsdfgen.sdfgen_vmm_add_passthrough_device.argtypes = [c_void_p, c_char_p, c_void_p, POINTER(c_uint8), c_uint8]
 libsdfgen.sdfgen_vmm_add_passthrough_irq.restype = c_bool
 libsdfgen.sdfgen_vmm_add_passthrough_irq.argtypes = [c_void_p, c_void_p]
+libsdfgen.sdfgen_vmm_add_virtio_console.restype = c_bool
+libsdfgen.sdfgen_vmm_add_virtio_console.argtypes = [c_void_p, c_void_p, c_void_p]
 libsdfgen.sdfgen_vmm_connect.restype = c_bool
 libsdfgen.sdfgen_vmm_connect.argtypes = [c_void_p]
 libsdfgen.sdfgen_vmm_serialise_config.restype = c_bool
@@ -502,11 +504,11 @@ class SystemDescription:
     def add_channel(self, ch: Channel):
         libsdfgen.sdfgen_add_channel(self._obj, ch._obj)
 
-    def xml(self) -> str:
+    def render(self) -> str:
         """
         Generate the XML view of the System Description Format for consumption by the Microkit.
         """
-        return libsdfgen.sdfgen_to_xml(self._obj).decode("utf-8")
+        return libsdfgen.sdfgen_render(self._obj).decode("utf-8")
 
 
 class Sddf:
@@ -824,6 +826,15 @@ class Vmm:
 
     def add_passthrough_irq(self, irq: Irq):
         return libsdfgen.sdfgen_vmm_add_passthrough_irq(self._obj, irq._obj)
+
+    def add_virtio_console(self, device: DeviceTree.Node, serial: Sddf.Serial):
+        return libsdfgen.sdfgen_vmm_add_virtio_console(self._obj, device._obj, serial._obj)
+
+    def add_virtio_blk(self, device: DeviceTree.Node, blk: Sddf.Blk, *, partition: int):
+        return libsdfgen.sdfgen_vmm_add_virtio_blk(self._obj, device._obj, blk._obj, partition)
+
+    # def add_virtio_net(self, device: DeviceTree.Node, net: Sddf.Net, *, copier: ProtectionDomain=None):
+        # return libsdfgen.sdfgen_vmm_add_virtio_blk(self._obj, device._obj, net._obj, partition)
 
     def connect(self) -> bool:
         return libsdfgen.sdfgen_vmm_connect(self._obj)

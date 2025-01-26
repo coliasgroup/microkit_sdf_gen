@@ -57,7 +57,7 @@ pub const SystemDescription = struct {
             };
         }
 
-        pub fn toXml(setvar: SetVar, sdf: *SystemDescription, writer: ArrayList(u8).Writer, separator: []const u8) !void {
+        pub fn render(setvar: SetVar, sdf: *SystemDescription, writer: ArrayList(u8).Writer, separator: []const u8) !void {
             const xml = try allocPrint(sdf.allocator, "{s}<setvar symbol=\"{s}\" region_paddr=\"{s}\" />\n", .{ separator, setvar.symbol, setvar.name });
             defer sdf.allocator.free(xml);
 
@@ -114,7 +114,7 @@ pub const SystemDescription = struct {
             mr.allocator.free(mr.name);
         }
 
-        pub fn toXml(mr: MemoryRegion, sdf: *SystemDescription, writer: ArrayList(u8).Writer, separator: []const u8) !void {
+        pub fn render(mr: MemoryRegion, sdf: *SystemDescription, writer: ArrayList(u8).Writer, separator: []const u8) !void {
             const xml = try allocPrint(sdf.allocator, "{s}<memory_region name=\"{s}\" size=\"0x{x}\"", .{ separator, mr.name, mr.size });
             defer sdf.allocator.free(xml);
 
@@ -262,7 +262,7 @@ pub const SystemDescription = struct {
             };
         }
 
-        pub fn toXml(map: *const Map, sdf: *SystemDescription, writer: ArrayList(u8).Writer, separator: []const u8) !void {
+        pub fn render(map: *const Map, sdf: *SystemDescription, writer: ArrayList(u8).Writer, separator: []const u8) !void {
             const allocator = sdf.allocator;
 
             // TODO: use null terminated pointer from Zig?
@@ -343,7 +343,7 @@ pub const SystemDescription = struct {
             vm.maps.deinit();
         }
 
-        pub fn toXml(vm: *VirtualMachine, sdf: *SystemDescription, writer: ArrayList(u8).Writer, separator: []const u8) !void {
+        pub fn render(vm: *VirtualMachine, sdf: *SystemDescription, writer: ArrayList(u8).Writer, separator: []const u8) !void {
             const allocator = sdf.allocator;
 
             const vm_xml = try allocPrint(allocator, "{s}<virtual_machine name=\"{s}\"", .{ separator, vm.name });
@@ -387,7 +387,7 @@ pub const SystemDescription = struct {
             }
 
             for (vm.maps.items) |map| {
-                try map.toXml(sdf, writer, child_separator);
+                try map.render(sdf, writer, child_separator);
             }
 
             const closing_tag =
@@ -593,7 +593,7 @@ pub const SystemDescription = struct {
             return next_vaddr;
         }
 
-        pub fn toXml(pd: *ProtectionDomain, sdf: *SystemDescription, writer: ArrayList(u8).Writer, separator: []const u8, id: ?u8) !void {
+        pub fn render(pd: *ProtectionDomain, sdf: *SystemDescription, writer: ArrayList(u8).Writer, separator: []const u8, id: ?u8) !void {
             // If we are given an ID, this PD is in fact a child PD and we have to
             // specify the ID for the root PD to use when referring to this child PD.
             const allocator = sdf.allocator;
@@ -667,23 +667,23 @@ pub const SystemDescription = struct {
             }
             // Add memory region mappins
             for (pd.maps.items) |map| {
-                try map.toXml(sdf, writer, child_separator);
+                try map.render(sdf, writer, child_separator);
             }
             // Add child PDs
             for (pd.child_pds.items) |child_pd| {
-                try child_pd.toXml(sdf, writer, child_separator, child_pd.child_id.?);
+                try child_pd.render(sdf, writer, child_separator, child_pd.child_id.?);
             }
             // Add virtual machine (if we have one)
             if (pd.vm) |vm| {
-                try vm.toXml(sdf, writer, child_separator);
+                try vm.render(sdf, writer, child_separator);
             }
             // Add interrupts
             for (pd.irqs.items) |irq| {
-                try irq.toXml(sdf, writer, child_separator);
+                try irq.render(sdf, writer, child_separator);
             }
             // Add setvars
             for (pd.setvars.items) |setvar| {
-                try setvar.toXml(sdf, writer, child_separator);
+                try setvar.render(sdf, writer, child_separator);
             }
 
             const bottom = try allocPrint(sdf.allocator, "{s}</protection_domain>\n", .{separator});
@@ -729,7 +729,7 @@ pub const SystemDescription = struct {
             };
         }
 
-        pub fn toXml(ch: Channel, sdf: *SystemDescription, writer: ArrayList(u8).Writer, separator: []const u8) !void {
+        pub fn render(ch: Channel, sdf: *SystemDescription, writer: ArrayList(u8).Writer, separator: []const u8) !void {
             const allocator = sdf.allocator;
 
             const child_separator = try allocPrint(sdf.allocator, "{s}    ", .{separator});
@@ -795,7 +795,7 @@ pub const SystemDescription = struct {
             };
         }
 
-        pub fn toXml(irq: *const Irq, sdf: *SystemDescription, writer: ArrayList(u8).Writer, separator: []const u8) !void {
+        pub fn render(irq: *const Irq, sdf: *SystemDescription, writer: ArrayList(u8).Writer, separator: []const u8) !void {
             // By the time we get here, something should have populated the 'id' field.
             std.debug.assert(irq.id != null);
 
@@ -871,20 +871,20 @@ pub const SystemDescription = struct {
         return null;
     }
 
-    pub fn toXml(sdf: *SystemDescription) ![:0]const u8 {
+    pub fn render(sdf: *SystemDescription) ![:0]const u8 {
         const writer = sdf.xml_data.writer();
         _ = try writer.write("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<system>\n");
 
         // Use 4-space indent for the XML
         const separator = "    ";
         for (sdf.mrs.items) |mr| {
-            try mr.toXml(sdf, writer, separator);
+            try mr.render(sdf, writer, separator);
         }
         for (sdf.pds.items) |pd| {
-            try pd.toXml(sdf, writer, separator, null);
+            try pd.render(sdf, writer, separator, null);
         }
         for (sdf.channels.items) |ch| {
-            try ch.toXml(sdf, writer, separator);
+            try ch.render(sdf, writer, separator);
         }
 
         // Given that this is library code, it is better for us to provide a zero-terminated
@@ -896,7 +896,7 @@ pub const SystemDescription = struct {
 
     pub fn print(sdf: *SystemDescription) !void {
         const stdout = std.io.getStdOut().writer();
-        try stdout.writeAll(try sdf.toXml());
+        try stdout.writeAll(try sdf.render());
         try stdout.writeAll("\n");
     }
 };

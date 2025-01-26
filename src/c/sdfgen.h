@@ -22,7 +22,7 @@ typedef enum {
 /* High-level system functions */
 void *sdfgen_create(sdfgen_arch_t arch, uint64_t paddr_top);
 void sdfgen_deinit(void *sdf);
-void *sdfgen_to_xml(void *sdf);
+void *sdfgen_render(void *sdf);
 
 /*** DTB-related functionality ***/
 

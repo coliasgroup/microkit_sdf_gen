@@ -34,8 +34,7 @@ int main(int argc, char *argv[]) {
     sdfgen_add_pd(sdf, i2c_virt);
     sdfgen_add_pd(sdf, i2c_reactor_driver);
 
-    char *xml = sdfgen_to_xml(sdf);
-    printf("%s\n", xml);
+    printf("%s\n", sdfgen_render(sdf));
 
     return 0;
 }

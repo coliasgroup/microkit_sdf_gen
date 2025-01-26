@@ -33,7 +33,7 @@ test "basic" {
     sdf.addProtectionDomain(&pd);
 
     const expected = try readTestFile("basic.system");
-    const output = try sdf.toXml();
+    const output = try sdf.render();
     defer allocator.free(expected);
     defer sdf.destroy();
 
@@ -60,7 +60,7 @@ test "PD + MR + mappings + channel" {
     sdf.addChannel(try Channel.create(&pd1, &pd2, .{}));
 
     const expected = try readTestFile("pd_mr_map_channel.system");
-    const output = try sdf.toXml();
+    const output = try sdf.render();
     defer allocator.free(expected);
     defer sdf.destroy();
 
@@ -85,7 +85,7 @@ test "fixed channel" {
     sdf.addChannel(try Channel.create(&pd1, &pd2, .{}));
 
     const expected = try readTestFile("pd_fixed_channel.system");
-    const output = try sdf.toXml();
+    const output = try sdf.render();
     defer allocator.free(expected);
     defer sdf.destroy();
 
@@ -133,7 +133,7 @@ test "channels" {
     }));
 
     const expected = try readTestFile("channels.system");
-    const output = try sdf.toXml();
+    const output = try sdf.render();
     defer allocator.free(expected);
     defer sdf.destroy();
 
@@ -186,7 +186,7 @@ test "basic VM" {
     try vmm_system.connect();
 
     const expected = try readTestFile("basic_vm.system");
-    const output = try sdf.toXml();
+    const output = try sdf.render();
     defer allocator.free(expected);
     defer sdf.destroy();
 

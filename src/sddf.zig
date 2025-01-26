@@ -1,7 +1,6 @@
 const std = @import("std");
-const builtin = @import("builtin");
 const mod_sdf = @import("sdf.zig");
-const dtb = @import("dtb");
+const dtb = @import("dtb.zig");
 const data = @import("data.zig");
 const log = @import("log.zig");
 
@@ -38,10 +37,6 @@ var drivers: std.ArrayList(Config.Driver) = undefined;
 var classes: std.ArrayList(Config.DeviceClass) = undefined;
 
 const CONFIG_FILENAME = "config.json";
-
-/// Only emit JSON versions of the serialised configuration data
-/// in debug mode.
-const serialise_emit_json = builtin.mode == .Debug;
 
 /// Whether or not we have probed sDDF
 // TODO: should probably just happen upon `init` of sDDF, then
@@ -329,220 +324,6 @@ pub const Config = struct {
     };
 };
 
-pub const DeviceTree = struct {
-    pub fn isCompatible(device_compatibles: []const []const u8, compatibles: []const []const u8) bool {
-        // Go through the given compatibles and see if they match with anything on the device.
-        for (compatibles) |compatible| {
-            for (device_compatibles) |device_compatible| {
-                if (std.mem.eql(u8, device_compatible, compatible)) {
-                    return true;
-                }
-            }
-        }
-
-        return false;
-    }
-
-    // TODO: deal with
-    // pub fn hasGicInterruptParent(node: *dtb.Node) bool {
-    //     if (node.interruptParent()) |interrupt_parent| {
-    //         if (ArmGic.nodeIsCompatible(interrupt_parent)) {
-    //             return true;
-    //         }
-    //     }
-
-    //     return false;
-    // }
-
-    pub fn memory(d: *dtb.Node) ?*dtb.Node {
-        for (d.children) |child| {
-            const device_type = child.prop(.DeviceType);
-            if (device_type != null) {
-                if (std.mem.eql(u8, "memory", device_type.?)) {
-                    return child;
-                }
-            }
-
-            if (memory(child)) |memory_node| {
-                return memory_node;
-            }
-        }
-
-        return null;
-    }
-
-    /// Functionality relating the the ARM Generic Interrupt Controller.
-    // TODO: add functionality for PPI CPU mask handling?
-    const ArmGicIrqType = enum {
-        spi,
-        ppi,
-        extended_spi,
-        extended_ppi,
-    };
-
-    pub const ArmGic = struct {
-        const Version = enum { two, three };
-
-        version: Version,
-        // While every GIC on an ARM platform that supports virtualisation
-        // will have a CPU and vCPU interface interface, they might be via
-        // system registers instead of MMIO which is why these fields are optional.
-        cpu_paddr: ?u64 = null,
-        vcpu_paddr: ?u64 = null,
-        vcpu_size: ?u64 = null,
-
-        const compatible = compatible_v2 ++ compatible_v3;
-        const compatible_v2 = [_][]const u8{ "arm,gic-v2", "arm,cortex-a15-gic", "arm,gic-400" };
-        const compatible_v3 = [_][]const u8{"arm,gic-v3"};
-
-        /// Whether or not the GIC's CPU/vCPU interface is via MMIO
-        pub fn hasMmioCpuInterface(gic: ArmGic) bool {
-            std.debug.assert((gic.cpu_paddr == null and gic.vcpu_paddr == null and gic.vcpu_size == null) or
-                (gic.cpu_paddr != null and gic.vcpu_paddr != null and gic.vcpu_size != null));
-
-            return gic.cpu_paddr != null;
-        }
-
-        pub fn nodeIsCompatible(node: *dtb.Node) bool {
-            const node_compatible = node.prop(.Compatible).?;
-            if (isCompatible(node_compatible, &compatible_v2) or isCompatible(node_compatible, &compatible_v3)) {
-                return true;
-            } else {
-                return false;
-            }
-        }
-
-        pub fn create(node: *dtb.Node) ArmGic {
-            // Get the GIC version first.
-            const node_compatible = node.prop(.Compatible).?;
-            const version = blk: {
-                if (isCompatible(node_compatible, &compatible_v2)) {
-                    break :blk Version.two;
-                } else if (isCompatible(node_compatible, &compatible_v3)) {
-                    break :blk Version.three;
-                } else {
-                    @panic("invalid GIC version");
-                }
-            };
-
-            const vcpu_dt_index: usize = switch (version) {
-                .two => 3,
-                .three => 4,
-            };
-            const cpu_dt_index: usize = switch (version) {
-                .two => 1,
-                .three => 2,
-            };
-            const gic_reg = node.prop(.Reg).?;
-            const vcpu_paddr = if (vcpu_dt_index < gic_reg.len) DeviceTree.regToPaddr(node, gic_reg[vcpu_dt_index][0]) else null;
-            // Cast should be safe as vCPU should never be larger than u64
-            const vcpu_size: ?u64 = if (vcpu_dt_index < gic_reg.len) @intCast(gic_reg[vcpu_dt_index][1]) else null;
-            const cpu_paddr = if (cpu_dt_index < gic_reg.len) DeviceTree.regToPaddr(node, gic_reg[cpu_dt_index][0]) else null;
-
-            return .{
-                .cpu_paddr = cpu_paddr,
-                .vcpu_paddr = vcpu_paddr,
-                .vcpu_size = vcpu_size,
-                .version = version,
-            };
-        }
-
-        pub fn fromDtb(d: *dtb.Node) ArmGic {
-            // Find the GIC with any compatible string, regardless of version.
-            const maybe_gic_node = DeviceTree.findCompatible(d, &ArmGic.compatible);
-            if (maybe_gic_node == null) {
-                @panic("Cannot find ARM GIC device in device tree");
-            }
-
-            return ArmGic.create(maybe_gic_node.?);
-        }
-    };
-
-    pub fn armGicIrqType(irq_type: usize) ArmGicIrqType {
-        return switch (irq_type) {
-            0x0 => .spi,
-            0x1 => .ppi,
-            0x2 => .extended_spi,
-            0x3 => .extended_ppi,
-            else => @panic("unexpected IRQ type"),
-        };
-    }
-
-    pub fn armGicIrqNumber(number: u32, irq_type: ArmGicIrqType) u32 {
-        return switch (irq_type) {
-            .spi => number + 32,
-            .ppi => number + 16,
-            .extended_spi, .extended_ppi => @panic("unexpected IRQ type"),
-        };
-    }
-
-    pub fn armGicTrigger(trigger: usize) Irq.Trigger {
-        // Only bits 0-3 of the DT IRQ type are for the trigger
-        return switch (trigger & 0b111) {
-            0x1 => return .edge,
-            0x4 => return .level,
-            else => @panic("unexpected trigger value"),
-        };
-    }
-
-    pub fn findCompatible(d: *dtb.Node, compatibles: []const []const u8) ?*dtb.Node {
-        for (d.children) |child| {
-            const device_compatibles = child.prop(.Compatible);
-            // It is possible for a node to not have any compatibles
-            if (device_compatibles != null) {
-                for (compatibles) |compatible| {
-                    for (device_compatibles.?) |device_compatible| {
-                        if (std.mem.eql(u8, device_compatible, compatible)) {
-                            return child;
-                        }
-                    }
-                }
-            }
-            if (findCompatible(child, compatibles)) |compatible_child| {
-                return compatible_child;
-            }
-        }
-
-        return null;
-    }
-
-    // Given an address from a DTB node's 'reg' property, convert it to a
-    // mappable MMIO address. This involves traversing any higher-level busses
-    // to find the CPU visible address rather than some address relative to the
-    // particular bus the address is on. We also align to the smallest page size;
-    // Assumes smallest page size is 0x1000.
-    pub fn regToPaddr(device: *dtb.Node, paddr: u128) u64 {
-        // We have to case here because any mappable address in seL4 must be a
-        // 64-bit address or smaller.
-        var device_paddr: u64 = @intCast((paddr >> 12) << 12);
-        var parent_node_maybe: ?*dtb.Node = device.parent;
-        while (parent_node_maybe) |parent_node| : (parent_node_maybe = parent_node.parent) {
-            if (parent_node.prop(.Ranges)) |ranges| {
-                if (ranges.len != 0) {
-                    // TODO: I need to revisit the spec. I am not confident in this behaviour.
-                    const parent_addr = ranges[0][1];
-                    const size = ranges[0][2];
-                    if (paddr + size <= parent_addr) {
-                        device_paddr += @intCast(parent_addr);
-                    }
-                }
-            }
-        }
-
-        return device_paddr;
-    }
-
-    pub fn regToSize(size: u128) u64 {
-        // TODO: store page size somewhere
-        if (size < 0x1000) {
-            return 0x1000;
-        } else {
-            // TODO: round to page size
-            return @intCast(size);
-        }
-    }
-};
-
 const SystemError = error{
     NotConnected,
     InvalidClient,
@@ -636,7 +417,7 @@ pub const Timer = struct {
             try data.serialize(system.client_configs.items[i], try fs.path.join(allocator, &.{ prefix, data_name }));
         }
 
-        if (serialise_emit_json) {
+        if (data.emit_json) {
             const device_res_json_name = fmt(allocator, "{s}_device_resources.json", .{system.driver.name});
             try data.jsonify(system.device_res, try fs.path.join(allocator, &.{ prefix, device_res_json_name }));
             for (system.clients.items, 0..) |client, i| {
@@ -858,7 +639,7 @@ pub const I2c = struct {
             try data.jsonify(system.client_configs.items[i], try fs.path.join(allocator, &.{ prefix, json_name }));
         }
 
-        if (serialise_emit_json) {
+        if (data.emit_json) {
             const device_res_json_name = fmt(system.allocator, "{s}_device_resources.json", .{system.driver.name});
             try data.jsonify(system.device_res, try fs.path.join(allocator, &.{ prefix, device_res_json_name }));
             try data.jsonify(system.driver_config, try fs.path.join(allocator, &.{ prefix, "i2c_driver.json" }));
@@ -929,7 +710,11 @@ pub const Blk = struct {
         system.config.clients.deinit();
     }
 
-    pub fn addClient(system: *Blk, client: *Pd, partition: u32) Error!void {
+    pub const ClientOptions = struct {
+        partition: u32,
+    };
+
+    pub fn addClient(system: *Blk, client: *Pd, options: ClientOptions) Error!void {
         // Check that the client does not already exist
         for (system.clients.items) |existing_client| {
             if (std.mem.eql(u8, existing_client.name, client.name)) {
@@ -945,7 +730,7 @@ pub const Blk = struct {
             return Error.InvalidClient;
         }
         system.clients.append(client) catch @panic("Could not add client to Blk");
-        system.client_partitions.append(partition) catch @panic("Could not add client to Blk");
+        system.client_partitions.append(options.partition) catch @panic("Could not add client to Blk");
     }
 
     pub fn connectDriver(system: *Blk) void {
@@ -1103,7 +888,7 @@ pub const Blk = struct {
             try data.jsonify(config, try fs.path.join(allocator, &.{ prefix, client_json }));
         }
 
-        if (serialise_emit_json) {
+        if (data.emit_json) {
             const device_res_json_name = fmt(allocator, "{s}_device_resources.json", .{system.driver.name});
             try data.jsonify(system.device_res, try fs.path.join(allocator, &.{ prefix, device_res_json_name }));
             try data.jsonify(system.config.driver, try fs.path.join(allocator, &.{ prefix, "blk_driver.json" }));
@@ -1290,7 +1075,7 @@ pub const Serial = struct {
             try data.serialize(system.client_configs.items[i], try fs.path.join(allocator, &.{ prefix, data_name }));
         }
 
-        if (serialise_emit_json) {
+        if (data.emit_json) {
             const device_res_json_name = fmt(allocator, "{s}_device_resources.json", .{system.driver.name});
             try data.jsonify(system.device_res, try fs.path.join(allocator, &.{ prefix, device_res_json_name }));
             try data.jsonify(system.driver_config, try fs.path.join(allocator, &.{ prefix, "serial_driver_config.json" }));
@@ -1615,7 +1400,7 @@ pub const Net = struct {
             try data.jsonify(system.client_configs.items[i], try fs.path.join(allocator, &.{ prefix, json_name }));
         }
 
-        if (serialise_emit_json) {
+        if (data.emit_json) {
             const device_res_json_name = fmt(allocator, "{s}_device_resources.json", .{system.driver.name});
             try data.jsonify(system.device_res, try fs.path.join(allocator, &.{ prefix, device_res_json_name }));
             try data.jsonify(system.driver_config, try fs.path.join(allocator, &.{ prefix, "net_driver.json" }));
@@ -1847,7 +1632,7 @@ pub const Gpu = struct {
             try data.jsonify(config, try fs.path.join(allocator, &.{ prefix, client_json }));
         }
 
-        if (serialise_emit_json) {
+        if (data.emit_json) {
             const device_res_json_name = fmt(system.allocator, "{s}_device_resources.json", .{system.driver.name});
             try data.jsonify(system.device_res, try fs.path.join(system.allocator, &.{ prefix, device_res_json_name }));
             try data.jsonify(system.config.driver, try fs.path.join(allocator, &.{ prefix, "gpu_driver.json" }));
@@ -1952,7 +1737,7 @@ pub fn createDriver(sdf: *SystemDescription, pd: *Pd, device: *dtb.Node, class: 
 
             const mr_size = if (region_resource.size != null) region_resource.size.? else dt_reg_size;
 
-            const device_paddr = DeviceTree.regToPaddr(device, dt_reg_paddr);
+            const device_paddr = dtb.regToPaddr(device, dt_reg_paddr);
             device_reg_offset = @intCast(dt_reg_paddr % 0x1000);
 
             // TODO: hack when we have multiple virtIO devices. Need to come up with
@@ -2014,9 +1799,9 @@ pub fn createDriver(sdf: *SystemDescription, pd: *Pd, device: *dtb.Node, class: 
             if (sdf.arch.isArm()) {
                 std.debug.assert(dt_irq.len == 3);
                 // Determine the IRQ trigger and (software-observable) number based on the device tree.
-                const irq_type = DeviceTree.armGicIrqType(dt_irq[0]);
-                const irq_number = DeviceTree.armGicIrqNumber(dt_irq[1], irq_type);
-                const irq_trigger = DeviceTree.armGicTrigger(dt_irq[2]);
+                const irq_type = dtb.armGicIrqType(dt_irq[0]);
+                const irq_number = dtb.armGicIrqNumber(dt_irq[1], irq_type);
+                const irq_trigger = dtb.armGicTrigger(dt_irq[2]);
 
                 break :blk SystemDescription.Irq.create(irq_number, .{
                     .trigger = irq_trigger,
@@ -2025,9 +1810,7 @@ pub fn createDriver(sdf: *SystemDescription, pd: *Pd, device: *dtb.Node, class: 
             } else if (sdf.arch.isRiscv()) {
                 std.debug.assert(dt_irq.len == 1);
                 const irq_number = dt_irq[0];
-                const irq_trigger = .level;
                 break :blk SystemDescription.Irq.create(irq_number, .{
-                    .trigger = irq_trigger,
                     .id = driver_irq.channel_id
                 });
             } else {

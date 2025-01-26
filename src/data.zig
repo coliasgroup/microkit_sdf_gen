@@ -1,8 +1,13 @@
 const std = @import("std");
+const builtin = @import("builtin");
 const sdf = @import("sdf.zig");
 
 const MAGIC_START: [4]u8 = .{ 's', 'D', 'D', 'F' };
 const LIONS_MAGIC_START: [7]u8 = .{ 'L', 'i', 'o', 'n', 's', 'O', 'S' };
+
+/// Only emit JSON versions of the serialised configuration data
+/// in debug mode.
+pub const emit_json = builtin.mode == .Debug;
 
 pub const Resources = struct {
     /// Provides information to a component about a memory region that is mapped into its address space
