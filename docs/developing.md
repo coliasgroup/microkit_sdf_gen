@@ -48,7 +48,7 @@ passed.
 
 ## Python bindings
 
-The Python bindings live in `python/`.
+The Python bindings live in `src/python/`.
 
 There's two files, `__init__.py` and `module.py`. `__init__.py` you should never
 have to touch unless you are adding a top-level class (e.g something like Sddf

@@ -36,7 +36,7 @@ setup(
     description="Automating the creation of Microkit System Description Files (SDF)",
     packages=["sdfgen"],
     package_dir={
-        "sdfgen": "./python"
+        "sdfgen": "./src/python"
     },
     # Necessary for mypy to work for those that import the package
     package_data={"sdfgen": ["py.typed"]},
