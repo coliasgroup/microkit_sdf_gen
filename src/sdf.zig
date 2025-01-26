@@ -57,11 +57,8 @@ pub const SystemDescription = struct {
             };
         }
 
-        pub fn render(setvar: SetVar, sdf: *SystemDescription, writer: ArrayList(u8).Writer, separator: []const u8) !void {
-            const xml = try allocPrint(sdf.allocator, "{s}<setvar symbol=\"{s}\" region_paddr=\"{s}\" />\n", .{ separator, setvar.symbol, setvar.name });
-            defer sdf.allocator.free(xml);
-
-            _ = try writer.write(xml);
+        pub fn render(setvar: SetVar, writer: ArrayList(u8).Writer, separator: []const u8) !void {
+            try std.fmt.format(writer, "{s}<setvar symbol=\"{s}\" region_paddr=\"{s}\" />\n", .{ separator, setvar.symbol, setvar.name });
         }
     };
 
@@ -115,21 +112,14 @@ pub const SystemDescription = struct {
         }
 
         pub fn render(mr: MemoryRegion, sdf: *SystemDescription, writer: ArrayList(u8).Writer, separator: []const u8) !void {
-            const xml = try allocPrint(sdf.allocator, "{s}<memory_region name=\"{s}\" size=\"0x{x}\"", .{ separator, mr.name, mr.size });
-            defer sdf.allocator.free(xml);
-
-            _ = try writer.write(xml);
+            try std.fmt.format(writer, "{s}<memory_region name=\"{s}\" size=\"0x{x}\"", .{ separator, mr.name, mr.size });
 
             if (mr.paddr) |paddr| {
-                const paddr_xml = try allocPrint(sdf.allocator, " phys_addr=\"0x{x}\"", .{paddr});
-                defer sdf.allocator.free(paddr_xml);
-                _ = try writer.write(paddr_xml);
+                try std.fmt.format(writer, " phys_addr=\"0x{x}\"", .{paddr});
             }
 
             if (mr.page_size) |page_size| {
-                const page_size_xml = try allocPrint(sdf.allocator, " page_size=\"0x{x}\"", .{page_size.toInt(sdf.arch)});
-                defer sdf.allocator.free(page_size_xml);
-                _ = try writer.write(page_size_xml);
+                try std.fmt.format(writer, " page_size=\"0x{x}\"", .{page_size.toInt(sdf.arch)});
             }
 
             _ = try writer.write(" />\n");
@@ -262,28 +252,20 @@ pub const SystemDescription = struct {
             };
         }
 
-        pub fn render(map: *const Map, sdf: *SystemDescription, writer: ArrayList(u8).Writer, separator: []const u8) !void {
-            const allocator = sdf.allocator;
-
+        pub fn render(map: *const Map, writer: ArrayList(u8).Writer, separator: []const u8) !void {
             // TODO: use null terminated pointer from Zig?
             var perms = [_]u8{0} ** 4;
             const i = map.perms.toString(&perms);
 
-            const map_xml = try allocPrint(allocator, "{s}<map mr=\"{s}\" vaddr=\"0x{x}\" perms=\"{s}\"", .{ separator, map.mr.name, map.vaddr, perms[0..i] });
-            defer allocator.free(map_xml);
-            _ = try writer.write(map_xml);
+            try std.fmt.format(writer, "{s}<map mr=\"{s}\" vaddr=\"0x{x}\" perms=\"{s}\"", .{ separator, map.mr.name, map.vaddr, perms[0..i] });
 
             if (map.setvar_vaddr) |setvar_vaddr| {
-                const xml = try allocPrint(allocator, " setvar_vaddr=\"{s}\"", .{setvar_vaddr});
-                defer allocator.free(xml);
-                _ = try writer.write(xml);
+                try std.fmt.format(writer, " setvar_vaddr=\"{s}\"", .{setvar_vaddr});
             }
 
             if (map.cached) |cached| {
                 const cached_str = if (cached) "true" else "false";
-                const xml = try allocPrint(allocator, " cached=\"{s}\"", .{cached_str});
-                defer allocator.free(xml);
-                _ = try writer.write(xml);
+                try std.fmt.format(writer, " cached=\"{s}\"", .{cached_str});
             }
 
             _ = try writer.write(" />\n");
@@ -344,59 +326,35 @@ pub const SystemDescription = struct {
         }
 
         pub fn render(vm: *VirtualMachine, sdf: *SystemDescription, writer: ArrayList(u8).Writer, separator: []const u8) !void {
-            const allocator = sdf.allocator;
-
-            const vm_xml = try allocPrint(allocator, "{s}<virtual_machine name=\"{s}\"", .{ separator, vm.name });
-            defer allocator.free(vm_xml);
-            _ = try writer.write(vm_xml);
+            try std.fmt.format(writer, "{s}<virtual_machine name=\"{s}\"", .{ separator, vm.name });
 
             if (vm.priority) |priority| {
-                const xml = try allocPrint(allocator, " priority=\"{}\"", .{priority});
-                defer allocator.free(xml);
-                _ = try writer.write(xml);
+                try std.fmt.format(writer, " priority=\"{}\"", .{priority});
             }
-
             if (vm.budget) |budget| {
-                const xml = try allocPrint(allocator, " budget=\"{}\"", .{budget});
-                defer allocator.free(xml);
-                _ = try writer.write(xml);
+                try std.fmt.format(writer, " budget=\"{}\"", .{budget});
             }
-
             if (vm.period) |period| {
-                const xml = try allocPrint(allocator, " period=\"{}\"", .{period});
-                defer allocator.free(xml);
-                _ = try writer.write(xml);
+                try std.fmt.format(writer, " period=\"{}\"", .{period});
             }
-
             _ = try writer.write(">\n");
 
-            // Add memory region mappings as child nodes
             const child_separator = try allocPrint(sdf.allocator, "{s}    ", .{separator});
             defer sdf.allocator.free(child_separator);
 
             for (vm.vcpus) |vcpu| {
-                const vcpu_xml = try allocPrint(sdf.allocator, "{s}<vcpu id=\"{}\"", .{ child_separator, vcpu.id });
-                defer sdf.allocator.free(vcpu_xml);
-                _ = try writer.write(vcpu_xml);
+                try std.fmt.format(writer, "{s}<vcpu id=\"{}\"", .{ child_separator, vcpu.id });
                 if (vcpu.cpu) |cpu| {
-                    const xml = try allocPrint(allocator, " cpu=\"{}\"", .{ cpu });
-                    defer allocator.free(xml);
-                    _ = try writer.write(xml);
+                    try std.fmt.format(writer, " cpu=\"{}\"", .{ cpu });
                 }
                 _ = try writer.write(" />\n");
             }
 
             for (vm.maps.items) |map| {
-                try map.render(sdf, writer, child_separator);
+                try map.render(writer, child_separator);
             }
 
-            const closing_tag =
-                \\{s}</virtual_machine>
-            ;
-            const closing_xml = try allocPrint(sdf.allocator, closing_tag, .{separator});
-            defer sdf.allocator.free(closing_xml);
-            _ = try writer.write(closing_xml);
-            _ = try writer.write("\n");
+            try std.fmt.format(writer, "{s}</virtual_machine>\n", .{ separator });
         }
     };
 
@@ -596,46 +554,31 @@ pub const SystemDescription = struct {
         pub fn render(pd: *ProtectionDomain, sdf: *SystemDescription, writer: ArrayList(u8).Writer, separator: []const u8, id: ?u8) !void {
             // If we are given an ID, this PD is in fact a child PD and we have to
             // specify the ID for the root PD to use when referring to this child PD.
-            const allocator = sdf.allocator;
 
-            const pd_xml = try allocPrint(allocator, "{s}<protection_domain name=\"{s}\"", .{ separator, pd.name });
-            defer allocator.free(pd_xml);
-            _ = try writer.write(pd_xml);
+            try std.fmt.format(writer, "{s}<protection_domain name=\"{s}\"", .{ separator, pd.name });
 
             if (id) |id_val| {
-                const id_xml = try allocPrint(allocator, " id=\"{}\"", .{id_val});
-                defer allocator.free(id_xml);
-                _ = try writer.write(id_xml);
+                try std.fmt.format(writer, " id=\"{}\"", .{id_val});
             }
 
             if (pd.priority) |priority| {
-                const xml = try allocPrint(allocator, " priority=\"{}\"", .{priority});
-                defer allocator.free(xml);
-                _ = try writer.write(xml);
+                try std.fmt.format(writer, " priority=\"{}\"", .{priority});
             }
 
             if (pd.budget) |budget| {
-                const xml = try allocPrint(allocator, " budget=\"{}\"", .{budget});
-                defer allocator.free(xml);
-                _ = try writer.write(xml);
+                try std.fmt.format(writer, " budget=\"{}\"", .{budget});
             }
 
             if (pd.period) |period| {
-                const xml = try allocPrint(allocator, " period=\"{}\"", .{period});
-                defer allocator.free(xml);
-                _ = try writer.write(xml);
+                try std.fmt.format(writer, " period=\"{}\"", .{period});
             }
 
             if (pd.passive) |passive| {
-                const xml = try allocPrint(allocator, " passive=\"{}\"", .{passive});
-                defer allocator.free(xml);
-                _ = try writer.write(xml);
+                try std.fmt.format(writer, " passive=\"{}\"", .{passive});
             }
 
             if (pd.stack_size) |stack_size| {
-                const xml = try allocPrint(allocator, " stack_size=\"0x{x}\"", .{stack_size});
-                defer allocator.free(xml);
-                _ = try writer.write(xml);
+                try std.fmt.format(writer, " stack_size=\"0x{x}\"", .{stack_size});
             }
 
             if (pd.arm_smc) |smc| {
@@ -644,15 +587,11 @@ pub const SystemDescription = struct {
                     return error.InvalidArmSmc;
                 }
 
-                const smc_xml = try allocPrint(allocator, " smc=\"{}\"", .{smc});
-                defer allocator.free(smc_xml);
-                _ = try writer.write(smc_xml);
+                try std.fmt.format(writer, " smc=\"{}\"", .{smc});
             }
 
             if (pd.cpu) |cpu| {
-                const xml = try allocPrint(allocator, " cpu=\"{}\"", .{cpu});
-                defer allocator.free(xml);
-                _ = try writer.write(xml);
+                try std.fmt.format(writer, " cpu=\"{}\"", .{cpu});
             }
 
             _ = try writer.write(">\n");
@@ -661,34 +600,25 @@ pub const SystemDescription = struct {
             defer sdf.allocator.free(child_separator);
             // Add program image (if we have one)
             if (pd.program_image) |program_image| {
-                const image_xml = try allocPrint(sdf.allocator, "{s}<program_image path=\"{s}\" />\n", .{ child_separator, program_image });
-                defer sdf.allocator.free(image_xml);
-                _ = try writer.write(image_xml);
+                try std.fmt.format(writer, "{s}<program_image path=\"{s}\" />\n", .{ child_separator, program_image });
             }
-            // Add memory region mappins
             for (pd.maps.items) |map| {
-                try map.render(sdf, writer, child_separator);
+                try map.render(writer, child_separator);
             }
-            // Add child PDs
             for (pd.child_pds.items) |child_pd| {
                 try child_pd.render(sdf, writer, child_separator, child_pd.child_id.?);
             }
-            // Add virtual machine (if we have one)
             if (pd.vm) |vm| {
                 try vm.render(sdf, writer, child_separator);
             }
-            // Add interrupts
             for (pd.irqs.items) |irq| {
-                try irq.render(sdf, writer, child_separator);
+                try irq.render(writer, child_separator);
             }
-            // Add setvars
             for (pd.setvars.items) |setvar| {
-                try setvar.render(sdf, writer, child_separator);
+                try setvar.render(writer, child_separator);
             }
 
-            const bottom = try allocPrint(sdf.allocator, "{s}</protection_domain>\n", .{separator});
-            defer sdf.allocator.free(bottom);
-            _ = try writer.write(bottom);
+            try std.fmt.format(writer, "{s}</protection_domain>\n", .{separator});
         }
     };
 
@@ -735,14 +665,10 @@ pub const SystemDescription = struct {
             const child_separator = try allocPrint(sdf.allocator, "{s}    ", .{separator});
             defer allocator.free(child_separator);
 
-            const channel_xml = try allocPrint(allocator, "{s}<channel>\n{s}<end pd=\"{s}\" id=\"{}\"", .{ separator, child_separator, ch.pd_a.name, ch.pd_a_id });
-            defer allocator.free(channel_xml);
-            _ = try writer.write(channel_xml);
+            try std.fmt.format(writer, "{s}<channel>\n{s}<end pd=\"{s}\" id=\"{}\"", .{ separator, child_separator, ch.pd_a.name, ch.pd_a_id });
 
             if (ch.pd_a_notify) |notify| {
-                const xml = try allocPrint(allocator, " notify=\"{}\"", .{ notify });
-                defer allocator.free(xml);
-                _ = try writer.write(xml);
+                try std.fmt.format(writer, " notify=\"{}\"", .{ notify });
             }
 
             if (ch.pp != null and ch.pp.? == .a) {
@@ -750,25 +676,17 @@ pub const SystemDescription = struct {
             }
             _ = try writer.write(" />\n");
 
-            const end_b_xml = try allocPrint(allocator, "{s}<end pd=\"{s}\" id=\"{}\"", .{ child_separator, ch.pd_b.name, ch.pd_b_id });
-            defer allocator.free(end_b_xml);
-            _ = try writer.write(end_b_xml);
+            try std.fmt.format(writer, "{s}<end pd=\"{s}\" id=\"{}\"", .{ child_separator, ch.pd_b.name, ch.pd_b_id });
 
             if (ch.pd_b_notify) |notify| {
-                const xml = try allocPrint(allocator, " notify=\"{}\"", .{ notify });
-                defer allocator.free(xml);
-                _ = try writer.write(xml);
+                try std.fmt.format(writer, " notify=\"{}\"", .{ notify });
             }
 
             if (ch.pp != null and ch.pp.? == .b) {
                 _ = try writer.write(" pp=\"true\"");
             }
 
-            _ = try writer.write(" />");
-            _ = try writer.write("\n");
-            _ = try writer.write(separator);
-            _ = try writer.write("</channel>");
-            _ = try writer.write("\n");
+            try std.fmt.format(writer, " />\n{s}</channel>\n", .{ separator });
         }
     };
 
@@ -795,24 +713,13 @@ pub const SystemDescription = struct {
             };
         }
 
-        pub fn render(irq: *const Irq, sdf: *SystemDescription, writer: ArrayList(u8).Writer, separator: []const u8) !void {
+        pub fn render(irq: *const Irq, writer: ArrayList(u8).Writer, separator: []const u8) !void {
             // By the time we get here, something should have populated the 'id' field.
             std.debug.assert(irq.id != null);
 
-            const allocator = sdf.allocator;
-
-            const irq_str =
-                \\{s}<irq irq="{}" id="{}"
-            ;
-
-            const irq_xml = try allocPrint(allocator, irq_str, .{ separator, irq.irq, irq.id.? });
-            defer allocator.free(irq_xml);
-            _ = try writer.write(irq_xml);
-
+            try std.fmt.format(writer, "{s}<irq irq=\"{}\" id=\"{}\"", .{ separator, irq.irq, irq.id.? });
             if (irq.trigger) |trigger| {
-                const xml = try allocPrint(allocator, " trigger=\"{s}\"", .{ @tagName(trigger) });
-                defer allocator.free(xml);
-                _ = try writer.write(xml);
+                try std.fmt.format(writer, " trigger=\"{s}\"", .{ @tagName(trigger) });
             }
 
             _ = try writer.write(" />\n");
