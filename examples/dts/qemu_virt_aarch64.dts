@@ -336,5 +336,7 @@
 		stdout-path = "/pl011@9000000";
 		rng-seed = <0xd2ada9df 0x2469735f 0x17e60d6a 0xa9032b46 0xe8080ac5 0x21b813c0 0x4e9be6ac 0x6877a03f>;
 		kaslr-seed = <0xb2251c82 0x42378dfa>;
+        linux,initrd-start = <0x4d700000>;
+        linux,initrd-end = <0x4d800000>;
 	};
 };
