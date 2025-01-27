@@ -1,5 +1,6 @@
 const std = @import("std");
 const modsdf = @import("sdf");
+const log = modsdf.log;
 // Because this is intended to be used in the context of C, we always
 // use the C allocator, even though it might not be the most efficient.
 const allocator = std.heap.c_allocator;
@@ -71,19 +72,19 @@ export fn sdfgen_render(c_sdf: *align(8) anyopaque) [*c]u8 {
 
 export fn sdfgen_dtb_parse(path: [*c]u8) ?*anyopaque {
     const file = std.fs.cwd().openFile(std.mem.span(path), .{}) catch |e| {
-        std.log.err("could not open DTB '{s}' for parsing with error: {any}", .{ path, e });
+        log.err("could not open DTB '{s}' for parsing with error: {any}", .{ path, e });
         return null;
     };
     const stat = file.stat() catch |e| {
-        std.log.err("could not stat DTB '{s}' for parsing with error: {any}", .{ path, e });
+        log.err("could not stat DTB '{s}' for parsing with error: {any}", .{ path, e });
         return null;
     };
     const bytes = file.reader().readAllAlloc(allocator, stat.size) catch |e| {
-        std.log.err("could not read DTB '{s}' for parsing with error: {any}", .{ path, e });
+        log.err("could not read DTB '{s}' for parsing with error: {any}", .{ path, e });
         return null;
     };
     const blob = modsdf.dtb.parse(allocator, bytes) catch |e| {
-        std.log.err("could not parse DTB '{s}' with error: {any}", .{ path, e });
+        log.err("could not parse DTB '{s}' with error: {any}", .{ path, e });
         return null;
     };
 
@@ -92,7 +93,7 @@ export fn sdfgen_dtb_parse(path: [*c]u8) ?*anyopaque {
 
 export fn sdfgen_dtb_parse_from_bytes(bytes: [*c]u8, size: u32) ?*anyopaque {
     const blob = modsdf.dtb.parse(allocator, bytes[0..size]) catch |e| {
-        std.log.err("could not parse DTB from bytes with error: {any}", .{e});
+        log.err("could not parse DTB from bytes with error: {any}", .{e});
         return null;
     };
 
@@ -238,7 +239,7 @@ export fn sdfgen_vm_add_map(c_vm: *align(8) anyopaque, c_map: *align(8) anyopaqu
 
 export fn sdfgen_sddf_init(path: [*c]u8) bool {
     sddf.probe(allocator, std.mem.span(path)) catch |e| {
-        std.log.err("sDDF init failed on path {s}: {}", .{ path, e });
+        log.err("sDDF init failed on path {s}: {}", .{ path, e });
         return false;
     };
 

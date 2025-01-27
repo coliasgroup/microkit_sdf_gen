@@ -1,7 +1,8 @@
 const std = @import("std");
 const mod_sdf = @import("sdf.zig");
-const mod_sddf = @import("sddf.zig");
+const sddf = @import("sddf.zig");
 const data = @import("data.zig");
+const log = @import("log.zig");
 const Allocator = std.mem.Allocator;
 
 const SystemDescription = mod_sdf.SystemDescription;
@@ -12,9 +13,9 @@ const Channel = SystemDescription.Channel;
 
 const ConfigResources = data.Resources;
 
-const Net = mod_sddf.Net;
-const Serial = mod_sddf.Serial;
-const Timer = mod_sddf.Timer;
+const Net = sddf.Net;
+const Serial = sddf.Serial;
+const Timer = sddf.Timer;
 
 fn fmt(allocator: Allocator, comptime s: []const u8, args: anytype) []u8 {
     return std.fmt.allocPrint(allocator, s, args) catch @panic("OOM");
@@ -54,7 +55,7 @@ pub const FileSystem = struct {
 
     pub fn init(allocator: Allocator, sdf: *SystemDescription, fs: *Pd, client: *Pd, options: Options) Error!FileSystem {
         if (std.mem.eql(u8, fs.name, client.name)) {
-            std.log.err("invalid file system client, same name as file system PD '{s}", .{client.name});
+            log.err("invalid file system client, same name as file system PD '{s}", .{client.name});
             return Error.InvalidClient;
         }
         return .{

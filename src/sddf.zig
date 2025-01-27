@@ -172,7 +172,7 @@ pub fn probe(allocator: Allocator, path: []const u8) !void {
                 for (config.resources.irqs) |irq| {
                     for (checked_irqs.items) |checked_dt_index| {
                         if (irq.dt_index == checked_dt_index) {
-                            std.log.err("duplicate irq dt_index value '{}' for driver '{s}'", .{ irq.dt_index, config.name });
+                            log.err("duplicate irq dt_index value '{}' for driver '{s}'", .{ irq.dt_index, config.name });
                             return error.InvalidConfig;
                         }
                     }
@@ -185,12 +185,12 @@ pub fn probe(allocator: Allocator, path: []const u8) !void {
                 for (config.resources.regions) |region| {
                     for (checked_regions.items) |checked_region| {
                         if (std.mem.eql(u8, region.name, checked_region.name)) {
-                            std.log.err("duplicate region name '{s}' for driver '{s}'", .{ region.name, config.name });
+                            log.err("duplicate region name '{s}' for driver '{s}'", .{ region.name, config.name });
                             return error.InvalidConfig;
                         }
                         if (region.dt_index != null and checked_region.dt_index != null) {
                             if (region.dt_index.? == checked_region.dt_index.?) {
-                                std.log.err("duplicate region dt_index value '{}' for driver '{s}'", .{ region.dt_index.?, config.name });
+                                log.err("duplicate region dt_index value '{}' for driver '{s}'", .{ region.dt_index.?, config.name });
                                 return error.InvalidConfig;
                             }
                         }
@@ -1759,7 +1759,16 @@ pub fn createDriver(sdf: *SystemDescription, pd: *Pd, device: *dtb.Node, class: 
             sdf.addMemoryRegion(mr.?);
         }
 
-        const perms = if (region_resource.perms != null) Map.Perms.fromString(region_resource.perms.?) else Map.Perms.rw;
+        const perms = blk: {
+            if (region_resource.perms) |perms| {
+                break :blk Map.Perms.fromString(perms) catch |e| {
+                    log.err("failed to create driver '{s}', invalid perms '{s}': {any}", .{ device.name, perms, e });
+                    return e;
+                };
+            } else {
+                break :blk Map.Perms.rw;
+            }
+        };
         const map = Map.create(mr.?, pd.getMapVaddr(&mr.?), perms, .{
             .cached = region_resource.cached,
             .setvar_vaddr = region_resource.setvar_vaddr,

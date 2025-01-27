@@ -197,9 +197,10 @@ pub const SystemDescription = struct {
             pub const x = Perms{ .execute = true };
             pub const rw = Perms{ .read = true, .write = true };
             pub const rx = Perms{ .read = true, .execute = true };
+            pub const wx = Perms{ .write = true, .execute = true };
             pub const rwx = Perms{ .read = true, .write = true, .execute = true };
 
-            pub fn toString(perms: Perms, buf: *[4]u8) usize {
+            pub fn toString(perms: Perms, buf: *[3]u8) []u8 {
                 var i: u8 = 0;
                 if (perms.read) {
                     buf[i] = 'r';
@@ -214,16 +215,18 @@ pub const SystemDescription = struct {
                     i += 1;
                 }
 
-                return i;
+                std.debug.assert(i < 4);
+                return buf[0..i];
             }
 
-            pub fn fromString(str: []const u8) Perms {
+            // TODO: error checking
+            pub fn fromString(str: []const u8) !Perms {
                 const read_count = std.mem.count(u8, str, "r");
                 const write_count = std.mem.count(u8, str, "w");
                 const exec_count = std.mem.count(u8, str, "x");
-                std.debug.assert(read_count == 0 or read_count == 1);
-                std.debug.assert(write_count == 0 or write_count == 1);
-                std.debug.assert(exec_count == 0 or exec_count == 1);
+                if (read_count > 1 or write_count > 1 or exec_count > 1) {
+                    return error.InvalidPerms;
+                }
 
                 var perms: Perms = .{};
                 if (read_count > 0) {
@@ -253,11 +256,9 @@ pub const SystemDescription = struct {
         }
 
         pub fn render(map: *const Map, writer: ArrayList(u8).Writer, separator: []const u8) !void {
-            // TODO: use null terminated pointer from Zig?
-            var perms = [_]u8{0} ** 4;
-            const i = map.perms.toString(&perms);
-
-            try std.fmt.format(writer, "{s}<map mr=\"{s}\" vaddr=\"0x{x}\" perms=\"{s}\"", .{ separator, map.mr.name, map.vaddr, perms[0..i] });
+            var perms_buf = [_]u8{0} ** 3;
+            const perms = map.perms.toString(&perms_buf);
+            try std.fmt.format(writer, "{s}<map mr=\"{s}\" vaddr=\"0x{x}\" perms=\"{s}\"", .{ separator, map.mr.name, map.vaddr, perms });
 
             if (map.setvar_vaddr) |setvar_vaddr| {
                 try std.fmt.format(writer, " setvar_vaddr=\"{s}\"", .{setvar_vaddr});
@@ -506,7 +507,7 @@ pub const SystemDescription = struct {
 
         pub fn addChild(pd: *ProtectionDomain, child: *ProtectionDomain, options: ChildOptions) !u8 {
             if (pd.child_pds.items.len == MAX_CHILD_PDS) {
-                std.log.err("failed to add child '{s}' to parent '{s}', maximum children reached", .{ child.name, pd.name });
+                log.err("failed to add child '{s}' to parent '{s}', maximum children reached", .{ child.name, pd.name });
                 return error.MaximumChildren;
             }
 
@@ -583,7 +584,7 @@ pub const SystemDescription = struct {
 
             if (pd.arm_smc) |smc| {
                 if (!sdf.arch.isArm()) {
-                    std.log.err("set 'arm_smc' option when not targeting ARM\n", .{});
+                    log.err("set 'arm_smc' option when not targeting ARM\n", .{});
                     return error.InvalidArmSmc;
                 }
 
@@ -642,9 +643,8 @@ pub const SystemDescription = struct {
         };
 
         pub fn create(pd_a: *ProtectionDomain, pd_b: *ProtectionDomain, options: Options) !Channel {
-            // TODO: should we check for this here or when we connect the SDF?
             if (std.mem.eql(u8, pd_a.name, pd_b.name)) {
-                std.log.err("channel end PDs do not differ, PD name is '{s}'\n", .{pd_a.name});
+                log.err("channel end PDs do not differ, PD name is '{s}'\n", .{pd_a.name});
                 return error.InvalidChannel;
             }
 
