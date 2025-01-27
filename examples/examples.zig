@@ -322,7 +322,9 @@ fn blk(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !void {
     sdf.addProtectionDomain(&blk_virt);
 
     var blk_system = sddf.Blk.init(allocator, sdf, blk_node, &blk_driver, &blk_virt, .{});
-    try blk_system.addClient(&client, 0);
+    try blk_system.addClient(&client, .{
+        .partition = 0,
+    });
 
     _ = try blk_system.connect();
 
@@ -400,7 +402,9 @@ fn webserver(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !vo
     sdf.addProtectionDomain(&blk_virt);
 
     var blk_system = sddf.Blk.init(allocator, sdf, blk_node, &blk_driver, &blk_virt, .{});
-    try blk_system.addClient(&fatfs, 0);
+    try blk_system.addClient(&fatfs, .{
+        .partition = 0,
+    });
 
     const eth_node = board.defaultEthernetNode(blob);
     var eth_driver = Pd.create(allocator, "eth_driver", "eth_driver.elf", .{});
@@ -646,7 +650,7 @@ fn echo_server(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !
     try timer_system.serialiseConfig(data_output);
     try serial_system.serialiseConfig(data_output);
 
-    const out = try sdf.toXml();
+    const out = try sdf.render();
     const sdf_file = try std.fs.cwd().createFile(try std.fs.path.join(allocator, &.{ data_output, "echo_server.system" }), .{});
     defer sdf_file.close();
     try sdf_file.writeAll(out);
