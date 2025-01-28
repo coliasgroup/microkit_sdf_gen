@@ -33,10 +33,18 @@ const Options = struct {
 
 const MAX_IRQS: usize = 32;
 const MAX_VCPUS: usize = 32;
-const MAX_VIRTIO_DEVICES: usize = 32;
+const MAX_VIRTIO_MMIO_DEVICES: usize = 32;
 
 const Data = extern struct {
-    const VirtioDevice = extern struct {
+    const VirtioMmioDevice = extern struct {
+        pub const Type = enum(u8) {
+            net = 1,
+            blk = 2,
+            console = 3,
+            sound = 25,
+        };
+
+        type: Type,
         addr: u64,
         size: u64,
         irq: u32,
@@ -59,8 +67,8 @@ const Data = extern struct {
     irqs: [MAX_IRQS]Data.Irq,
     num_vcpus: u8,
     vcpus: [MAX_VCPUS]Vcpu,
-    num_virtio_devices: u8,
-    virtio_devices: [MAX_VIRTIO_DEVICES]VirtioDevice,
+    num_virtio_mmio_devices: u8,
+    virtio_mmio_devices: [MAX_VIRTIO_MMIO_DEVICES]VirtioMmioDevice,
 };
 
 pub fn init(allocator: Allocator, sdf: *SystemDescription, vmm: *Pd, guest: *Vm, guest_dtb: *dtb.Node, options: Options) Self {
@@ -144,7 +152,7 @@ pub fn addPassthroughDevice(system: *Self, name: []const u8, device: *dtb.Node, 
     }
 }
 
-fn addVirtioDevice(system: *Self, device: *dtb.Node) !void {
+fn addVirtioMmioDevice(system: *Self, device: *dtb.Node, t: Data.VirtioMmioDevice.Type) !void {
     // TODO: check that .Reg exists
     // TODO: check device_reg[0] exists and that device_reg.len == 1
     const device_reg = device.prop(.Reg).?;
@@ -161,22 +169,23 @@ fn addVirtioDevice(system: *Self, device: *dtb.Node) !void {
     const interrupts = device.prop(.Interrupts).?;
     const irq = dtb.armGicIrqNumber(interrupts[0][1], dtb.armGicIrqType(interrupts[0][0]));
     // TODO: maybe use device resources like everything else? idk
-    system.data.virtio_devices[system.data.num_virtio_devices] = .{
+    system.data.virtio_mmio_devices[system.data.num_virtio_mmio_devices] = .{
+        .type = t,
         .addr = device_paddr,
         .size = device_size,
         .irq = irq,
     };
-    system.data.num_virtio_devices += 1;
+    system.data.num_virtio_mmio_devices += 1;
 }
 
-pub fn addVirtioConsole(system: *Self, device: *dtb.Node, serial: *sddf.Serial) !void {
+pub fn addVirtioMmioConsole(system: *Self, device: *dtb.Node, serial: *sddf.Serial) !void {
     try serial.addClient(system.vmm);
-    try system.addVirtioDevice(device);
+    try system.addVirtioMmioDevice(device, .console);
 }
 
-pub fn addVirtioBlk(system: *Self, device: *dtb.Node, blk: *sddf.Blk, options: sddf.Blk.ClientOptions) !void {
+pub fn addVirtioMmioBlk(system: *Self, device: *dtb.Node, blk: *sddf.Blk, options: sddf.Blk.ClientOptions) !void {
     try blk.addClient(system.vmm, options);
-    try system.addVirtioDevice(device);
+    try system.addVirtioMmioDevice(device, .blk);
 }
 
 // pub fn addVirtioNet(system: *Self, device: *dtb.Node, net: *sddf.Net, options: sddf.Net.Options) !void {

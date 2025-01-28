@@ -624,16 +624,16 @@ export fn sdfgen_vmm_add_passthrough_irq(c_vmm: *align(8) anyopaque, c_irq: *ali
     return true;
 }
 
-export fn sdfgen_vmm_add_virtio_console(c_vmm: *align(8) anyopaque, c_device: *align(8) anyopaque, serial: *align(8) anyopaque) bool {
+export fn sdfgen_vmm_add_virtio_mmio_console(c_vmm: *align(8) anyopaque, c_device: *align(8) anyopaque, serial: *align(8) anyopaque) bool {
     const vmm: *Vmm = @ptrCast(c_vmm);
-    vmm.addVirtioConsole(@ptrCast(c_device), @ptrCast(serial)) catch @panic("TODO");
+    vmm.addVirtioMmioConsole(@ptrCast(c_device), @ptrCast(serial)) catch @panic("TODO");
 
     return true;
 }
 
-export fn sdfgen_vmm_add_virtio_blk(c_vmm: *align(8) anyopaque, c_device: *align(8) anyopaque, blk: *align(8) anyopaque, partition: u32) bool {
+export fn sdfgen_vmm_add_virtio_mmio_blk(c_vmm: *align(8) anyopaque, c_device: *align(8) anyopaque, blk: *align(8) anyopaque, partition: u32) bool {
     const vmm: *Vmm = @ptrCast(c_vmm);
-    vmm.addVirtioBlk(@ptrCast(c_device), @ptrCast(blk), .{
+    vmm.addVirtioMmioBlk(@ptrCast(c_device), @ptrCast(blk), .{
         .partition = partition,
     }) catch @panic("TODO");
 

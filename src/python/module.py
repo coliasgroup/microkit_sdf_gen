@@ -201,8 +201,10 @@ libsdfgen.sdfgen_vmm_add_passthrough_device.restype = c_bool
 libsdfgen.sdfgen_vmm_add_passthrough_device.argtypes = [c_void_p, c_char_p, c_void_p, POINTER(c_uint8), c_uint8]
 libsdfgen.sdfgen_vmm_add_passthrough_irq.restype = c_bool
 libsdfgen.sdfgen_vmm_add_passthrough_irq.argtypes = [c_void_p, c_void_p]
-libsdfgen.sdfgen_vmm_add_virtio_console.restype = c_bool
-libsdfgen.sdfgen_vmm_add_virtio_console.argtypes = [c_void_p, c_void_p, c_void_p]
+libsdfgen.sdfgen_vmm_add_virtio_mmio_console.restype = c_bool
+libsdfgen.sdfgen_vmm_add_virtio_mmio_console.argtypes = [c_void_p, c_void_p, c_void_p]
+libsdfgen.sdfgen_vmm_add_virtio_mmio_blk.restype = c_bool
+libsdfgen.sdfgen_vmm_add_virtio_mmio_blk.argtypes = [c_void_p, c_void_p, c_void_p, c_uint32]
 libsdfgen.sdfgen_vmm_connect.restype = c_bool
 libsdfgen.sdfgen_vmm_connect.argtypes = [c_void_p]
 libsdfgen.sdfgen_vmm_serialise_config.restype = c_bool
@@ -827,11 +829,11 @@ class Vmm:
     def add_passthrough_irq(self, irq: Irq):
         return libsdfgen.sdfgen_vmm_add_passthrough_irq(self._obj, irq._obj)
 
-    def add_virtio_console(self, device: DeviceTree.Node, serial: Sddf.Serial):
-        return libsdfgen.sdfgen_vmm_add_virtio_console(self._obj, device._obj, serial._obj)
+    def add_virtio_mmio_console(self, device: DeviceTree.Node, serial: Sddf.Serial):
+        return libsdfgen.sdfgen_vmm_add_virtio_mmio_console(self._obj, device._obj, serial._obj)
 
-    def add_virtio_blk(self, device: DeviceTree.Node, blk: Sddf.Blk, *, partition: int):
-        return libsdfgen.sdfgen_vmm_add_virtio_blk(self._obj, device._obj, blk._obj, partition)
+    def add_virtio_mmio_blk(self, device: DeviceTree.Node, blk: Sddf.Blk, *, partition: int):
+        return libsdfgen.sdfgen_vmm_add_virtio_mmio_blk(self._obj, device._obj, blk._obj, partition)
 
     # def add_virtio_net(self, device: DeviceTree.Node, net: Sddf.Net, *, copier: ProtectionDomain=None):
         # return libsdfgen.sdfgen_vmm_add_virtio_blk(self._obj, device._obj, net._obj, partition)
