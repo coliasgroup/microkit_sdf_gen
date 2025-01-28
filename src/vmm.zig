@@ -213,21 +213,21 @@ pub fn connect(system: *Self) !void {
     try vmm.setVirtualMachine(guest);
 
     if (sdf.arch.isArm()) {
-        var mr_found = false;
-        for (sdf.mrs.items) |mr| {
-            if (std.mem.eql(u8, "gic_vcpu", mr.name)) {
-                mr_found = true;
-            }
-        }
-        if (!mr_found) {
+        const gic = dtb.ArmGic.fromDtb(system.guest_dtb);
+        if (gic.hasMmioCpuInterface()) {
             // On ARM, map in the GIC vCPU device as the GIC CPU device in the guest's memory.
-            const gic = dtb.ArmGic.fromDtb(system.guest_dtb);
-            if (gic.hasMmioCpuInterface()) {
-                const gic_vcpu_mr = Mr.physical(allocator, sdf, "gic_vcpu", gic.vcpu_size.?, .{ .paddr = gic.vcpu_paddr.? });
-                const gic_guest_map = Map.create(gic_vcpu_mr, gic.cpu_paddr.?, .rw, .{ .cached = false });
-                sdf.addMemoryRegion(gic_vcpu_mr);
-                guest.addMap(gic_guest_map);
+            var gic_vcpu_mr: ?Mr = null;
+            for (sdf.mrs.items) |mr| {
+                if (std.mem.eql(u8, "gic_vcpu", mr.name)) {
+                    gic_vcpu_mr = mr;
+                }
             }
+            if (gic_vcpu_mr == null) {
+                gic_vcpu_mr = Mr.physical(allocator, sdf, "gic_vcpu", gic.vcpu_size.?, .{ .paddr = gic.vcpu_paddr.? });
+                sdf.addMemoryRegion(gic_vcpu_mr.?);
+            }
+            const gic_guest_map = Map.create(gic_vcpu_mr.?, gic.cpu_paddr.?, .rw, .{ .cached = false });
+            guest.addMap(gic_guest_map);
         }
     }
 
