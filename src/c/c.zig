@@ -654,17 +654,26 @@ export fn sdfgen_vmm_serialise_config(c_vmm: *align(8) anyopaque, output_dir: [*
     return true;
 }
 
-export fn sdfgen_lionsos_fs_fat(c_sdf: *align(8) anyopaque, c_fs: *align(8) anyopaque, c_client: *align(8) anyopaque) *anyopaque {
+export fn sdfgen_lionsos_fs_fat(c_sdf: *align(8) anyopaque, c_fs: *align(8) anyopaque, c_client: *align(8) anyopaque, blk: *align(8) anyopaque, partition: u32) *anyopaque {
     const sdf: *SystemDescription = @ptrCast(c_sdf);
     const fs = allocator.create(lionsos.FileSystem.Fat) catch @panic("OOM");
-    fs.* = lionsos.FileSystem.Fat.init(allocator, sdf, @ptrCast(c_fs), @ptrCast(c_client), .{}) catch @panic("TODO");
+    fs.* = lionsos.FileSystem.Fat.init(allocator, sdf, @ptrCast(c_fs), @ptrCast(c_client), @ptrCast(blk), .{
+        .partition = partition,
+    }) catch @panic("TODO");
 
     return fs;
 }
 
 export fn sdfgen_lionsos_fs_fat_connect(system: *align(8) anyopaque) bool {
-    const fs: *lionsos.FileSystem = @ptrCast(system);
-    fs.connect();
+    const fat: *lionsos.FileSystem.Fat = @ptrCast(system);
+    fat.connect() catch @panic("TODO");
+
+    return true;
+}
+
+export fn sdfgen_lionsos_fs_fat_serialise_config(system: *align(8) anyopaque, output_dir: [*c]u8) bool {
+    const fat: *lionsos.FileSystem.Fat = @ptrCast(system);
+    fat.serialiseConfig(std.mem.span(output_dir)) catch return false;
 
     return true;
 }
@@ -686,7 +695,7 @@ export fn sdfgen_lionsos_fs_nfs(c_sdf: *align(8) anyopaque, c_fs: *align(8) anyo
 
 export fn sdfgen_lionsos_fs_nfs_connect(system: *align(8) anyopaque) bool {
     const nfs: *lionsos.FileSystem.Nfs = @ptrCast(system);
-    nfs.connect();
+    nfs.connect() catch @panic("TODO");
 
     return true;
 }

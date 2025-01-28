@@ -211,13 +211,16 @@ libsdfgen.sdfgen_vmm_serialise_config.restype = c_bool
 libsdfgen.sdfgen_vmm_serialise_config.argtypes = [c_void_p, c_char_p]
 
 libsdfgen.sdfgen_lionsos_fs_fat.restype = c_void_p
-libsdfgen.sdfgen_lionsos_fs_fat.argtypes = [c_void_p, c_void_p, c_void_p]
+libsdfgen.sdfgen_lionsos_fs_fat.argtypes = [c_void_p, c_void_p, c_void_p, c_void_p, c_uint32]
 libsdfgen.sdfgen_lionsos_fs_fat_connect.restype = c_bool
 libsdfgen.sdfgen_lionsos_fs_fat_connect.argtypes = [c_void_p]
+libsdfgen.sdfgen_lionsos_fs_fat_serialise_config.restype = c_bool
+libsdfgen.sdfgen_lionsos_fs_fat_serialise_config.argtypes = [c_void_p, c_char_p]
 libsdfgen.sdfgen_lionsos_fs_nfs.restype = c_void_p
 libsdfgen.sdfgen_lionsos_fs_nfs.argtypes = [c_void_p, c_void_p, c_void_p, c_void_p, c_void_p, c_char_p, c_void_p, c_void_p, c_char_p, c_char_p]
 libsdfgen.sdfgen_lionsos_fs_nfs_connect.restype = c_bool
 libsdfgen.sdfgen_lionsos_fs_nfs_connect.argtypes = [c_void_p]
+libsdfgen.sdfgen_lionsos_fs_nfs_serialise_config.restype = c_bool
 libsdfgen.sdfgen_lionsos_fs_nfs_serialise_config.argtypes = [c_void_p, c_char_p]
 
 
@@ -855,12 +858,20 @@ class LionsOs:
                 self,
                 sdf: SystemDescription,
                 fs: SystemDescription.ProtectionDomain,
-                client: SystemDescription.ProtectionDomain
+                client: SystemDescription.ProtectionDomain,
+                *,
+                blk: Sddf.Blk,
+                partition: int,
             ):
-                self._obj = libsdfgen.sdfgen_lionsos_fs_fat(sdf._obj, fs._obj, client._obj)
+                assert isinstance(blk, Sddf.Blk)
+                self._obj = libsdfgen.sdfgen_lionsos_fs_fat(sdf._obj, fs._obj, client._obj, blk._obj, partition)
 
             def connect(self) -> bool:
                 return libsdfgen.sdfgen_lionsos_fs_fat_connect(self._obj)
+
+            def serialise_config(self, output_dir: str) -> bool:
+                c_output_dir = c_char_p(output_dir.encode("utf-8"))
+                return libsdfgen.sdfgen_lionsos_fs_fat_serialise_config(self._obj, c_output_dir)
 
         class Nfs:
             _obj: c_void_p

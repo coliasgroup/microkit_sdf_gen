@@ -13,6 +13,7 @@ const Channel = SystemDescription.Channel;
 
 const ConfigResources = data.Resources;
 
+const Blk = sddf.Blk;
 const Net = sddf.Net;
 const Serial = sddf.Serial;
 const Timer = sddf.Timer;
@@ -146,6 +147,11 @@ pub const FileSystem = struct {
     pub const Nfs = struct {
         fs: FileSystem,
         data: ConfigResources.Nfs,
+        serial: *Serial,
+        timer: *Timer,
+        net: *Net,
+        net_copier: *Pd,
+        mac_addr: ?[]const u8,
 
         const Error = FileSystem.Error || Net.Error;
 
@@ -156,13 +162,6 @@ pub const FileSystem = struct {
         };
 
         pub fn init(allocator: Allocator, sdf: *SystemDescription, fs: *Pd, client: *Pd, net: *Net, net_copier: *Pd, serial: *Serial, timer: *Timer, options: Nfs.Options) Nfs.Error!Nfs {
-            // NFS depends on being connected via the network, serial, and timer sub-sytems.
-            try net.addClientWithCopier(fs, net_copier, .{
-                .mac_addr = options.mac_addr,
-            });
-            try serial.addClient(fs);
-            try timer.addClient(fs);
-
             var nfs_data = std.mem.zeroInit(ConfigResources.Nfs, .{});
             std.mem.copyForwards(u8, &nfs_data.server, options.server);
             std.mem.copyForwards(u8, &nfs_data.export_path, options.export_path);
@@ -170,52 +169,86 @@ pub const FileSystem = struct {
             return .{
                 .fs = try FileSystem.init(allocator, sdf, fs, client, .{}),
                 .data = nfs_data,
+                .serial = serial,
+                .timer = timer,
+                .net = net,
+                .net_copier = net_copier,
+                .mac_addr = options.mac_addr,
             };
         }
 
-        pub fn connect(nfs: *Nfs) void {
+        pub fn connect(nfs: *Nfs) !void {
+            const fs_pd = nfs.fs.fs;
+            // NFS depends on being connected via the network, serial, and timer sub-sytems.
+            try nfs.net.addClientWithCopier(fs_pd, nfs.net_copier, .{
+                .mac_addr = nfs.mac_addr,
+            });
+            try nfs.serial.addClient(fs_pd);
+            try nfs.timer.addClient(fs_pd);
+
             nfs.fs.connect();
         }
 
         pub fn serialiseConfig(nfs: *Nfs, prefix: []const u8) !void {
-            // TODo: json export
             try data.serialize(nfs.data, try std.fs.path.join(nfs.fs.allocator, &.{ prefix, "nfs_config.data" }));
             nfs.fs.serialiseConfig(prefix) catch @panic("Could not serialise config");
+
+            if (data.emit_json) {
+                try data.jsonify(nfs.data, try std.fs.path.join(nfs.fs.allocator, &.{ prefix, "nfs_config.json" }));
+            }
         }
     };
 
     pub const Fat = struct {
         fs: FileSystem,
+        data: ConfigResources.Fs,
+        blk: *Blk,
+        blk_partition: u32,
 
-        pub fn init(allocator: Allocator, sdf: *SystemDescription, fs: *Pd, client: *Pd, options: Options) Error!Fat {
+        pub const Options = struct {
+            partition: u32,
+        };
+
+        pub fn init(allocator: Allocator, sdf: *SystemDescription, fs: *Pd, client: *Pd, blk: *Blk, options: Fat.Options) Error!Fat {
             return .{
-                .fs = try FileSystem.init(allocator, sdf, fs, client, options),
+                .fs = try FileSystem.init(allocator, sdf, fs, client, .{}),
+                .blk = blk,
+                .blk_partition = options.partition,
+                .data = std.mem.zeroInit(ConfigResources.Fs, .{}),
             };
         }
 
-        pub fn connect(fat: *Fat) void {
-            fat.fs.connect();
-
+        pub fn connect(fat: *Fat) !void {
             const allocator = fat.fs.allocator;
             const sdf = fat.fs.sdf;
-            const fs = fat.fs.fs;
+            const fs_pd = fat.fs.fs;
 
+            try fat.blk.addClient(fs_pd, .{
+                .partition = fat.blk_partition,
+            });
+            fat.fs.connect();
             // Special things for FATFS
-            const fatfs_metadata = Mr.create(allocator, fmt(allocator, "{s}_metadata", .{fs.name}), 0x200_000, .{});
-            fs.addMap(Map.create(fatfs_metadata, 0x40_000_000, .rw, .{ .setvar_vaddr = "fs_metadata" }));
-            sdf.addMemoryRegion(fatfs_metadata);
-            const stack1 = Mr.create(allocator, fmt(allocator, "{s}_stack1", .{fs.name}), 0x40_000, .{});
-            const stack2 = Mr.create(allocator, fmt(allocator, "{s}_stack2", .{fs.name}), 0x40_000, .{});
-            const stack3 = Mr.create(allocator, fmt(allocator, "{s}_stack3", .{fs.name}), 0x40_000, .{});
-            const stack4 = Mr.create(allocator, fmt(allocator, "{s}_stack4", .{fs.name}), 0x40_000, .{});
+            const stack1 = Mr.create(allocator, fmt(allocator, "{s}_stack1", .{fs_pd.name}), 0x40_000, .{});
+            const stack2 = Mr.create(allocator, fmt(allocator, "{s}_stack2", .{fs_pd.name}), 0x40_000, .{});
+            const stack3 = Mr.create(allocator, fmt(allocator, "{s}_stack3", .{fs_pd.name}), 0x40_000, .{});
+            const stack4 = Mr.create(allocator, fmt(allocator, "{s}_stack4", .{fs_pd.name}), 0x40_000, .{});
             sdf.addMemoryRegion(stack1);
             sdf.addMemoryRegion(stack2);
             sdf.addMemoryRegion(stack3);
             sdf.addMemoryRegion(stack4);
-            fs.addMap(.create(stack1, 0xA0_000_000, .rw, .{ .setvar_vaddr = "worker_thread_stack_one" }));
-            fs.addMap(.create(stack2, 0xB0_000_000, .rw, .{ .setvar_vaddr = "worker_thread_stack_two" }));
-            fs.addMap(.create(stack3, 0xC0_000_000, .rw, .{ .setvar_vaddr = "worker_thread_stack_three" }));
-            fs.addMap(.create(stack4, 0xD0_000_000, .rw, .{ .setvar_vaddr = "worker_thread_stack_four" }));
+            fs_pd.addMap(.create(stack1, 0xA0_000_000, .rw, .{ .setvar_vaddr = "worker_thread_stack_one" }));
+            fs_pd.addMap(.create(stack2, 0xB0_000_000, .rw, .{ .setvar_vaddr = "worker_thread_stack_two" }));
+            fs_pd.addMap(.create(stack3, 0xC0_000_000, .rw, .{ .setvar_vaddr = "worker_thread_stack_three" }));
+            fs_pd.addMap(.create(stack4, 0xD0_000_000, .rw, .{ .setvar_vaddr = "worker_thread_stack_four" }));
+        }
+
+        pub fn serialiseConfig(fat: *Fat, prefix: []const u8) !void {
+            try data.serialize(fat.data, try std.fs.path.join(fat.fs.allocator, &.{ prefix, "fat_config.data" }));
+            fat.fs.serialiseConfig(prefix) catch @panic("Could not serialise config");
+
+            if (data.emit_json) {
+                try data.jsonify(fat.data, try std.fs.path.join(fat.fs.allocator, &.{ prefix, "fat_config.json" }));
+            }
         }
     };
 };
