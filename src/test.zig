@@ -195,3 +195,35 @@ test "basic VM" {
 
     try std.testing.expectEqualStrings(expected, output);
 }
+
+test "two VMs" {
+    var sdf = SystemDescription.create(allocator, .aarch64, 0x100_000_000);
+
+    const dtb_file = try std.fs.cwd().openFile(config.dtb ++ "/qemu_virt_aarch64.dtb", .{});
+    const dtb_size = (try dtb_file.stat()).size;
+    const blob_bytes = try dtb_file.reader().readAllAlloc(allocator, dtb_size);
+    defer allocator.free(blob_bytes);
+    // Parse the DTB
+    const guest_dtb = try mod.dtb.parse(allocator, blob_bytes);
+    defer guest_dtb.deinit(allocator);
+
+    var vmm1 = ProtectionDomain.create(allocator, "vmm1", "vmm.elf", .{});
+    sdf.addProtectionDomain(&vmm1);
+    var vmm2 = ProtectionDomain.create(allocator, "vmm2", "vmm.elf", .{});
+    sdf.addProtectionDomain(&vmm2);
+
+    var vm1 = try VirtualMachine.create(allocator, "vm1", &.{.{ .id = 0 }}, .{});
+    var vmm_system1 = Vmm.init(allocator, &sdf, &vmm1, &vm1, guest_dtb, .{});
+    var vm2 = try VirtualMachine.create(allocator, "vm2", &.{.{ .id = 0 }}, .{});
+    var vmm_system2 = Vmm.init(allocator, &sdf, &vmm2, &vm2, guest_dtb, .{});
+
+    try vmm_system1.connect();
+    try vmm_system2.connect();
+
+    const expected = try readTestFile("two_vms.system");
+    const output = try sdf.render();
+    defer allocator.free(expected);
+    defer sdf.destroy();
+
+    try std.testing.expectEqualStrings(expected, output);
+}
