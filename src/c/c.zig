@@ -707,21 +707,21 @@ export fn sdfgen_lionsos_fs_nfs_serialise_config(system: *align(8) anyopaque, ou
     return true;
 }
 
-export fn sdfgen_sddf_lib_sddf_lwip(c_sdf: *align(8) anyopaque, c_net: *align(8) anyopaque, c_pd: *align(8) anyopaque) *anyopaque {
-    const lib = allocator.create(sddf.Lib.SddfLwip) catch @panic("OOM");
-    lib.* = sddf.Lib.SddfLwip.init(allocator, @ptrCast(c_sdf), @ptrCast(c_net), @ptrCast(c_pd));
+export fn sdfgen_sddf_lwip(c_sdf: *align(8) anyopaque, c_net: *align(8) anyopaque, c_pd: *align(8) anyopaque) *anyopaque {
+    const lib = allocator.create(sddf.Lwip) catch @panic("OOM");
+    lib.* = sddf.Lwip.init(allocator, @ptrCast(c_sdf), @ptrCast(c_net), @ptrCast(c_pd));
     return lib;
 }
 
-export fn sdfgen_sddf_lib_sddf_lwip_connect(c_lib: *align(8) anyopaque) bool {
-    const lib: *sddf.Lib.SddfLwip = @ptrCast(c_lib);
+export fn sdfgen_sddf_lwip_connect(c_lib: *align(8) anyopaque) bool {
+    const lib: *sddf.Lwip = @ptrCast(c_lib);
     lib.connect() catch @panic("TODO");
 
     return true;
 }
 
-export fn sdfgen_sddf_lib_sddf_lwip_serialise_config(c_lib: *align(8) anyopaque, output_dir: [*c]u8) bool {
-    const lib: *sddf.Lib.SddfLwip = @ptrCast(c_lib);
+export fn sdfgen_sddf_lwip_serialise_config(c_lib: *align(8) anyopaque, output_dir: [*c]u8) bool {
+    const lib: *sddf.Lwip = @ptrCast(c_lib);
     lib.serialiseConfig(std.mem.span(output_dir)) catch return false;
 
     return true;
