@@ -303,8 +303,6 @@ pub fn serialiseConfig(system: *Self, prefix: []const u8) !void {
     const allocator = system.allocator;
     const data_name = fmt(allocator, "vmm_{s}.data", .{system.vmm.name});
 
-    std.log.info("{any}", .{ system.data });
-
     try mod_data.serialize(system.data, try fs.path.join(allocator, &.{ prefix, data_name }));
     if (mod_data.emit_json) {
         const json_name = fmt(allocator, "vmm_{s}.json", .{system.vmm.name});
