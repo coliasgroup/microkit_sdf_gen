@@ -374,7 +374,6 @@ pub const Resources = struct {
             magic: [5]u8 = MAGIC,
             pbuf_pool: Region,
             num_pbufs: u64,
-            link_speed: u64,
         };
     };
 };

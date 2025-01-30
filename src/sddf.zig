@@ -1650,32 +1650,21 @@ pub const Lib = struct {
     pub const SddfLwip = struct {
         const PBUF_STRUCT_SIZE = 56;
 
-        pub const Options = struct {
-            num_pbufs: ?usize = null,
-            link_speed: u64 = 1000000000,
-        };
-
         allocator: Allocator,
         sdf: *SystemDescription,
         net: *Net,
         pd: *Pd,
         num_pbufs: usize,
-        link_speed: u64,
 
         config: ConfigResources.Lib.SddfLwip,
 
-        pub fn init(allocator: Allocator, sdf: *SystemDescription, net: *Net, pd: *Pd, options: Options) SddfLwip {
-            var num_pbufs = net.rx_buffers * 2;
-            if (options.num_pbufs) |user_num_pbufs| {
-                num_pbufs = user_num_pbufs;
-            }
+        pub fn init(allocator: Allocator, sdf: *SystemDescription, net: *Net, pd: *Pd) SddfLwip {
             return .{
                 .allocator = allocator,
                 .sdf = sdf,
                 .net = net,
                 .pd = pd,
-                .num_pbufs = num_pbufs,
-                .link_speed = options.link_speed,
+                .num_pbufs = net.rx_buffers * 2,
                 .config = std.mem.zeroInit(ConfigResources.Lib.SddfLwip, .{}),
             };
         }
@@ -1690,8 +1679,6 @@ pub const Lib = struct {
             lib.pd.addMap(pbuf_pool_mr_map);
             lib.config.pbuf_pool = .createFromMap(pbuf_pool_mr_map);
             lib.config.num_pbufs = lib.num_pbufs;
-
-            lib.config.link_speed = lib.link_speed;
         }
 
         pub fn serialiseConfig(lib: *SddfLwip, prefix: []const u8) !void {
@@ -1879,9 +1866,7 @@ pub fn createDriver(sdf: *SystemDescription, pd: *Pd, device: *dtb.Node, class: 
             } else if (sdf.arch.isRiscv()) {
                 std.debug.assert(dt_irq.len == 1);
                 const irq_number = dt_irq[0];
-                break :blk SystemDescription.Irq.create(irq_number, .{
-                    .id = driver_irq.channel_id
-                });
+                break :blk SystemDescription.Irq.create(irq_number, .{ .id = driver_irq.channel_id });
             } else {
                 @panic("device driver IRQ handling is unimplemented for given arch");
             }
