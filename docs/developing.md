@@ -153,3 +153,29 @@ For example running `./scripts/release.sh 0.8.0` will create a tag called
 0.8.0 and push it to the repo which will cause the CI to automatically build
 and push the Python package to PyPI with version 0.8.0 as well as upload
 pre-built versions of the C library.
+
+### Nix
+
+The way Zig compiles code is a bit at odds with Nix. Nix wants to keep track
+of all inputs such that it can determinstically check the output, makes sense.
+
+When building the package, Zig will attempt to create cache directories and
+fetch the 'dtb.zig' dependency from the network. To get this working with a Nix
+output we have to do some annoying extra setup.
+
+In `package.nix` you will see the dependencies listed and calls to `fetchzip`.
+What that does is allow us to get the dependency in a way Nix is happy with.
+
+If you update `build.zig.zon` at any point of the release cycle, you must also
+update `package.nix`.
+
+#### Updating package.nix
+
+For each dependency:
+1. The `name` field should be the Zig hash in `build.zig.zon` for the dependency.
+2. The `url` in `fetchzip` should match the `.url` filed in `build.zig.zon`.
+3. To get the `hash` field value, run the following commands:
+```sh
+nix-prefetch-url --unpack <URL>
+nix hash convert --hash-algo sha256 --from nix32 <HASH FROM PREFETCH URL>
+```
