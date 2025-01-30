@@ -366,6 +366,17 @@ pub const Resources = struct {
         server: [MaxServerUrlLen]u8,
         export_path: [MaxExportPathLen]u8,
     };
+
+    pub const Lib = struct {
+        pub const SddfLwip = extern struct {
+            const MAGIC: [5]u8 = MAGIC_START ++ .{0x8};
+
+            magic: [5]u8 = MAGIC,
+            pbuf_pool: Region,
+            num_pbufs: u64,
+            link_speed: u64,
+        };
+    };
 };
 
 pub fn serialize(s: anytype, path: []const u8) !void {

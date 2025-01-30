@@ -706,3 +706,29 @@ export fn sdfgen_lionsos_fs_nfs_serialise_config(system: *align(8) anyopaque, ou
 
     return true;
 }
+
+export fn sdfgen_sddf_lib_sddf_lwip(c_sdf: *align(8) anyopaque, c_net: *align(8) anyopaque, c_pd: *align(8) anyopaque, c_num_pbufs: [*c]u64, c_link_speed: u64) *anyopaque {
+    var options: sddf.Lib.SddfLwip.Options = .{
+        .link_speed = c_link_speed,
+    };
+    if (c_num_pbufs) |n| {
+        options.num_pbufs = n.*;
+    }
+    const lib = allocator.create(sddf.Lib.SddfLwip) catch @panic("OOM");
+    lib.* = sddf.Lib.SddfLwip.init(allocator, @ptrCast(c_sdf), @ptrCast(c_net), @ptrCast(c_pd), options);
+    return lib;
+}
+
+export fn sdfgen_sddf_lib_sddf_lwip_connect(c_lib: *align(8) anyopaque) bool {
+    const lib: *sddf.Lib.SddfLwip = @ptrCast(c_lib);
+    lib.connect() catch @panic("TODO");
+
+    return true;
+}
+
+export fn sdfgen_sddf_lib_sddf_lwip_serialise_config(c_lib: *align(8) anyopaque, output_dir: [*c]u8) bool {
+    const lib: *sddf.Lib.SddfLwip = @ptrCast(c_lib);
+    lib.serialiseConfig(std.mem.span(output_dir)) catch return false;
+
+    return true;
+}
