@@ -196,7 +196,7 @@ libsdfgen.sdfgen_sddf_gpu_serialise_config.restype = c_bool
 libsdfgen.sdfgen_sddf_gpu_serialise_config.argtypes = [c_void_p, c_char_p]
 
 libsdfgen.sdfgen_vmm.restype = c_void_p
-libsdfgen.sdfgen_vmm.argtypes = [c_void_p, c_void_p, c_void_p, c_void_p, c_bool]
+libsdfgen.sdfgen_vmm.argtypes = [c_void_p, c_void_p, c_void_p, c_void_p, c_uint64, c_bool]
 libsdfgen.sdfgen_vmm_add_passthrough_device.restype = c_bool
 libsdfgen.sdfgen_vmm_add_passthrough_device.argtypes = [c_void_p, c_char_p, c_void_p, POINTER(c_uint8), c_uint8]
 libsdfgen.sdfgen_vmm_add_passthrough_irq.restype = c_bool
@@ -245,6 +245,10 @@ class DeviceTree:
 
     def __del__(self):
         libsdfgen.sdfgen_dtb_destroy(self._obj)
+
+    @property
+    def size(self) -> int:
+        return len(self._bytes)
 
     class Node:
         def __init__(self, device_tree: DeviceTree, node: str):
@@ -822,7 +826,7 @@ class Vmm:
         *,
         one_to_one_ram: bool=False,
     ):
-        self._obj = libsdfgen.sdfgen_vmm(sdf._obj, vmm._obj, vm._obj, dtb._obj, one_to_one_ram)
+        self._obj = libsdfgen.sdfgen_vmm(sdf._obj, vmm._obj, vm._obj, dtb._obj, dtb.size, one_to_one_ram)
 
     def add_passthrough_device(self, name: str, device: DeviceTree.Node, *, irqs: List[int]=[]):
         c_name = c_char_p(name.encode("utf-8"))

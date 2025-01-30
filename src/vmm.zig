@@ -22,6 +22,7 @@ sdf: *SystemDescription,
 vmm: *Pd,
 guest: *Vm,
 guest_dtb: *dtb.Node,
+guest_dtb_size: u64,
 data: Data,
 /// Whether or not to map guest RAM with 1-1 mappings with physical memory
 one_to_one_ram: bool,
@@ -44,9 +45,9 @@ const Data = extern struct {
             sound = 25,
         };
 
-        type: Type,
+        type: u8,
         addr: u64,
-        size: u64,
+        size: u32,
         irq: u32,
     };
 
@@ -59,6 +60,7 @@ const Data = extern struct {
         id: u8,
     };
 
+    magic: [3]u8 = .{ 'v', 'm', 'm' },
     ram: u64,
     ram_size: u64,
     dtb: u64,
@@ -71,13 +73,14 @@ const Data = extern struct {
     virtio_mmio_devices: [MAX_VIRTIO_MMIO_DEVICES]VirtioMmioDevice,
 };
 
-pub fn init(allocator: Allocator, sdf: *SystemDescription, vmm: *Pd, guest: *Vm, guest_dtb: *dtb.Node, options: Options) Self {
+pub fn init(allocator: Allocator, sdf: *SystemDescription, vmm: *Pd, guest: *Vm, guest_dtb: *dtb.Node, guest_dtb_size: u64, options: Options) Self {
     return .{
         .allocator = allocator,
         .sdf = sdf,
         .vmm = vmm,
         .guest = guest,
         .guest_dtb = guest_dtb,
+        .guest_dtb_size = guest_dtb_size,
         .data = std.mem.zeroInit(Data, .{}),
         .one_to_one_ram = options.one_to_one_ram,
     };
@@ -170,9 +173,9 @@ fn addVirtioMmioDevice(system: *Self, device: *dtb.Node, t: Data.VirtioMmioDevic
     const irq = dtb.armGicIrqNumber(interrupts[0][1], dtb.armGicIrqType(interrupts[0][0]));
     // TODO: maybe use device resources like everything else? idk
     system.data.virtio_mmio_devices[system.data.num_virtio_mmio_devices] = .{
-        .type = t,
+        .type = @intFromEnum(t),
         .addr = device_paddr,
-        .size = device_size,
+        .size = @intCast(device_size),
         .irq = irq,
     };
     system.data.num_virtio_mmio_devices += 1;
@@ -200,6 +203,19 @@ pub fn addPassthroughIrq(system: *Self, irq: Irq) !void {
         .irq = irq.irq,
     };
     system.data.num_irqs += 1;
+}
+
+/// Figure out where to place the DTB based on the guest's RAM and initrd.
+/// Our preference is to place it towards the end of RAM.
+fn allocateDtbAddress(dtb_size: u64, ram_start: u64, ram_end: u64, initrd_start: u64, initrd_end: u64) !u64 {
+    if (initrd_end + dtb_size <= ram_end) {
+        // We can fit it after the DTB
+        return initrd_end;
+    } else if (initrd_start - dtb_size > ram_start) {
+        return initrd_start - dtb_size;
+    } else {
+        return error.CouldNotAllocateDtb;
+    }
 }
 
 // TODO: deal with the general problem of having multiple gic vcpu mappings but only one MR.
@@ -251,11 +267,6 @@ pub fn connect(system: *Self) !void {
     vmm.addMap(.create(guest_ram_mr, memory_paddr, .rw, .{}));
     guest.addMap(.create(guest_ram_mr, memory_paddr, .rwx, .{}));
 
-    system.data.ram = memory_paddr;
-    system.data.ram_size = guest_ram_size;
-    // TODO: fix this
-    system.data.dtb = 0x4f000000;
-
     for (system.guest.vcpus) |vcpu| {
         system.data.vcpus[system.data.num_vcpus] = .{
             .id = vcpu.id,
@@ -263,11 +274,25 @@ pub fn connect(system: *Self) !void {
         system.data.num_vcpus += 1;
     }
 
-    if (system.guest_dtb.propAt(&.{"chosen"}, .LinuxInitrdStart)) |initrd_start| {
-        system.data.initrd = initrd_start;
-    } else {
-        return error.MissingInitrd;
-    }
+    const initrd_start = blk: {
+        if (system.guest_dtb.propAt(&.{"chosen"}, .LinuxInitrdStart)) |addr| {
+            break :blk addr;
+        } else {
+            return error.MissingInitrd;
+        }
+    };
+    const initrd_end = blk: {
+        if (system.guest_dtb.propAt(&.{"chosen"}, .LinuxInitrdEnd)) |addr| {
+            break :blk addr;
+        } else {
+            return error.MissingInitrd;
+        }
+    };
+
+    system.data.ram = memory_paddr;
+    system.data.ram_size = guest_ram_size;
+    system.data.dtb = try allocateDtbAddress(system.guest_dtb_size, system.data.ram, system.data.ram + system.data.ram_size, initrd_start, initrd_end);
+    system.data.initrd = initrd_start;
 
     system.connected = true;
 }
@@ -278,9 +303,11 @@ pub fn serialiseConfig(system: *Self, prefix: []const u8) !void {
     const allocator = system.allocator;
     const data_name = fmt(allocator, "vmm_{s}.data", .{system.vmm.name});
 
+    std.log.info("{any}", .{ system.data });
+
     try mod_data.serialize(system.data, try fs.path.join(allocator, &.{ prefix, data_name }));
     if (mod_data.emit_json) {
-        const json_name = fmt(allocator, "vmm_{s}.data", .{system.vmm.name});
+        const json_name = fmt(allocator, "vmm_{s}.json", .{system.vmm.name});
         try mod_data.jsonify(system.data, try fs.path.join(allocator, &.{ prefix, json_name }));
     }
 }
