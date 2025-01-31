@@ -13,11 +13,13 @@ Microkit-based systems.
 
 The sdfgen tooling (name temporary) contains libraries for programmatically
 creating:
+
 * Microkit System Description Files (SDF)
 * systems using the seL4 Device Driver Framework (sDDF)
 * systems using LionsOS
 
 It has first-class support for use in the following languages:
+
 * C
 * Python
 * Zig
