@@ -7,12 +7,14 @@ from ctypes import (
 from typing import Optional, List, Tuple
 from enum import IntEnum
 
+
 class SddfStatus(IntEnum):
     OK = 0,
     DUPLICATE_CLIENT = 1,
     INVALID_CLIENT = 2,
     NET_DUPLICATE_COPIER = 100,
     NET_DUPLICATE_MAC_ADDR = 101,
+
 
 # TOOD: double check
 MapPermsType = c_uint32
@@ -196,9 +198,22 @@ libsdfgen.sdfgen_sddf_gpu_serialise_config.restype = c_bool
 libsdfgen.sdfgen_sddf_gpu_serialise_config.argtypes = [c_void_p, c_char_p]
 
 libsdfgen.sdfgen_vmm.restype = c_void_p
-libsdfgen.sdfgen_vmm.argtypes = [c_void_p, c_void_p, c_void_p, c_void_p, c_uint64, c_bool]
+libsdfgen.sdfgen_vmm.argtypes = [
+    c_void_p,
+    c_void_p,
+    c_void_p,
+    c_void_p,
+    c_uint64,
+    c_bool
+]
 libsdfgen.sdfgen_vmm_add_passthrough_device.restype = c_bool
-libsdfgen.sdfgen_vmm_add_passthrough_device.argtypes = [c_void_p, c_char_p, c_void_p, POINTER(c_uint8), c_uint8]
+libsdfgen.sdfgen_vmm_add_passthrough_device.argtypes = [
+    c_void_p,
+    c_char_p,
+    c_void_p,
+    POINTER(c_uint8),
+    c_uint8
+]
 libsdfgen.sdfgen_vmm_add_passthrough_irq.restype = c_bool
 libsdfgen.sdfgen_vmm_add_passthrough_irq.argtypes = [c_void_p, c_void_p]
 libsdfgen.sdfgen_vmm_add_virtio_mmio_console.restype = c_bool
@@ -219,7 +234,18 @@ libsdfgen.sdfgen_lionsos_fs_fat_connect.argtypes = [c_void_p]
 libsdfgen.sdfgen_lionsos_fs_fat_serialise_config.restype = c_bool
 libsdfgen.sdfgen_lionsos_fs_fat_serialise_config.argtypes = [c_void_p, c_char_p]
 libsdfgen.sdfgen_lionsos_fs_nfs.restype = c_void_p
-libsdfgen.sdfgen_lionsos_fs_nfs.argtypes = [c_void_p, c_void_p, c_void_p, c_void_p, c_void_p, c_char_p, c_void_p, c_void_p, c_char_p, c_char_p]
+libsdfgen.sdfgen_lionsos_fs_nfs.argtypes = [
+    c_void_p,
+    c_void_p,
+    c_void_p,
+    c_void_p,
+    c_void_p,
+    c_char_p,
+    c_void_p,
+    c_void_p,
+    c_char_p,
+    c_char_p
+]
 libsdfgen.sdfgen_lionsos_fs_nfs_connect.restype = c_bool
 libsdfgen.sdfgen_lionsos_fs_nfs_connect.argtypes = [c_void_p]
 libsdfgen.sdfgen_lionsos_fs_nfs_serialise_config.restype = c_bool
@@ -231,6 +257,7 @@ libsdfgen.sdfgen_sddf_lwip_connect.restype = c_bool
 libsdfgen.sdfgen_sddf_lwip_connect.argtypes = [c_void_p]
 libsdfgen.sdfgen_sddf_lwip_serialise_config.restype = c_bool
 libsdfgen.sdfgen_sddf_lwip_serialise_config.argtypes = [c_void_p, c_char_p]
+
 
 class DeviceTree:
     """
@@ -369,7 +396,7 @@ class SystemDescription:
         def add_map(self, map: SystemDescription.Map):
             libsdfgen.sdfgen_pd_add_map(self._obj, map._obj)
 
-        def add_irq(self, map: SystemDescription.Irq) -> int:
+        def add_irq(self, irq: SystemDescription.Irq) -> int:
             return libsdfgen.sdfgen_pd_add_irq(self._obj, irq._obj)
 
         def set_virtual_machine(self, vm: SystemDescription.VirtualMachine):
@@ -383,8 +410,8 @@ class SystemDescription:
         def __repr__(self) -> str:
             return f"ProtectionDomain({self.name})"
 
-    # TODO: __del__ is more complicated for virtual machine since it may be owned by a protection domain
-    # meaning it would result in a double free
+    # TODO: __del__ is more complicated for virtual machine since it may be owned
+    # by a protection domain meaning it would result in a double free
     class VirtualMachine:
         _name: str
         _obj: c_void_p
@@ -715,7 +742,9 @@ class Sddf:
             :param mac_addr: must be unique to the Network system.
             """
             if mac_addr is not None and len(mac_addr) != 17:
-                raise Exception(f"invalid MAC address length for client '{client.name}', {mac_addr}")
+                raise Exception(
+                    f"invalid MAC address length for client '{client.name}', {mac_addr}"
+                )
 
             c_mac_addr = c_char_p(0)
             if mac_addr is not None:
@@ -820,24 +849,25 @@ class Sddf:
 
         def __del__(self):
             libsdfgen.sdfgen_sddf_gpu_destroy(self._obj)
-    
+
     class Lwip:
         _obj: c_void_p
 
         def __init__(
             self,
             sdf: SystemDescription,
-            net: Net,
-            pd: ProtectionDomain
+            net: Sddf.Net,
+            pd: SystemDescription.ProtectionDomain
         ) -> None:
             self._obj = libsdfgen.sdfgen_sddf_lwip(sdf._obj, net._obj, pd._obj)
-        
+
         def connect(self) -> bool:
             return libsdfgen.sdfgen_sddf_lwip_connect(self._obj)
-        
+
         def serialise_config(self, output_dir: str) -> bool:
             c_output_dir = c_char_p(output_dir.encode("utf-8"))
             return libsdfgen.sdfgen_sddf_lwip_serialise_config(self._obj, c_output_dir)
+
 
 class Vmm:
     _obj: c_void_p
@@ -845,20 +875,20 @@ class Vmm:
     def __init__(
         self,
         sdf: SystemDescription,
-        vmm: ProtectionDomain,
-        vm: VirtualMachine,
+        vmm: SystemDescription.ProtectionDomain,
+        vm: SystemDescription.VirtualMachine,
         dtb: DeviceTree,
         *,
-        one_to_one_ram: bool=False,
+        one_to_one_ram: bool = False,
     ):
         self._obj = libsdfgen.sdfgen_vmm(sdf._obj, vmm._obj, vm._obj, dtb._obj, dtb.size, one_to_one_ram)
 
-    def add_passthrough_device(self, name: str, device: DeviceTree.Node, *, irqs: List[int]=[]):
+    def add_passthrough_device(self, name: str, device: DeviceTree.Node, *, irqs: List[int] = []):
         c_name = c_char_p(name.encode("utf-8"))
         c_irqs = (c_uint8 * len(irqs))(*irqs)
         return libsdfgen.sdfgen_vmm_add_passthrough_device(self._obj, c_name, device._obj, cast(c_irqs, POINTER(c_uint8)), len(irqs))
 
-    def add_passthrough_irq(self, irq: Irq):
+    def add_passthrough_irq(self, irq: SystemDescription.Irq):
         return libsdfgen.sdfgen_vmm_add_passthrough_irq(self._obj, irq._obj)
 
     def add_virtio_mmio_console(self, device: DeviceTree.Node, serial: Sddf.Serial):
@@ -936,7 +966,9 @@ class LionsOs:
                 export_path: str,
             ):
                 if mac_addr is not None and len(mac_addr) != 17:
-                    raise Exception(f"invalid MAC address length for client '{client.name}', {mac_addr}")
+                    raise Exception(
+                        f"invalid MAC address length for client '{client.name}', {mac_addr}"
+                    )
 
                 c_mac_addr = c_char_p(0)
                 if mac_addr is not None:
@@ -946,7 +978,18 @@ class LionsOs:
                 c_server = c_char_p(server.encode("utf-8"))
                 c_export_path = c_char_p(export_path.encode("utf-8"))
 
-                self._obj = libsdfgen.sdfgen_lionsos_fs_nfs(sdf._obj, fs._obj, client._obj, net._obj, net_copier._obj, c_mac_addr, serial._obj, timer._obj, c_server, c_export_path)
+                self._obj = libsdfgen.sdfgen_lionsos_fs_nfs(
+                    sdf._obj,
+                    fs._obj,
+                    client._obj,
+                    net._obj,
+                    net_copier._obj,
+                    c_mac_addr,
+                    serial._obj,
+                    timer._obj,
+                    c_server,
+                    c_export_path
+                )
 
             def connect(self) -> bool:
                 return libsdfgen.sdfgen_lionsos_fs_nfs_connect(self._obj)
