@@ -897,7 +897,7 @@ class Vmm:
     def add_virtio_mmio_blk(self, device: DeviceTree.Node, blk: Sddf.Blk, *, partition: int):
         return libsdfgen.sdfgen_vmm_add_virtio_mmio_blk(self._obj, device._obj, blk._obj, partition)
 
-    def add_virtio_net(
+    def add_virtio_mmio_net(
         self,
         device: DeviceTree.Node,
         net: Sddf.Net,
