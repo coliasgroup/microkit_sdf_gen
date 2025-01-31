@@ -640,6 +640,17 @@ export fn sdfgen_vmm_add_virtio_mmio_blk(c_vmm: *align(8) anyopaque, c_device: *
     return true;
 }
 
+export fn sdfgen_vmm_add_virtio_mmio_net(c_vmm: *align(8) anyopaque, c_device: *align(8) anyopaque, net: *align(8) anyopaque, copier: *align(8) anyopaque, mac_addr: [*c]u8) bool {
+    const vmm: *Vmm = @ptrCast(c_vmm);
+    var options: sddf.Net.ClientOptions = .{};
+    if (mac_addr) |a| {
+        options.mac_addr = std.mem.span(a);
+    }
+    vmm.addVirtioMmioNet(@ptrCast(c_device), @ptrCast(net), @ptrCast(copier), options) catch @panic("TODO");
+
+    return true;
+}
+
 export fn sdfgen_vmm_connect(c_vmm: *align(8) anyopaque) bool {
     const vmm: *Vmm = @ptrCast(c_vmm);
     vmm.connect() catch return false;
