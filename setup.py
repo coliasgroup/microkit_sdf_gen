@@ -20,7 +20,8 @@ class ZigBuilder(build_ext):
             "build",
             "c",
             f"-Doptimize={optimize}",
-            "-Dc-dynamic=true",
+            # Python expects us to always provide a dynamic library
+            "-Dc-linkage=dynamic",
             f"-Dc-emit={self.get_ext_filename(ext.name)}",
             "--prefix-lib-dir",
             f"{modpath}",

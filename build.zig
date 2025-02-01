@@ -66,40 +66,31 @@ pub fn build(b: *std.Build) !void {
     const zig_example_install = b.addInstallArtifact(zig_example, .{});
     zig_example_step.dependOn(&zig_example_install.step);
 
-    const modsdf = b.addModule("sdf", .{ .root_source_file = b.path("src/mod.zig") });
-    modsdf.addImport("dtb", dtbzig_dep.module("dtb"));
+    const csdfgen_module = b.addModule("csdfgen", .{
+        .root_source_file = b.path("src/c/c.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    csdfgen_module.addIncludePath(b.path("src/c"));
+    csdfgen_module.addImport("sdf", sdf_module);
 
     // Default to dynamic library for Darwin
-    const c_dynamic = b.option(bool, "c-dynamic", "Build C bindings as dynamic library") orelse target.result.os.tag.isDarwin();
-    const csdfgen = blk: {
-        if (!c_dynamic) {
-            break :blk b.addStaticLibrary(.{
-                .name = "csdfgen",
-                .root_source_file = b.path("src/c/c.zig"),
-                .target = target,
-                .optimize = optimize,
-                .version = version,
-            });
-        } else {
-            break :blk b.addSharedLibrary(.{
-                .name = "csdfgen",
-                .root_source_file = b.path("src/c/c.zig"),
-                .target = target,
-                .optimize = optimize,
-                .version = version,
-            });
-        }
-    };
+    const csdfgen_default_linkage: std.builtin.LinkMode = if (target.result.os.tag.isDarwin()) .dynamic else .static;
+    const csdfgen_linkage = b.option(std.builtin.LinkMode, "c-linkage", "Specify link mode of libcsdfgen") orelse csdfgen_default_linkage;
+    const csdfgen = b.addLibrary(.{
+        .name = "csdfgen",
+        .root_module = csdfgen_module,
+        .version = version,
+        .linkage = csdfgen_linkage,
+    });
     csdfgen.linkLibC();
     csdfgen.installHeader(b.path("src/c/sdfgen.h"), "sdfgen.h");
-    csdfgen.addIncludePath(b.path("src/c"));
-    csdfgen.root_module.addImport("sdf", modsdf);
     csdfgen.bundle_compiler_rt = true;
     b.installArtifact(csdfgen);
 
     const c_step = b.step("c", "Library for C bindings");
     c_step.dependOn(b.getInstallStep());
-    const csdfgen_emit = b.option([]const u8, "c-emit", "C sdfgen emit") orelse null;
+    const csdfgen_emit = b.option([]const u8, "c-emit", "Specify libcsdfgen emit path/name") orelse null;
     if (csdfgen_emit) |name| {
         c_step.dependOn(&b.addInstallLibFile(csdfgen.getEmittedBin(), name).step);
     }
