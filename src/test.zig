@@ -150,14 +150,14 @@ test "C example" {
     example_process.stdout_behavior = .Pipe;
     example_process.stderr_behavior = .Pipe;
 
-    var stdout = std.ArrayList(u8).init(allocator);
-    defer stdout.deinit();
-    var stderr = std.ArrayList(u8).init(allocator);
-    defer stderr.deinit();
+    var stdout = std.ArrayListUnmanaged(u8){};
+    defer stdout.deinit(allocator);
+    var stderr = std.ArrayListUnmanaged(u8){};
+    defer stderr.deinit(allocator);
 
     try example_process.spawn();
 
-    try example_process.collectOutput(&stdout, &stderr, 1024 * 1024);
+    try example_process.collectOutput(allocator, &stdout, &stderr, 1024 * 1024);
 
     const term = try example_process.wait();
 

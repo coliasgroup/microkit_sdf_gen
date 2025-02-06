@@ -38,7 +38,7 @@ Pre-built archives of the C library are available in each
 
 ### Dependencies
 
-* Zig (`0.14.0-dev.3011+e4c049e41` or higher)
+* Zig (`0.14.0-dev.3050+d72f3d353` or higher)
   * See https://ziglang.org/download/, until 0.14.0 is released we rely on a
     master version of Zig. Once 0.14.0 is released (most likely Feb'25) we can
     pin to that release.
