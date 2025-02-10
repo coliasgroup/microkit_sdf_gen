@@ -609,8 +609,8 @@ export fn sdfgen_vmm(c_sdf: *align(8) anyopaque, vmm_pd: *align(8) anyopaque, vm
 export fn sdfgen_vmm_add_passthrough_device(c_vmm: *align(8) anyopaque, c_name: [*c]u8, c_device: *align(8) anyopaque, regions: [*c]u8, num_regions: u8, irqs: [*c]u8, num_irqs: u8) bool {
     const vmm: *Vmm = @ptrCast(c_vmm);
     vmm.addPassthroughDevice(std.mem.span(c_name), @ptrCast(c_device), .{
-        .regions = regions[0..num_regions],
-        .irqs = irqs[0..num_irqs],
+        .regions = if (regions == null) null else regions[0..num_regions],
+        .irqs = if (irqs == null) null else irqs[0..num_irqs],
     }) catch @panic("TODO");
 
     return true;

@@ -899,7 +899,7 @@ class Vmm:
             regions_len = len(c_regions)
         else:
             c_regions = None
-            regions_len = None
+            regions_len = 0
 
         if irqs:
             c_irqs = cast((c_uint8 * len(irqs))(*irqs), POINTER(c_uint8))
