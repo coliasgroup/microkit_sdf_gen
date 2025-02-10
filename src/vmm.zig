@@ -92,66 +92,87 @@ fn fmt(allocator: Allocator, comptime s: []const u8, args: anytype) []u8 {
 
 const PassthroughOptions = struct {
     /// Indices into the Device Tree node's regions to passthrough
-    regions: []const u8 = &.{},
+    /// When null, all regions are passed through
+    regions: ?[]const u8 = null,
     /// Indices into the Device Tree node's interrupts to passthrough
-    irqs: []const u8 = &.{},
+    /// When null, all IRQs are passed through
+    irqs: ?[]const u8 = null,
 };
+
+fn addPassthroughDeviceMapping(system: *Self, name: []const u8, device: *dtb.Node, device_reg: [][2]u128, index: usize) void {
+    const device_paddr = dtb.regToPaddr(device, device_reg[index][0]);
+    const device_size = dtb.regToSize(device_reg[index][1]);
+    var mr_name: []const u8 = undefined;
+    if (device_reg.len > 1) {
+        mr_name = std.fmt.allocPrint(system.allocator, "{s}{}", .{ name, index }) catch @panic("OOM");
+        defer system.allocator.free(mr_name);
+    } else {
+        mr_name = name;
+    }
+    const device_mr = Mr.physical(system.allocator, system.sdf, mr_name, device_size, .{
+        .paddr = device_paddr,
+    });
+    system.sdf.addMemoryRegion(device_mr);
+    system.guest.addMap(.create(device_mr, device_paddr, .rw, .{ .cached = false }));
+}
+
+pub fn addPassthroughDeviceIrq(system: *Self, interrupt: []u32) !void {
+    var irq_id: u8 = undefined;
+    var irq_number: u32 = undefined;
+    if (system.sdf.arch.isArm()) {
+        // Determine the IRQ trigger and (software-observable) number based on the device tree.
+        const irq_type = dtb.armGicIrqType(interrupt[0]);
+        const irq_trigger = dtb.armGicTrigger(interrupt[2]);
+        irq_number = dtb.armGicIrqNumber(interrupt[1], irq_type);
+        irq_id = try system.vmm.addIrq(.create(irq_number, .{ .trigger = irq_trigger }));
+    } else if (system.sdf.arch.isRiscv()) {
+        irq_number = interrupt[0];
+        irq_id = try system.vmm.addIrq(.create(irq_number, .{}));
+    }
+    system.data.irqs[system.data.num_irqs] = .{
+        .id = irq_id,
+        .irq = irq_number,
+    };
+    system.data.num_irqs += 1;
+}
 
 /// A currently naive approach to adding passthrough for a particular device
 /// to a virtual machine.
 /// This adds the required interrupts to be given to the VMM, and the TODO finish description
 pub fn addPassthroughDevice(system: *Self, name: []const u8, device: *dtb.Node, options: PassthroughOptions) !void {
-    const allocator = system.allocator;
     // Find the device, get it's memory regions and add it to the guest. Add its IRQs to the VMM.
     if (device.prop(.Reg)) |device_reg| {
-        for (options.regions, 0..) |d, i| {
-            const device_paddr = dtb.regToPaddr(device, device_reg[d][0]);
-            const device_size = dtb.regToSize(device_reg[d][1]);
-            var mr_name: []const u8 = undefined;
-            if (device_reg.len > 1) {
-                mr_name = std.fmt.allocPrint(allocator, "{s}{}", .{ name, i }) catch @panic("OOM");
-                defer allocator.free(mr_name);
-            } else {
-                mr_name = name;
+        if (options.regions) |regions| {
+            for (regions) |i| {
+                if (i >= device_reg.len) {
+                    return error.InvalidPassthroughRegions;
+                }
+                system.addPassthroughDeviceMapping(name, device, device_reg, i);
             }
-            const device_mr = Mr.physical(allocator, system.sdf, mr_name, device_size, .{
-                .paddr = device_paddr,
-            });
-            system.sdf.addMemoryRegion(device_mr);
-            system.guest.addMap(.create(device_mr, device_paddr, .rw, .{ .cached = false }));
+        } else {
+            for (0..device_reg.len) |i| {
+                system.addPassthroughDeviceMapping(name, device, device_reg, i);
+            }
         }
+    } else if (options.regions != null) {
+        return error.InvalidPassthroughRegions;
     }
 
-    const maybe_interrupts = device.prop(.Interrupts);
-    if (maybe_interrupts == null and options.irqs.len != 0) {
-        // TODO: improve error
-        return error.InvalidIrqs;
-    }
-
-    for (options.irqs) |dt_irq| {
-        const interrupts = maybe_interrupts.?;
-        if (dt_irq >= interrupts.len) {
-            // TODO: improve error
-            return error.InvalidIrqs;
+    if (device.prop(.Interrupts)) |interrupts| {
+        if (options.irqs) |irqs| {
+            for (irqs) |i| {
+                if (i >= interrupts.len) {
+                    return error.InvalidPassthroughIrqs;
+                }
+                try system.addPassthroughDeviceIrq(interrupts[i]);
+            }
+        } else {
+            for (0..interrupts.len) |i| {
+                try system.addPassthroughDeviceIrq(interrupts[i]);
+            }
         }
-        const interrupt = interrupts[dt_irq];
-        var irq_id: u8 = undefined;
-        var irq_number: u32 = undefined;
-        if (system.sdf.arch.isArm()) {
-            // Determine the IRQ trigger and (software-observable) number based on the device tree.
-            const irq_type = dtb.armGicIrqType(interrupt[0]);
-            const irq_trigger = dtb.armGicTrigger(interrupt[2]);
-            irq_number = dtb.armGicIrqNumber(interrupt[1], irq_type);
-            irq_id = try system.vmm.addIrq(.create(irq_number, .{ .trigger = irq_trigger }));
-        } else if (system.sdf.arch.isRiscv()) {
-            irq_number = interrupt[0];
-            irq_id = try system.vmm.addIrq(.create(irq_number, .{}));
-        }
-        system.data.irqs[system.data.num_irqs] = .{
-            .id = irq_id,
-            .irq = irq_number,
-        };
-        system.data.num_irqs += 1;
+    } else if (options.irqs != null) {
+        return error.InvalidPassthroughIrqs;
     }
 }
 
@@ -163,14 +184,19 @@ fn addVirtioMmioDevice(system: *Self, device: *dtb.Node, t: Data.VirtioMmioDevic
         // TODO: improve error
         return error.InvalidVirtioDevice;
     }
-    if (system.sdf.arch != .aarch64) {
-        @panic("TODO");
-    }
     const device_paddr = dtb.regToPaddr(device, device_reg[0][0]);
     const device_size = dtb.regToSize(device_reg[0][1]);
     // TODO: check interrupts exist and that there is one interrupt only
     const interrupts = device.prop(.Interrupts).?;
-    const irq = dtb.armGicIrqNumber(interrupts[0][1], dtb.armGicIrqType(interrupts[0][0]));
+    const irq = blk: {
+        if (system.sdf.arch.isArm()) {
+            break :blk dtb.armGicIrqNumber(interrupts[0][1], dtb.armGicIrqType(interrupts[0][0]));
+        } else if (system.sdf.arch.isRiscv()) {
+            break :blk interrupts[0][0];
+        } else {
+            @panic("unexpected architecture");
+        }
+    };
     // TODO: maybe use device resources like everything else? idk
     system.data.virtio_mmio_devices[system.data.num_virtio_mmio_devices] = .{
         .type = @intFromEnum(t),

@@ -212,6 +212,8 @@ libsdfgen.sdfgen_vmm_add_passthrough_device.argtypes = [
     c_char_p,
     c_void_p,
     POINTER(c_uint8),
+    c_uint8,
+    POINTER(c_uint8),
     c_uint8
 ]
 libsdfgen.sdfgen_vmm_add_passthrough_irq.restype = c_bool
@@ -883,10 +885,30 @@ class Vmm:
     ):
         self._obj = libsdfgen.sdfgen_vmm(sdf._obj, vmm._obj, vm._obj, dtb._obj, dtb.size, one_to_one_ram)
 
-    def add_passthrough_device(self, name: str, device: DeviceTree.Node, *, irqs: List[int] = []):
+    def add_passthrough_device(
+        self,
+        name: str,
+        device: DeviceTree.Node,
+        *,
+        regions: Optional[List[int]] = None,
+        irqs: Optional[List[int]] = None
+    ):
         c_name = c_char_p(name.encode("utf-8"))
-        c_irqs = (c_uint8 * len(irqs))(*irqs)
-        return libsdfgen.sdfgen_vmm_add_passthrough_device(self._obj, c_name, device._obj, cast(c_irqs, POINTER(c_uint8)), len(irqs))
+        if regions:
+            c_regions = cast((c_uint8 * len(regions))(*regions), POINTER(c_uint8))
+            regions_len = len(c_regions)
+        else:
+            c_regions = None
+            regions_len = None
+
+        if irqs:
+            c_irqs = cast((c_uint8 * len(irqs))(*irqs), POINTER(c_uint8))
+            irqs_len = len(c_irqs)
+        else:
+            c_irqs = None
+            irqs_len = 0
+
+        return libsdfgen.sdfgen_vmm_add_passthrough_device(self._obj, c_name, device._obj, c_regions, regions_len, c_irqs, irqs_len)
 
     def add_passthrough_irq(self, irq: SystemDescription.Irq):
         return libsdfgen.sdfgen_vmm_add_passthrough_irq(self._obj, irq._obj)
