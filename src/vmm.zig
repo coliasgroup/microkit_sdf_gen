@@ -109,11 +109,20 @@ fn addPassthroughDeviceMapping(system: *Self, name: []const u8, device: *dtb.Nod
     } else {
         mr_name = name;
     }
-    const device_mr = Mr.physical(system.allocator, system.sdf, mr_name, device_size, .{
-        .paddr = device_paddr,
-    });
-    system.sdf.addMemoryRegion(device_mr);
-    system.guest.addMap(.create(device_mr, device_paddr, .rw, .{ .cached = false }));
+    var device_mr: ?Mr = null;
+    for (system.sdf.mrs.items) |mr| {
+        if (std.mem.eql(u8, mr_name, mr.name)) {
+            device_mr = mr;
+        }
+    }
+
+    if (device_mr == null) {
+        device_mr = Mr.physical(system.allocator, system.sdf, mr_name, device_size, .{
+            .paddr = device_paddr,
+        });
+        system.sdf.addMemoryRegion(device_mr.?);
+    }
+    system.guest.addMap(.create(device_mr.?, device_paddr, .rw, .{ .cached = false }));
 }
 
 pub fn addPassthroughDeviceIrq(system: *Self, interrupt: []u32) !void {
