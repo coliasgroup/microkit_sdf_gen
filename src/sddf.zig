@@ -1202,7 +1202,10 @@ pub const Net = struct {
 
         system.client_info.append(std.mem.zeroInit(ClientInfo, .{})) catch @panic("Could not add client with copier to Net");
         if (options.mac_addr) |mac_addr| {
-            system.client_info.items[client_idx].mac_addr = parseMacAddr(mac_addr) catch return Error.InvalidMacAddr;
+            system.client_info.items[client_idx].mac_addr = parseMacAddr(mac_addr) catch {
+                std.log.err("invalid MAC address given for client '{s}': '{s}'", .{ client.name, mac_addr });
+                return Error.InvalidMacAddr;
+            };
         }
         system.client_info.items[client_idx].rx_buffers = options.rx_buffers;
         system.client_info.items[client_idx].tx_buffers = options.tx_buffers;
