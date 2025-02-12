@@ -67,7 +67,7 @@ Linux (x86-64) and macOS (Intel/Apple Silicon) are supported.
 To build a usable Python package run the following:
 ```sh
 python3 -m venv venv
-./venv/bin/pip install . --use-feature=in-tree-build
+./venv/bin/pip install .
 ```
 
 Now you should be able to import and use the bindings:
