@@ -70,7 +70,7 @@ get segmentation faults that are difficult to debug.
 After making your changes you'll want to re-install the Python package to test
 it out with:
 ```sh
-./venv/bin/pip install .
+./venv/bin/pip install . --use-feature=in-tree-build
 ```
 
 ### Publishing Python packages
@@ -128,7 +128,7 @@ segmentation fault.
 
 After that, build the Python package in debug mode by doing:
 ```sh
-PYSDFGEN_DEBUG=1 ./venv/pip/install .
+PYSDFGEN_DEBUG=1 ./venv/bin/pip install . --use-feature=in-tree-build
 ```
 
 Re-run the program that's causing issues and see if any asserts or panics go
