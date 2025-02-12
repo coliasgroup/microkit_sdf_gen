@@ -166,6 +166,8 @@ pub const FileSystem = struct {
             std.mem.copyForwards(u8, &nfs_data.server, options.server);
             std.mem.copyForwards(u8, &nfs_data.export_path, options.export_path);
 
+            const mac_addr = if (options.mac_addr) |m| allocator.dupe(u8, m) catch @panic("OOM") else null;
+
             return .{
                 .fs = try FileSystem.init(allocator, sdf, fs, client, .{}),
                 .data = nfs_data,
@@ -173,7 +175,8 @@ pub const FileSystem = struct {
                 .timer = timer,
                 .net = net,
                 .net_copier = net_copier,
-                .mac_addr = options.mac_addr,
+                // TODO: free in init
+                .mac_addr = mac_addr,
             };
         }
 
