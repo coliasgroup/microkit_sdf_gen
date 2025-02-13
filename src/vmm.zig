@@ -103,9 +103,10 @@ fn addPassthroughDeviceMapping(system: *Self, name: []const u8, device: *dtb.Nod
     const device_paddr = dtb.regToPaddr(device, device_reg[index][0]);
     const device_size = dtb.regToSize(device_reg[index][1]);
     var mr_name: []const u8 = undefined;
+    var mr_name_allocated = false;
     if (device_reg.len > 1) {
         mr_name = std.fmt.allocPrint(system.allocator, "{s}{}", .{ name, index }) catch @panic("OOM");
-        defer system.allocator.free(mr_name);
+        mr_name_allocated = true;
     } else {
         mr_name = name;
     }
@@ -123,6 +124,10 @@ fn addPassthroughDeviceMapping(system: *Self, name: []const u8, device: *dtb.Nod
         system.sdf.addMemoryRegion(device_mr.?);
     }
     system.guest.addMap(.create(device_mr.?, device_paddr, .rw, .{ .cached = false }));
+
+    if (mr_name_allocated) {
+        system.allocator.free(mr_name);
+    }
 }
 
 pub fn addPassthroughDeviceIrq(system: *Self, interrupt: []u32) !void {
