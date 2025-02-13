@@ -48,6 +48,17 @@ pub const SystemDescription = struct {
         pub fn defaultPageSize(_: Arch) u64 {
             return 0x1000;
         }
+
+        pub fn roundToPage(arch: Arch, n: u64) u64 {
+            const page_size = arch.defaultPageSize();
+            if (n < page_size) {
+                return page_size;
+            } else if (n % page_size == 0) {
+                return n;
+            } else {
+                return n + (page_size - (n % page_size));
+            }
+        }
     };
 
     pub const SetVar = struct {

@@ -218,20 +218,6 @@ pub fn probe(allocator: Allocator, path: []const u8) !void {
     probed = true;
 }
 
-fn round_up(n: usize, d: usize) usize {
-    var result = d * (n / d);
-    if (n % d != 0) {
-        result += d;
-    }
-    return result;
-}
-
-// TODO: need to put this in a better place
-fn round_to_page(n: usize) usize {
-    const page_size = 4096;
-    return round_up(n, page_size);
-}
-
 pub const Config = struct {
     const Region = struct {
         /// Name of the region
@@ -1211,12 +1197,8 @@ pub const Net = struct {
         system.client_info.items[client_idx].tx_buffers = options.tx_buffers;
     }
 
-    fn queueMrSize(n_buffers: usize) usize {
-        return round_to_page(8 + 16 * n_buffers);
-    }
-
     fn createConnection(system: *Net, server: *Pd, client: *Pd, server_conn: *ConfigResources.Net.Connection, client_conn: *ConfigResources.Net.Connection, num_buffers: u64) void {
-        const queue_mr_size = queueMrSize(num_buffers);
+        const queue_mr_size = system.sdf.arch.roundToPage(num_buffers);
 
         server_conn.num_buffers = @intCast(num_buffers);
         client_conn.num_buffers = @intCast(num_buffers);
@@ -1255,7 +1237,7 @@ pub const Net = struct {
         system.createConnection(system.driver, system.virt_rx, &system.driver_config.virt_rx, &system.virt_rx_config.driver, system.rx_buffers);
 
         const rx_dma_mr_name = fmt(system.allocator, "{s}/net/rx/data/device", .{system.device.name});
-        const rx_dma_mr_size = round_to_page(system.rx_buffers * BUFFER_SIZE);
+        const rx_dma_mr_size = system.sdf.arch.roundToPage(system.rx_buffers * BUFFER_SIZE);
         const rx_dma_mr = Mr.physical(system.allocator, system.sdf, rx_dma_mr_name, rx_dma_mr_size, .{});
         system.sdf.addMemoryRegion(rx_dma_mr);
         const rx_dma_virt_map = Map.create(rx_dma_mr, system.virt_rx.getMapVaddr(&rx_dma_mr), .r, .{});
@@ -1263,7 +1245,7 @@ pub const Net = struct {
         system.virt_rx_config.data_region = .createFromMap(rx_dma_virt_map);
 
         const virt_rx_metadata_mr_name = fmt(system.allocator, "{s}/net/rx/virt_metadata", .{system.device.name});
-        const virt_rx_metadata_mr_size = round_to_page(system.rx_buffers * 4);
+        const virt_rx_metadata_mr_size = system.sdf.arch.roundToPage(system.rx_buffers * 4);
         const virt_rx_metadata_mr = Mr.create(system.allocator, virt_rx_metadata_mr_name, virt_rx_metadata_mr_size, .{});
         system.sdf.addMemoryRegion(virt_rx_metadata_mr);
         const virt_rx_metadata_map = Map.create(virt_rx_metadata_mr, system.virt_rx.getMapVaddr(&virt_rx_metadata_mr), .rw, .{});
@@ -1297,7 +1279,7 @@ pub const Net = struct {
         copier.addMap(rx_dma_copier_map);
         copier_config.device_data = .createFromMap(rx_dma_copier_map);
 
-        const client_data_mr_size = round_to_page(system.rx_buffers * BUFFER_SIZE);
+        const client_data_mr_size = system.sdf.arch.roundToPage(system.rx_buffers * BUFFER_SIZE);
         const client_data_mr_name = fmt(system.allocator, "{s}/net/rx/data/client/{s}", .{ system.device.name, client.name });
         const client_data_mr = Mr.create(system.allocator, client_data_mr_name, client_data_mr_size, .{});
         system.sdf.addMemoryRegion(client_data_mr);
@@ -1319,7 +1301,7 @@ pub const Net = struct {
 
         system.createConnection(system.virt_tx, client, &virt_client_config.conn, &client_config.tx, client_info.tx_buffers);
 
-        const data_mr_size = round_to_page(client_info.tx_buffers * BUFFER_SIZE);
+        const data_mr_size = system.sdf.arch.roundToPage(client_info.tx_buffers * BUFFER_SIZE);
         const data_mr_name = fmt(system.allocator, "{s}/net/tx/data/client/{s}", .{ system.device.name, client.name });
         const data_mr = Mr.physical(system.allocator, system.sdf, data_mr_name, data_mr_size, .{});
         system.sdf.addMemoryRegion(data_mr);
@@ -1763,10 +1745,11 @@ pub fn createDriver(sdf: *SystemDescription, pd: *Pd, device: *dtb.Node, class: 
             const dt_reg = device.prop(.Reg).?;
             assert(region_resource.dt_index.? < dt_reg.len);
 
+            // TODO: use helpers for these
             const dt_reg_entry = dt_reg[region_resource.dt_index.?];
             assert(dt_reg_entry.len == 2);
             const dt_reg_paddr = dt_reg_entry[0];
-            const dt_reg_size = round_to_page(@intCast(dt_reg_entry[1]));
+            const dt_reg_size = sdf.arch.roundToPage(@intCast(dt_reg_entry[1]));
 
             if (region_resource.size != null and dt_reg_size < region_resource.size.?) {
                 log.err("device '{s}' has config region size for dt_index '{?}' that is too small (0x{x} bytes)", .{ device.name, region_resource.dt_index, dt_reg_size });
@@ -1785,8 +1768,8 @@ pub fn createDriver(sdf: *SystemDescription, pd: *Pd, device: *dtb.Node, class: 
 
             const mr_size = if (region_resource.size != null) region_resource.size.? else dt_reg_size;
 
-            const device_paddr = dtb.regToPaddr(device, dt_reg_paddr);
-            device_reg_offset = @intCast(dt_reg_paddr % 0x1000);
+            const device_paddr = dtb.regPaddr(device, @intCast(dt_reg_paddr));
+            device_reg_offset = @intCast(dt_reg_paddr % sdf.arch.defaultPageSize());
 
             // TODO: hack when we have multiple virtIO devices. Need to come up with
             // a proper solution.

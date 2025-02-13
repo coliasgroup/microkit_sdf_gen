@@ -105,10 +105,10 @@ pub const ArmGic = struct {
             .three => 2,
         };
         const gic_reg = node.prop(.Reg).?;
-        const vcpu_paddr = if (vcpu_dt_index < gic_reg.len) regToPaddr(node, gic_reg[vcpu_dt_index][0]) else null;
+        const vcpu_paddr = if (vcpu_dt_index < gic_reg.len) regPaddr(node, gic_reg[vcpu_dt_index][0]) else null;
         // Cast should be safe as vCPU should never be larger than u64
         const vcpu_size: ?u64 = if (vcpu_dt_index < gic_reg.len) @intCast(gic_reg[vcpu_dt_index][1]) else null;
-        const cpu_paddr = if (cpu_dt_index < gic_reg.len) regToPaddr(node, gic_reg[cpu_dt_index][0]) else null;
+        const cpu_paddr = if (cpu_dt_index < gic_reg.len) regPaddr(node, gic_reg[cpu_dt_index][0]) else null;
 
         return .{
             .cpu_paddr = cpu_paddr,
@@ -182,7 +182,7 @@ pub fn findCompatible(d: *dtb.Node, compatibles: []const []const u8) ?*dtb.Node 
 // to find the CPU visible address rather than some address relative to the
 // particular bus the address is on. We also align to the smallest page size;
 // Assumes smallest page size is 0x1000.
-pub fn regToPaddr(device: *dtb.Node, paddr: u128) u64 {
+pub fn regPaddr(device: *dtb.Node, paddr: u128) u64 {
     // We have to case here because any mappable address in seL4 must be a
     // 64-bit address or smaller.
     var device_paddr: u64 = @intCast((paddr >> 12) << 12);
@@ -201,14 +201,4 @@ pub fn regToPaddr(device: *dtb.Node, paddr: u128) u64 {
     }
 
     return device_paddr;
-}
-
-pub fn regToSize(size: u128, page_size: u64) u64 {
-    if (size < page_size) {
-        return page_size;
-    } else if (size % page_size == 0) {
-        return @intCast(size);
-    } else {
-        return @intCast(size + (page_size - (size % page_size)));
-    }
 }
