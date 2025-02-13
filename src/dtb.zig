@@ -54,6 +54,7 @@ const ArmGicIrqType = enum {
 pub const ArmGic = struct {
     const Version = enum { two, three };
 
+    node: *dtb.Node,
     version: Version,
     // While every GIC on an ARM platform that supports virtualisation
     // will have a CPU and vCPU interface interface, they might be via
@@ -111,6 +112,7 @@ pub const ArmGic = struct {
         const cpu_paddr = if (cpu_dt_index < gic_reg.len) regPaddr(node, gic_reg[cpu_dt_index][0]) else null;
 
         return .{
+            .node = node,
             .cpu_paddr = cpu_paddr,
             .vcpu_paddr = vcpu_paddr,
             .vcpu_size = vcpu_size,

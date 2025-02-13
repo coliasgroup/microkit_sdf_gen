@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <system>
-    <memory_region name="gic_vcpu" size="0x10000" phys_addr="0x8040000" />
+    <memory_region name="intc@8000000/vcpu" size="0x10000" phys_addr="0x8040000" />
     <memory_region name="guest_ram_vm1" size="0x80000000" />
     <memory_region name="guest_ram_vm2" size="0x80000000" />
     <protection_domain name="vmm1">
@@ -8,7 +8,7 @@
         <map mr="guest_ram_vm1" vaddr="0x40000000" perms="rw" />
         <virtual_machine name="vm1">
             <vcpu id="0" />
-            <map mr="gic_vcpu" vaddr="0x8010000" perms="rw" cached="false" />
+            <map mr="intc@8000000/vcpu" vaddr="0x8010000" perms="rw" cached="false" />
             <map mr="guest_ram_vm1" vaddr="0x40000000" perms="rwx" />
         </virtual_machine>
     </protection_domain>
@@ -17,7 +17,7 @@
         <map mr="guest_ram_vm2" vaddr="0x40000000" perms="rw" />
         <virtual_machine name="vm2">
             <vcpu id="0" />
-            <map mr="gic_vcpu" vaddr="0x8010000" perms="rw" cached="false" />
+            <map mr="intc@8000000/vcpu" vaddr="0x8010000" perms="rw" cached="false" />
             <map mr="guest_ram_vm2" vaddr="0x40000000" perms="rwx" />
         </virtual_machine>
     </protection_domain>

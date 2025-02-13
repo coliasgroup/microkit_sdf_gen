@@ -271,15 +271,17 @@ pub fn connect(system: *Self) !void {
     if (sdf.arch.isArm()) {
         const gic = dtb.ArmGic.fromDtb(system.guest_dtb);
         if (gic.hasMmioCpuInterface()) {
+            const gic_vcpu_mr_name = fmt(allocator, "{s}/vcpu", .{ gic.node.name });
+            defer allocator.free(gic_vcpu_mr_name);
             // On ARM, map in the GIC vCPU device as the GIC CPU device in the guest's memory.
             var gic_vcpu_mr: ?Mr = null;
             for (sdf.mrs.items) |mr| {
-                if (std.mem.eql(u8, "gic_vcpu", mr.name)) {
+                if (std.mem.eql(u8, gic_vcpu_mr_name, mr.name)) {
                     gic_vcpu_mr = mr;
                 }
             }
             if (gic_vcpu_mr == null) {
-                gic_vcpu_mr = Mr.physical(allocator, sdf, "gic_vcpu", gic.vcpu_size.?, .{ .paddr = gic.vcpu_paddr.? });
+                gic_vcpu_mr = Mr.physical(allocator, sdf, gic_vcpu_mr_name, gic.vcpu_size.?, .{ .paddr = gic.vcpu_paddr.? });
                 sdf.addMemoryRegion(gic_vcpu_mr.?);
             }
             const gic_guest_map = Map.create(gic_vcpu_mr.?, gic.cpu_paddr.?, .rw, .{ .cached = false });
