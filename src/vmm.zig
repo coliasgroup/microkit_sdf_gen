@@ -101,7 +101,7 @@ const PassthroughOptions = struct {
 
 fn addPassthroughDeviceMapping(system: *Self, name: []const u8, device: *dtb.Node, device_reg: [][2]u128, index: usize) void {
     const device_paddr = dtb.regToPaddr(device, device_reg[index][0]);
-    const device_size = dtb.regToSize(device_reg[index][1]);
+    const device_size = dtb.regToSize(device_reg[index][1], system.sdf.arch.defaultPageSize());
     var mr_name: []const u8 = undefined;
     var mr_name_allocated = false;
     if (device_reg.len > 1) {
@@ -199,7 +199,7 @@ fn addVirtioMmioDevice(system: *Self, device: *dtb.Node, t: Data.VirtioMmioDevic
         return error.InvalidVirtioDevice;
     }
     const device_paddr = dtb.regToPaddr(device, device_reg[0][0]);
-    const device_size = dtb.regToSize(device_reg[0][1]);
+    const device_size = dtb.regToSize(device_reg[0][1], system.sdf.arch.defaultPageSize());
     // TODO: check interrupts exist and that there is one interrupt only
     const interrupts = device.prop(.Interrupts).?;
     const irq = blk: {

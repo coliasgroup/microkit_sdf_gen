@@ -44,6 +44,10 @@ pub const SystemDescription = struct {
         pub fn isX86(arch: Arch) bool {
             return arch == .x86 or arch == .x86_64;
         }
+
+        pub fn defaultPageSize(_: Arch) u64 {
+            return 0x1000;
+        }
     };
 
     pub const SetVar = struct {

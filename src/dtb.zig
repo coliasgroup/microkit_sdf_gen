@@ -204,12 +204,10 @@ pub fn regToPaddr(device: *dtb.Node, paddr: u128) u64 {
     return device_paddr;
 }
 
-pub fn regToSize(size: u128) u64 {
-    // TODO: store page size somewhere
-    if (size < 0x1000) {
-        return 0x1000;
+pub fn regToSize(size: u128, page_size: u64) u64 {
+    if (size < page_size) {
+        return page_size;
     } else {
-        // TODO: round to page size
-        return @intCast(size);
+        return @intCast(size + (page_size - (size % page_size)));
     }
 }
