@@ -3,7 +3,6 @@
 /// confusing.
 /// This module serves to do common higher-level things on the device tree
 /// for our device drivers, virtual machines etc.
-
 const std = @import("std");
 const sdf = @import("sdf.zig");
 const dtb = @import("dtb");
@@ -207,6 +206,8 @@ pub fn regToPaddr(device: *dtb.Node, paddr: u128) u64 {
 pub fn regToSize(size: u128, page_size: u64) u64 {
     if (size < page_size) {
         return page_size;
+    } else if (size % page_size == 0) {
+        return @intCast(size);
     } else {
         return @intCast(size + (page_size - (size % page_size)));
     }
