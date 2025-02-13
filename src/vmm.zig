@@ -90,15 +90,6 @@ fn fmt(allocator: Allocator, comptime s: []const u8, args: anytype) []u8 {
     return std.fmt.allocPrint(allocator, s, args) catch @panic("OOM");
 }
 
-const PassthroughOptions = struct {
-    /// Indices into the Device Tree node's regions to passthrough
-    /// When null, all regions are passed through
-    regions: ?[]const u8 = null,
-    /// Indices into the Device Tree node's interrupts to passthrough
-    /// When null, all IRQs are passed through
-    irqs: ?[]const u8 = null,
-};
-
 fn addPassthroughDeviceMapping(system: *Self, name: []const u8, device: *dtb.Node, device_reg: [][2]u128, index: usize) void {
     const device_paddr = dtb.regPaddr(device, device_reg[index][0]);
     const device_size = system.sdf.arch.roundToPage(@intCast(device_reg[index][1]));
@@ -150,9 +141,18 @@ pub fn addPassthroughDeviceIrq(system: *Self, interrupt: []u32) !void {
     system.data.num_irqs += 1;
 }
 
-/// A currently naive approach to adding passthrough for a particular device
-/// to a virtual machine.
-/// This adds the required interrupts to be given to the VMM, and the TODO finish description
+const PassthroughOptions = struct {
+    /// Indices into the Device Tree node's 'reg' to passthrough
+    /// When null, all regions are passed through
+    regions: ?[]const u8 = null,
+    /// Indices into the Device Tree node's 'interrupts' to passthrough
+    /// When null, all interrupts are passed through
+    irqs: ?[]const u8 = null,
+};
+
+/// Give a virtual machine passthrough access to a device.
+/// Depending on the options given, this will add all regions and interrupts
+/// associated with the device, a subset of them, or none of them.
 pub fn addPassthroughDevice(system: *Self, name: []const u8, device: *dtb.Node, options: PassthroughOptions) !void {
     // Find the device, get it's memory regions and add it to the guest. Add its IRQs to the VMM.
     if (device.prop(.Reg)) |device_reg| {
@@ -168,7 +168,7 @@ pub fn addPassthroughDevice(system: *Self, name: []const u8, device: *dtb.Node, 
                 system.addPassthroughDeviceMapping(name, device, device_reg, i);
             }
         }
-    } else if (options.regions != null) {
+    } else if (options.regions != null and options.regions.?.len != 0) {
         return error.InvalidPassthroughRegions;
     }
 
@@ -185,7 +185,7 @@ pub fn addPassthroughDevice(system: *Self, name: []const u8, device: *dtb.Node, 
                 try system.addPassthroughDeviceIrq(interrupts[i]);
             }
         }
-    } else if (options.irqs != null) {
+    } else if (options.irqs != null and options.irqs.?.len != 0) {
         return error.InvalidPassthroughIrqs;
     }
 }
