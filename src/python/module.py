@@ -298,7 +298,7 @@ def ffi_bool_ptr(val: Optional[bool]):
     Convert a bool value to a bool pointer for FFI.
     If 'val' is None then we return None (which acts as a null pointer)
     """
-    if n is None:
+    if val is None:
         return None
 
     return pointer(c_bool(val))
@@ -572,6 +572,7 @@ class SystemDescription:
             notify_a: Optional[bool] = None,
             notify_b: Optional[bool] = None,
         ) -> None:
+            c_pp = None
             if pp_a is not None:
                 c_pp = 0
             elif pp_b is not None:
@@ -587,7 +588,7 @@ class SystemDescription:
                 ffi_uint8_ptr(b_id),
                 ffi_bool_ptr(notify_a),
                 ffi_bool_ptr(notify_b),
-                ffi_uint8_ptr(pp_val),
+                ffi_uint8_ptr(c_pp),
             )
 
         @property
