@@ -215,6 +215,11 @@ export fn sdfgen_vm_destroy(c_vm: *align(8) anyopaque) void {
     allocator.destroy(vm);
 }
 
+export fn sdfgen_vm_set_priority(c_vm: *align(8) anyopaque, priority: u8) void {
+    const vm: *Vm = @ptrCast(c_vm);
+    vm.priority = priority;
+}
+
 export fn sdfgen_vm_vcpu_create(id: u8, cpu: u16) *anyopaque {
     const vcpu: *Vm.Vcpu = allocator.create(Vm.Vcpu) catch @panic("OOM");
     vcpu.* = Vm.Vcpu{ .id = id };
