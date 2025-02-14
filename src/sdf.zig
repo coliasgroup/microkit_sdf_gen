@@ -197,7 +197,7 @@ pub const SystemDescription = struct {
         cached: ?bool,
         setvar_vaddr: ?[]const u8,
 
-        const Options = struct {
+        pub const Options = struct {
             cached: ?bool = null,
             setvar_vaddr: ?[]const u8 = null,
         };

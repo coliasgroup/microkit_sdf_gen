@@ -93,6 +93,29 @@ fn fmt(allocator: Allocator, comptime s: []const u8, args: anytype) []u8 {
 fn addPassthroughDeviceMapping(system: *Self, name: []const u8, device: *dtb.Node, device_reg: [][2]u128, index: usize) void {
     const device_paddr = dtb.regPaddr(device, device_reg[index][0]);
     const device_size = system.sdf.arch.roundToPage(@intCast(device_reg[index][1]));
+
+    const map_perms: Map.Perms = .rw;
+    const map_options: Map.Options = .{ .cached = false };
+
+    // Because of multiple devices being on the same page of physical memory occassionally,
+    // check if we have already created an MR for this.
+    for (system.sdf.mrs.items) |mr| {
+        if (mr.paddr) |paddr| {
+            if (paddr == device_paddr) {
+                for (system.guest.maps.items) |map| {
+                    if (map.mr.paddr) |map_paddr| {
+                        if (device_paddr == map_paddr) {
+                            // Mapping for this MR exists already, nothing to do.
+                            return;
+                        }
+                    }
+                }
+                // The MR exists but is not mapped in the guest yet, map it in.
+                system.guest.addMap(.create(mr, device_paddr, map_perms, map_options));
+            }
+        }
+    }
+
     var mr_name: []const u8 = undefined;
     var mr_name_allocated = false;
     if (device_reg.len > 1) {
@@ -114,7 +137,7 @@ fn addPassthroughDeviceMapping(system: *Self, name: []const u8, device: *dtb.Nod
         });
         system.sdf.addMemoryRegion(device_mr.?);
     }
-    system.guest.addMap(.create(device_mr.?, device_paddr, .rw, .{ .cached = false }));
+    system.guest.addMap(.create(device_mr.?, device_paddr, map_perms, map_options));
 
     if (mr_name_allocated) {
         system.allocator.free(mr_name);
