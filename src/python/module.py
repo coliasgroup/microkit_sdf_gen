@@ -539,7 +539,6 @@ class SystemDescription:
     class Channel:
         _obj: c_void_p
 
-        # TODO: handle options
         def __init__(
             self,
             a: SystemDescription.ProtectionDomain,
