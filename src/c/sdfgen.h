@@ -62,7 +62,7 @@ void sdfgen_vm_add_map(void *vm, void *map);
 void *sdfgen_vm_vcpu_create(uint8_t id, uint16_t cpu);
 void sdfgen_vm_vcpu_destroy(void *vm);
 
-void *sdfgen_channel_create(void *pd_a, void *pd_b);
+void *sdfgen_channel_create(void *pd_a, void *pd_b, uint8_t *pd_a_id, uint8_t *pd_b_id, bool *pd_a_notify, bool *pd_b_notify, uint8_t *pp);
 void sdfgen_channel_destroy(void *ch);
 uint8_t sdfgen_channel_get_pd_a_id(void *ch);
 uint8_t sdfgen_channel_get_pd_b_id(void *ch);

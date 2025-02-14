@@ -319,10 +319,32 @@ export fn sdfgen_map_destroy(c_map: *align(8) anyopaque) void {
     allocator.destroy(map);
 }
 
-// TODO: handle specifying channel parameters
-export fn sdfgen_channel_create(pd_a: *align(8) anyopaque, pd_b: *align(8) anyopaque) *anyopaque {
+export fn sdfgen_channel_create(pd_a: *align(8) anyopaque, pd_b: *align(8) anyopaque, pd_a_id: [*c]u8, pd_b_id: [*c]u8, pd_a_notify: [*c]bool, pd_b_notify: [*c]bool, pp: [*c]u8) *anyopaque {
+    var options: Channel.Options = .{};
+    if (pd_a_id != null) {
+        options.pd_a_id = pd_a_id.*;
+    }
+    if (pd_b_id != null) {
+        options.pd_b_id = pd_b_id.*;
+    }
+    if (pd_a_notify != null) {
+        options.pd_a_notify = pd_a_notify.*;
+    }
+    if (pd_b_notify != null) {
+        options.pd_b_notify = pd_b_notify.*;
+    }
+    if (pp != null) {
+        if (pp == 0) {
+            options.pp = .a;
+        } else if (pp == 1) {
+            options.pp = .b;
+        } else {
+            @panic("TODO");
+        }
+    }
+
     const ch = allocator.create(Channel) catch @panic("OOM");
-    ch.* = Channel.create(@ptrCast(pd_a), @ptrCast(pd_b), .{}) catch @panic("TODO");
+    ch.* = Channel.create(@ptrCast(pd_a), @ptrCast(pd_b), options) catch @panic("TODO");
 
     return ch;
 }

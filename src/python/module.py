@@ -60,7 +60,15 @@ libsdfgen.sdfgen_render.restype = c_char_p
 libsdfgen.sdfgen_render.argtypes = [c_void_p]
 
 libsdfgen.sdfgen_channel_create.restype = c_void_p
-libsdfgen.sdfgen_channel_create.argtypes = [c_void_p, c_void_p]
+libsdfgen.sdfgen_channel_create.argtypes = [
+    c_void_p,
+    c_void_p,
+    POINTER(c_uint8),
+    POINTER(c_uint8),
+    POINTER(c_bool),
+    POINTER(c_bool),
+    POINTER(c_uint8),
+]
 libsdfgen.sdfgen_channel_destroy.restype = None
 libsdfgen.sdfgen_channel_destroy.argtypes = [c_void_p]
 libsdfgen.sdfgen_channel_get_pd_a_id.restype = c_uint8
@@ -502,7 +510,7 @@ class SystemDescription:
                 self._obj = libsdfgen.sdfgen_mr_create_physical(c_name, size, paddr)
             else:
                 self._obj = libsdfgen.sdfgen_mr_create(c_name, size)
-    
+
         @property
         def paddr(self):
             paddr = c_uint64(0)
@@ -537,12 +545,37 @@ class SystemDescription:
             a: SystemDescription.ProtectionDomain,
             b: SystemDescription.ProtectionDomain,
             *,
-            pp_a=False,
-            pp_b=False,
-            notify_a=True,
-            notify_b=True
+            a_id: Optional[int] = None,
+            b_id: Optional[int] = None,
+            pp_a: Optional[bool] = None,
+            pp_b: Optional[bool] = None,
+            notify_a: Optional[bool] = None,
+            notify_b: Optional[bool] = None,
         ) -> None:
-            self._obj = libsdfgen.sdfgen_channel_create(a._obj, b._obj)
+            a_id_ptr = None
+            if a_id is not None:
+                a_id_ptr = pointer(a_id)
+            b_id_ptr = None
+            if b_id is not None:
+                b_id_ptr = pointer(b_id)
+
+            if pp_a is not None:
+                pp = 0
+            elif pp_b is not None:
+                pp = 1
+            else:
+                pp = None
+
+            notify_a_ptr = None
+            if notify_a:
+                notify_a_ptr = pointer(notify_a)
+            if notify_b:
+                notify_b_ptr = pointer(notify_b)
+
+            if pp_a is not None and pp_b is not None:
+                raise Exception("attempting to create channel with PP on both ends")
+
+            self._obj = libsdfgen.sdfgen_channel_create(a._obj, b._obj, a_id_ptr, b_id_ptr, notify_a_ptr, notify_b_ptr, pointer(pp))
 
         @property
         def pd_a_id(self) -> int:
