@@ -119,7 +119,7 @@ fn addPassthroughDeviceMapping(system: *Self, name: []const u8, device: *dtb.Nod
     var mr_name: []const u8 = undefined;
     var mr_name_allocated = false;
     if (device_reg.len > 1) {
-        mr_name = std.fmt.allocPrint(system.allocator, "{s}{}", .{ name, index }) catch @panic("OOM");
+        mr_name = std.fmt.allocPrint(system.allocator, "{s}/{}", .{ name, index }) catch @panic("OOM");
         mr_name_allocated = true;
     } else {
         mr_name = name;
@@ -176,7 +176,8 @@ const PassthroughOptions = struct {
 /// Give a virtual machine passthrough access to a device.
 /// Depending on the options given, this will add all regions and interrupts
 /// associated with the device, a subset of them, or none of them.
-pub fn addPassthroughDevice(system: *Self, name: []const u8, device: *dtb.Node, options: PassthroughOptions) !void {
+pub fn addPassthroughDevice(system: *Self, device: *dtb.Node, options: PassthroughOptions) !void {
+    const name = device.name;
     // Find the device, get it's memory regions and add it to the guest. Add its IRQs to the VMM.
     if (device.prop(.Reg)) |device_reg| {
         if (options.regions) |regions| {

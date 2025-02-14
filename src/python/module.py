@@ -212,20 +212,17 @@ libsdfgen.sdfgen_vmm.argtypes = [
 libsdfgen.sdfgen_vmm_add_passthrough_device.restype = c_bool
 libsdfgen.sdfgen_vmm_add_passthrough_device.argtypes = [
     c_void_p,
-    c_char_p,
     c_void_p,
 ]
 libsdfgen.sdfgen_vmm_add_passthrough_device_regions.restype = c_bool
 libsdfgen.sdfgen_vmm_add_passthrough_device_regions.argtypes = [
     c_void_p,
-    c_char_p,
     c_void_p,
     POINTER(c_uint8),
     c_uint8,
 ]
 libsdfgen.sdfgen_vmm_add_passthrough_device_irqs.argtypes = [
     c_void_p,
-    c_char_p,
     c_void_p,
     POINTER(c_uint8),
     c_uint8,
@@ -903,31 +900,33 @@ class Vmm:
 
     def add_passthrough_device(
         self,
-        name: str,
         device: DeviceTree.Node,
         *,
         regions: Optional[List[int]] = None,
         irqs: Optional[List[int]] = None
     ):
         """
-
+        Add pass-through access to a particular device based on its DTB node.
+        :param regions: list of indices into the 'reg' field of the device to be mapped in. If None
+                        then every region passed through.
+        :param irqs: list of indices into the 'interrupts' field of the device to be created. If None
+                        then every IRQ is passed through.
         """
-        c_name = c_char_p(name.encode("utf-8"))
         if regions is None and irqs is None:
             # If the user passed None, that means we need to map everything in
-            return libsdfgen.sdfgen_vmm_add_passthrough_device(self._obj, c_name, device._obj)
+            return libsdfgen.sdfgen_vmm_add_passthrough_device(self._obj, device._obj)
         elif irqs is not None:
             # Pass through specific IRQs, all regions
             c_irqs = cast((c_uint8 * len(irqs))(*irqs), POINTER(c_uint8))
             irqs_len = len(irqs)
-            ret = libsdfgen.sdfgen_vmm_add_passthrough_device_irqs(self._obj, c_name, device._obj, c_irqs, irqs_len)
-            ret = libsdfgen.sdfgen_vmm_add_passthrough_device_regions(self._obj, c_name, device._obj, None, 0)
+            ret = libsdfgen.sdfgen_vmm_add_passthrough_device_irqs(self._obj, device._obj, c_irqs, irqs_len)
+            ret = libsdfgen.sdfgen_vmm_add_passthrough_device_regions(self._obj, device._obj, None, 0)
         elif regions is not None:
             # Pass through specific regions, all IRQs
             c_regions = cast((c_uint8 * len(regions))(*regions), POINTER(c_uint8))
             regions_len = len(regions)
-            ret = libsdfgen.sdfgen_vmm_add_passthrough_device_regions(self._obj, c_name, device._obj, c_regions, regions_len)
-            ret = libsdfgen.sdfgen_vmm_add_passthrough_device_irqs(self._obj, c_name, device._obj, None, 0)
+            ret = libsdfgen.sdfgen_vmm_add_passthrough_device_regions(self._obj, device._obj, c_regions, regions_len)
+            ret = libsdfgen.sdfgen_vmm_add_passthrough_device_irqs(self._obj, device._obj, None, 0)
         else:
             # unreachable case
             raise Exception("internal error")
