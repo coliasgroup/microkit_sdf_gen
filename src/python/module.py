@@ -554,28 +554,35 @@ class SystemDescription:
         ) -> None:
             a_id_ptr = None
             if a_id is not None:
-                a_id_ptr = pointer(a_id)
+                a_id_u8 = c_uint8(a_id)
+                a_id_ptr = pointer(a_id_u8)
             b_id_ptr = None
             if b_id is not None:
-                b_id_ptr = pointer(b_id)
+                b_id_u8 = c_uint8(b_id)
+                b_id_ptr = pointer(b_id_u8)
 
+            pp_ptr = None
             if pp_a is not None:
-                pp = 0
+                pp = c_uint8(0)
+                pp_ptr = pointer(pp)
             elif pp_b is not None:
-                pp = 1
-            else:
-                pp = None
+                pp = c_uint8(1)
+                pp_ptr = pointer(pp)
+            
 
             notify_a_ptr = None
+            notify_b_ptr = None
             if notify_a:
-                notify_a_ptr = pointer(notify_a)
+                notify_a_c = c_bool(notify_a)
+                notify_a_ptr = pointer(notify_a_c)
             if notify_b:
-                notify_b_ptr = pointer(notify_b)
+                notify_b_c = c_bool(notify_b)
+                notify_b_ptr = pointer(notify_b_c)
 
             if pp_a is not None and pp_b is not None:
                 raise Exception("attempting to create channel with PP on both ends")
 
-            self._obj = libsdfgen.sdfgen_channel_create(a._obj, b._obj, a_id_ptr, b_id_ptr, notify_a_ptr, notify_b_ptr, pointer(pp))
+            self._obj = libsdfgen.sdfgen_channel_create(a._obj, b._obj, a_id_ptr, b_id_ptr, notify_a_ptr, notify_b_ptr, pp_ptr)
 
         @property
         def pd_a_id(self) -> int:
