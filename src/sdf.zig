@@ -84,7 +84,7 @@ pub const SystemDescription = struct {
         paddr: ?u64,
         page_size: ?PageSize,
 
-        const Options = struct {
+        pub const Options = struct {
             page_size: ?PageSize = null,
         };
 
@@ -297,7 +297,7 @@ pub const SystemDescription = struct {
         vcpus: []const Vcpu,
         maps: ArrayList(Map),
 
-        const Options = struct {
+        pub const Options = struct {
             priority: ?u8 = null,
             budget: ?u32 = null,
             period: ?u32 = null,
@@ -411,7 +411,7 @@ pub const SystemDescription = struct {
 
         pub const DEFAULT_PRIORITY: u8 = 100;
 
-        const Options = struct {
+        pub const Options = struct {
             passive: ?bool = null,
             priority: ?u8 = null,
             budget: ?u32 = null,
@@ -649,7 +649,7 @@ pub const SystemDescription = struct {
 
         const End = enum { a, b };
 
-        const Options = struct {
+        pub const Options = struct {
             pd_a_notify: ?bool = null,
             pd_b_notify: ?bool = null,
             pp: ?End = null,
