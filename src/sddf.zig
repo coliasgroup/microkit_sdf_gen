@@ -1198,7 +1198,7 @@ pub const Net = struct {
     }
 
     fn createConnection(system: *Net, server: *Pd, client: *Pd, server_conn: *ConfigResources.Net.Connection, client_conn: *ConfigResources.Net.Connection, num_buffers: u64) void {
-        const queue_mr_size = system.sdf.arch.roundToPage(num_buffers);
+        const queue_mr_size = system.sdf.arch.roundToPage(8 + 16 * num_buffers);
 
         server_conn.num_buffers = @intCast(num_buffers);
         client_conn.num_buffers = @intCast(num_buffers);
