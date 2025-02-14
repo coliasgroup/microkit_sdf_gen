@@ -909,17 +909,20 @@ class Vmm:
         regions: Optional[List[int]] = None,
         irqs: Optional[List[int]] = None
     ):
+        """
+
+        """
         c_name = c_char_p(name.encode("utf-8"))
         if regions is None and irqs is None:
             # If the user passed None, that means we need to map everything in
             return libsdfgen.sdfgen_vmm_add_passthrough_device(self._obj, c_name, device._obj)
-        elif irqs:
+        elif irqs is not None:
             # Pass through specific IRQs, all regions
             c_irqs = cast((c_uint8 * len(irqs))(*irqs), POINTER(c_uint8))
             irqs_len = len(irqs)
             ret = libsdfgen.sdfgen_vmm_add_passthrough_device_irqs(self._obj, c_name, device._obj, c_irqs, irqs_len)
             ret = libsdfgen.sdfgen_vmm_add_passthrough_device_regions(self._obj, c_name, device_obj, None, 0)
-        elif regions:
+        elif regions is not None:
             # Pass through specific regions, all IRQs
             c_regions = cast((c_uint8 * len(regions))(*regions), POINTER(c_uint8))
             regions_len = len(regions)
