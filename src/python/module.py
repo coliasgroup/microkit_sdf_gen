@@ -921,13 +921,13 @@ class Vmm:
             c_irqs = cast((c_uint8 * len(irqs))(*irqs), POINTER(c_uint8))
             irqs_len = len(irqs)
             ret = libsdfgen.sdfgen_vmm_add_passthrough_device_irqs(self._obj, c_name, device._obj, c_irqs, irqs_len)
-            ret = libsdfgen.sdfgen_vmm_add_passthrough_device_regions(self._obj, c_name, device_obj, None, 0)
+            ret = libsdfgen.sdfgen_vmm_add_passthrough_device_regions(self._obj, c_name, device._obj, None, 0)
         elif regions is not None:
             # Pass through specific regions, all IRQs
             c_regions = cast((c_uint8 * len(regions))(*regions), POINTER(c_uint8))
             regions_len = len(regions)
             ret = libsdfgen.sdfgen_vmm_add_passthrough_device_regions(self._obj, c_name, device._obj, c_regions, regions_len)
-            ret = libsdfgen.sdfgen_vmm_add_passthrough_device_irqs(self._obj, c_name, device_obj, None, 0)
+            ret = libsdfgen.sdfgen_vmm_add_passthrough_device_irqs(self._obj, c_name, device._obj, None, 0)
         else:
             # unreachable case
             raise Exception("internal error")
