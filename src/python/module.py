@@ -90,6 +90,9 @@ libsdfgen.sdfgen_vm_create.argtypes = [c_char_p, POINTER(c_void_p), c_uint32]
 libsdfgen.sdfgen_vm_destroy.restype = None
 libsdfgen.sdfgen_vm_destroy.argtypes = [c_void_p]
 
+libsdfgen.sdfgen_vm_set_priority.restype = None
+libsdfgen.sdfgen_vm_set_priority.argtypes = [c_void_p, c_uint8]
+
 libsdfgen.sdfgen_vm_add_map.restype = None
 libsdfgen.sdfgen_vm_add_map.argtypes = [c_void_p, c_void_p]
 
@@ -423,12 +426,14 @@ class SystemDescription:
                 # TODO: error checking
                 self._obj = libsdfgen.sdfgen_vm_vcpu_create(id, cpu)
 
-        def __init__(self, name: str, vcpus: List[Vcpu]):
+        def __init__(self, name: str, vcpus: List[Vcpu], priority: Optional[int] = None):
             vcpus_tuple: Tuple[c_void_p] = tuple([vcpu._obj for vcpu in vcpus])
             c_vcpus = (c_void_p * len(vcpus))(*vcpus_tuple)
             c_name = c_char_p(name.encode("utf-8"))
             self._name = name
             self._obj = libsdfgen.sdfgen_vm_create(c_name, cast(c_vcpus, POINTER(c_void_p)), len(vcpus))
+            if priority is not None:
+                libsdfgen.sdfgen_vm_set_priority(self._obj, priority)
 
         @property
         def name(self) -> str:
