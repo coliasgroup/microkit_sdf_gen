@@ -282,6 +282,27 @@ libsdfgen.sdfgen_sddf_lwip_connect.argtypes = [c_void_p]
 libsdfgen.sdfgen_sddf_lwip_serialise_config.restype = c_bool
 libsdfgen.sdfgen_sddf_lwip_serialise_config.argtypes = [c_void_p, c_char_p]
 
+def ffi_uint8_ptr(n: Optional[int]):
+    """
+    Convert an int value to a uint8_t pointer for FFI.
+    If 'n' is None then we return None (which acts as a null pointer)
+    """
+    if n is None:
+        return None
+
+    return pointer(c_uint8(n))
+
+
+def ffi_bool_ptr(val: Optional[bool]):
+    """
+    Convert a bool value to a bool pointer for FFI.
+    If 'val' is None then we return None (which acts as a null pointer)
+    """
+    if n is None:
+        return None
+
+    return pointer(c_bool(val))
+
 
 class DeviceTree:
     """
@@ -551,37 +572,23 @@ class SystemDescription:
             notify_a: Optional[bool] = None,
             notify_b: Optional[bool] = None,
         ) -> None:
-            a_id_ptr = None
-            if a_id is not None:
-                a_id_u8 = c_uint8(a_id)
-                a_id_ptr = pointer(a_id_u8)
-            b_id_ptr = None
-            if b_id is not None:
-                b_id_u8 = c_uint8(b_id)
-                b_id_ptr = pointer(b_id_u8)
-
-            pp_ptr = None
             if pp_a is not None:
-                pp = c_uint8(0)
-                pp_ptr = pointer(pp)
+                c_pp = 0
             elif pp_b is not None:
-                pp = c_uint8(1)
-                pp_ptr = pointer(pp)
-            
-
-            notify_a_ptr = None
-            notify_b_ptr = None
-            if notify_a:
-                notify_a_c = c_bool(notify_a)
-                notify_a_ptr = pointer(notify_a_c)
-            if notify_b:
-                notify_b_c = c_bool(notify_b)
-                notify_b_ptr = pointer(notify_b_c)
+                c_pp = 1
 
             if pp_a is not None and pp_b is not None:
                 raise Exception("attempting to create channel with PP on both ends")
 
-            self._obj = libsdfgen.sdfgen_channel_create(a._obj, b._obj, a_id_ptr, b_id_ptr, notify_a_ptr, notify_b_ptr, pp_ptr)
+            self._obj = libsdfgen.sdfgen_channel_create(
+                a._obj,
+                b._obj,
+                ffi_uint8_ptr(a_id),
+                ffi_uint8_ptr(b_id),
+                ffi_bool_ptr(notify_a),
+                ffi_bool_ptr(notify_b),
+                ffi_uint8_ptr(pp_val),
+            )
 
         @property
         def pd_a_id(self) -> int:
