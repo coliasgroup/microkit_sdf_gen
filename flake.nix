@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: BSD-2-Clause
 #
 {
-  description = "A flake for building sDDF";
+  description = "A flake for building sdfgen";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.11";
