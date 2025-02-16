@@ -14,8 +14,8 @@
   let deps = linkFarm "zig-packages" [ {
     name = "12203b53b94afece3a3bda2798fca90d3ccf34cf9d96be99d2adc573ea1438a0c233";
     path = fetchzip {
-      url = "https://github.com/Ivan-Velickovic/dtb.zig/archive/dafd03209d97092909b4faeda630839b17fa1ae4.tar.gz";
-      hash = "sha256-8UFLQTVKxPJO1CaOR/ZRR1zOyol4NAUZCY59ouXTChA=";
+      url = "https://github.com/Ivan-Velickovic/dtb.zig/archive/6a1307379f5a0c048dbf8e4eb01644eb215c76e7.tar.gz";
+      hash = "sha256-a86Yg/amDqK28YoTBB6Ex0l1Wi39ZCI1M1qD93mkPFc=";
     };
   } ];
 in
