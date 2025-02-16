@@ -5,20 +5,12 @@ const allocPrint = std.fmt.allocPrint;
 const log = @import("log.zig");
 
 pub const SystemDescription = struct {
-    /// Store the allocator used when creating the SystemDescirption so we
-    /// can later deinit everything
     allocator: Allocator,
-    /// Array holding all the bytes for the XML data
     xml_data: ArrayList(u8),
-    /// We use the Writer standard library API to add to this xml_data array
     xml: ArrayList(u8).Writer,
-    /// There are some architecture specific options
     arch: Arch,
-    /// Protection Domains that should be exported
     pds: ArrayList(*ProtectionDomain),
-    /// Memory Regions that should be exported
     mrs: ArrayList(MemoryRegion),
-    /// Channels that should be exported
     channels: ArrayList(Channel),
     /// Highest allocatable physical address on the platform
     paddr_top: u64,
