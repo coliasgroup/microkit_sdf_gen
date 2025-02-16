@@ -156,6 +156,8 @@ pub fn addPassthroughDeviceIrq(system: *Self, interrupt: []u32) !void {
     } else if (system.sdf.arch.isRiscv()) {
         irq_number = interrupt[0];
         irq_id = try system.vmm.addIrq(.create(irq_number, .{}));
+    } else {
+        @panic("unknown architecture");
     }
     system.data.irqs[system.data.num_irqs] = .{
         .id = irq_id,
