@@ -164,7 +164,7 @@ pub fn probe(allocator: Allocator, path: []const u8) !void {
 
                 // This should never fail since device_class.name must be valid since we are looping
                 // based on the valid device classes.
-                const config = Config.Driver.fromJson(json, device_class.name) catch unreachable;
+                const config = Config.Driver.fromJson(json, device_class.name, driver_dir) catch unreachable;
 
                 // Check IRQ resources are valid
                 var checked_irqs = std.ArrayList(DeviceTreeIndex).init(allocator);
@@ -172,7 +172,7 @@ pub fn probe(allocator: Allocator, path: []const u8) !void {
                 for (config.resources.irqs) |irq| {
                     for (checked_irqs.items) |checked_dt_index| {
                         if (irq.dt_index == checked_dt_index) {
-                            log.err("duplicate irq dt_index value '{}' for driver '{s}'", .{ irq.dt_index, config.name });
+                            log.err("duplicate irq dt_index value '{}' for driver '{s}'", .{ irq.dt_index, driver_dir });
                             return error.InvalidConfig;
                         }
                     }
@@ -185,12 +185,12 @@ pub fn probe(allocator: Allocator, path: []const u8) !void {
                 for (config.resources.regions) |region| {
                     for (checked_regions.items) |checked_region| {
                         if (std.mem.eql(u8, region.name, checked_region.name)) {
-                            log.err("duplicate region name '{s}' for driver '{s}'", .{ region.name, config.name });
+                            log.err("duplicate region name '{s}' for driver '{s}'", .{ region.name, driver_dir });
                             return error.InvalidConfig;
                         }
                         if (region.dt_index != null and checked_region.dt_index != null) {
                             if (region.dt_index.? == checked_region.dt_index.?) {
-                                log.err("duplicate region dt_index value '{}' for driver '{s}'", .{ region.dt_index.?, config.name });
+                                log.err("duplicate region dt_index value '{}' for driver '{s}'", .{ region.dt_index.?, driver_dir });
                                 return error.InvalidConfig;
                             }
                         }
@@ -202,7 +202,7 @@ pub fn probe(allocator: Allocator, path: []const u8) !void {
                 for (config.compatible) |compatible| {
                     for (checked_compatibles.items) |checked_compatible| {
                         if (std.mem.eql(u8, checked_compatible, compatible)) {
-                            log.err("duplicate compatible string '{s}' for driver '{s}'", .{ compatible, config.name });
+                            log.err("duplicate compatible string '{s}' for driver '{s}'", .{ compatible, driver_dir });
                             return error.InvalidConfig;
                         }
                     }
@@ -244,7 +244,7 @@ pub const Config = struct {
     /// to store that is not specified in the JSON configuration.
     /// For example, the device class that the driver belongs to.
     pub const Driver = struct {
-        name: []const u8,
+        dir: []const u8,
         class: Class,
         compatible: []const []const u8,
         resources: Resources,
@@ -255,18 +255,17 @@ pub const Config = struct {
         };
 
         pub const Json = struct {
-            name: []const u8,
             compatible: []const []const u8,
             resources: Resources,
         };
 
-        pub fn fromJson(json: Json, class_str: []const u8) !Driver {
+        pub fn fromJson(json: Json, class_str: []const u8, dir: []const u8) !Driver {
             const class = Class.fromStr(class_str);
             if (class == null) {
                 return error.InvalidClass;
             }
             return .{
-                .name = json.name,
+                .dir = dir,
                 .class = class.?,
                 .compatible = json.compatible,
                 .resources = json.resources,
@@ -1717,7 +1716,7 @@ pub fn createDriver(sdf: *SystemDescription, pd: *Pd, device: *dtb.Node, class: 
         log.err("Cannot find driver matching '{s}' for class '{s}'", .{ device.name, @tagName(class) });
         return error.UnknownDevice;
     };
-    log.debug("Found compatible driver '{s}'", .{driver.name});
+    log.debug("Found compatible driver '{s}'", .{ driver.dir });
 
     // If a status property does exist, we should check that it is 'okay'
     if (device.prop(.Status)) |status| {
@@ -1730,14 +1729,14 @@ pub fn createDriver(sdf: *SystemDescription, pd: *Pd, device: *dtb.Node, class: 
     for (driver.resources.regions) |region_resource| {
         // TODO: all this error checking should be done when we parse config.json
         if (region_resource.dt_index == null and region_resource.size == null) {
-            log.err("driver '{s}' has region resource '{s}'' which specifies neither dt_index nor size: one or both must be specified", .{ driver.name, region_resource.name });
+            log.err("driver '{s}' has region resource '{s}'' which specifies neither dt_index nor size: one or both must be specified", .{ driver.dir, region_resource.name });
         }
 
         if (region_resource.dt_index != null and region_resource.cached != null and region_resource.cached.? == true) {
-            log.err("driver '{s}' has region resource '{s}' which tries to map MMIO region as cached", .{ driver.name, region_resource.name });
+            log.err("driver '{s}' has region resource '{s}' which tries to map MMIO region as cached", .{ driver.dir , region_resource.name });
         }
 
-        const mr_name = fmt(sdf.allocator, "{s}/{s}/{s}", .{ device.name, driver.name, region_resource.name });
+        const mr_name = fmt(sdf.allocator, "{s}/{s}/{s}", .{ device.name, driver.dir, region_resource.name });
 
         var mr: ?Mr = null;
         var device_reg_offset: u64 = 0;
@@ -1823,14 +1822,14 @@ pub fn createDriver(sdf: *SystemDescription, pd: *Pd, device: *dtb.Node, class: 
     // process it for the SDF.
     const maybe_dt_irqs = device.prop(.Interrupts);
     if (driver.resources.irqs.len != 0 and maybe_dt_irqs == null) {
-        log.err("expected interrupts field for node '{s}' when creating driver '{s}'", .{ device.name, driver.name });
+        log.err("expected interrupts field for node '{s}' when creating driver '{s}'", .{ device.name, driver.dir });
         return error.InvalidDeviceTreeNode;
     }
 
     for (driver.resources.irqs) |driver_irq| {
         const dt_irqs = maybe_dt_irqs.?;
         if (driver_irq.dt_index >= dt_irqs.len) {
-            log.err("invalid device tree index '{}' when creating driver '{s}'", .{ driver_irq.dt_index, driver.name });
+            log.err("invalid device tree index '{}' when creating driver '{s}'", .{ driver_irq.dt_index, driver.dir });
             return error.InvalidDeviceTreeIndex;
         }
         const dt_irq = dt_irqs[driver_irq.dt_index];
