@@ -567,7 +567,7 @@ class SystemDescription:
             id: Optional[int] = None,
         ):
             self._obj = libsdfgen.sdfgen_irq_create(irq, ffi_uint32_ptr(trigger), ffi_uint8_ptr(id))
-            if self._obj:
+            if self._obj is None:
                 raise Exception("failed to create IRQ")
 
         def __del__(self):
@@ -1060,7 +1060,7 @@ class LionsOs:
             ):
                 assert isinstance(blk, Sddf.Blk)
                 self._obj = libsdfgen.sdfgen_lionsos_fs_fat(sdf._obj, fs._obj, client._obj, blk._obj, partition)
-                if self._obj:
+                if self._obj is None:
                     raise Exception("failed to create FAT file system")
 
             def connect(self) -> bool:
