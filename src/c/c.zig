@@ -251,14 +251,17 @@ export fn sdfgen_sddf_init(path: [*c]u8) bool {
     return true;
 }
 
-export fn sdfgen_irq_create(number: u32, c_trigger: [*c]bindings.sdfgen_irq_trigger_t, c_id: [*c]u8) *anyopaque {
+export fn sdfgen_irq_create(number: u32, c_trigger: [*c]bindings.sdfgen_irq_trigger_t, c_id: [*c]u8) ?*anyopaque {
     const irq = allocator.create(Irq) catch @panic("OOM");
     var options: Irq.Options = .{};
     if (c_trigger != null) {
         const trigger: Irq.Trigger = switch (c_trigger.*) {
             0 => .edge,
             1 => .level,
-            else => @panic("TODO"),
+            else => {
+                log.err("failed to create IRQ '{}': invalid trigger '{}'", .{ number, c_trigger.* });
+                return null;
+            },
         };
         options.trigger = trigger;
     }
@@ -331,7 +334,7 @@ export fn sdfgen_map_destroy(c_map: *align(8) anyopaque) void {
     allocator.destroy(map);
 }
 
-export fn sdfgen_channel_create(c_pd_a: *align(8) anyopaque, c_pd_b: *align(8) anyopaque, pd_a_id: [*c]u8, pd_b_id: [*c]u8, pd_a_notify: [*c]bool, pd_b_notify: [*c]bool, pp: [*c]u8) ?*anyopaque {
+export fn sdfgen_channel_create(c_pd_a: *align(8) anyopaque, c_pd_b: *align(8) anyopaque, pd_a_id: [*c]u8, pd_b_id: [*c]u8, pd_a_notify: [*c]bool, pd_b_notify: [*c]bool, c_pp: [*c]u8) ?*anyopaque {
     const pd_a: *Pd = @ptrCast(c_pd_a);
     const pd_b: *Pd = @ptrCast(c_pd_b);
 
@@ -348,14 +351,16 @@ export fn sdfgen_channel_create(c_pd_a: *align(8) anyopaque, c_pd_b: *align(8) a
     if (pd_b_notify != null) {
         options.pd_b_notify = pd_b_notify.*;
     }
-    if (pp != null) {
-        if (pp == 0) {
-            options.pp = .a;
-        } else if (pp == 1) {
-            options.pp = .b;
-        } else {
-            @panic("TODO");
-        }
+    if (c_pp != null) {
+        const pp: Channel.End = switch (c_pp.*) {
+            0 => .a,
+            1 => .b,
+            else => {
+                log.err("failed to create channel between '{s}' and '{s}': invalid pp option given '{}'", .{ pd_a.name, pd_b.name, c_pp.* });
+                return null;
+            }
+        };
+        options.pp = pp;
     }
 
     const ch = allocator.create(Channel) catch @panic("OOM");
@@ -382,7 +387,6 @@ export fn sdfgen_channel_destroy(c_ch: *align(8) anyopaque) void {
     allocator.destroy(ch);
 }
 
-// TODO: is this a problem since we're copying instead of passing a pointer?
 export fn sdfgen_channel_add(c_sdf: *align(8) anyopaque, c_ch: *align(8) anyopaque) void {
     const sdf: *SystemDescription = @ptrCast(c_sdf);
     const ch: *Channel = @ptrCast(c_ch);

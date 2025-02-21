@@ -640,7 +640,7 @@ pub const SystemDescription = struct {
         pd_b_notify: ?bool,
         pp: ?End,
 
-        const End = enum { a, b };
+        pub const End = enum { a, b };
 
         pub const Options = struct {
             pd_a_notify: ?bool = null,

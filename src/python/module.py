@@ -567,6 +567,8 @@ class SystemDescription:
             id: Optional[int] = None,
         ):
             self._obj = libsdfgen.sdfgen_irq_create(irq, ffi_uint32_ptr(trigger), ffi_uint8_ptr(id))
+            if self._obj:
+                raise Exception("failed to create IRQ")
 
         def __del__(self):
             libsdfgen.sdfgen_irq_destroy(self._obj)
