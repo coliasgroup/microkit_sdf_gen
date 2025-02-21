@@ -120,14 +120,10 @@ pub const ArmGic = struct {
         };
     }
 
-    pub fn fromDtb(d: *dtb.Node) ArmGic {
+    pub fn fromDtb(d: *dtb.Node) ?ArmGic {
         // Find the GIC with any compatible string, regardless of version.
-        const maybe_gic_node = findCompatible(d, &ArmGic.compatible);
-        if (maybe_gic_node == null) {
-            @panic("Cannot find ARM GIC device in device tree");
-        }
-
-        return ArmGic.create(maybe_gic_node.?);
+        const gic_node = findCompatible(d, &ArmGic.compatible) orelse return null;
+        return ArmGic.create(gic_node);
     }
 };
 

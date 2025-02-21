@@ -108,7 +108,7 @@ libsdfgen.sdfgen_vm_add_map.restype = None
 libsdfgen.sdfgen_vm_add_map.argtypes = [c_void_p, c_void_p]
 
 libsdfgen.sdfgen_vm_vcpu_create.restype = c_void_p
-libsdfgen.sdfgen_vm_vcpu_create.argtypes = [c_uint8, c_uint16]
+libsdfgen.sdfgen_vm_vcpu_create.argtypes = [c_uint8, POINTER(c_uint8)]
 libsdfgen.sdfgen_vm_vcpu_destroy.restype = None
 libsdfgen.sdfgen_vm_vcpu_destroy.argtypes = [c_void_p]
 
@@ -471,9 +471,8 @@ class SystemDescription:
         _obj: c_void_p
 
         class Vcpu:
-            def __init__(self, *, id: int, cpu: Optional[int] = 0):
-                # TODO: error checking
-                self._obj = libsdfgen.sdfgen_vm_vcpu_create(id, cpu)
+            def __init__(self, *, id: int, cpu: Optional[int] = None):
+                self._obj = libsdfgen.sdfgen_vm_vcpu_create(id, ffi_uint8_ptr(cpu))
 
         def __init__(self, name: str, vcpus: List[Vcpu], priority: Optional[int] = None):
             vcpus_tuple: Tuple[c_void_p] = tuple([vcpu._obj for vcpu in vcpus])
@@ -481,6 +480,8 @@ class SystemDescription:
             c_name = c_char_p(name.encode("utf-8"))
             self._name = name
             self._obj = libsdfgen.sdfgen_vm_create(c_name, cast(c_vcpus, POINTER(c_void_p)), len(vcpus))
+            if self._obj is None:
+                raise Exception("failed to create VM")
             if priority is not None:
                 libsdfgen.sdfgen_vm_set_priority(self._obj, priority)
 

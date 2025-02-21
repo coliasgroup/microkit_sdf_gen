@@ -4,6 +4,8 @@ const mod_sdf = @import("sdf.zig");
 const dtb = @import("dtb.zig");
 const mod_data = @import("data.zig");
 const sddf = @import("sddf.zig");
+const log = @import("log.zig");
+
 const Allocator = std.mem.Allocator;
 
 const fs = std.fs;
@@ -217,17 +219,21 @@ pub fn addPassthroughDevice(system: *Self, device: *dtb.Node, options: Passthrou
 }
 
 fn addVirtioMmioDevice(system: *Self, device: *dtb.Node, t: Data.VirtioMmioDevice.Type) !void {
-    // TODO: check that .Reg exists
-    // TODO: check device_reg[0] exists and that device_reg.len == 1
-    const device_reg = device.prop(.Reg).?;
+    const device_reg = device.prop(.Reg) orelse {
+        log.err("error adding virtIO device '{s}': missing 'reg' field on device node", .{ device.name });
+        return error.InvalidVirtioDevice;
+    };
     if (device_reg.len != 1) {
-        // TODO: improve error
+        log.err("error adding virtIO device '{s}': invalid number of device regions", .{ device.name });
         return error.InvalidVirtioDevice;
     }
     const device_paddr = dtb.regPaddr(device, device_reg[0][0]);
     const device_size = system.sdf.arch.roundToPage(@intCast(device_reg[0][1]));
-    // TODO: check interrupts exist and that there is one interrupt only
-    const interrupts = device.prop(.Interrupts).?;
+
+    const interrupts = device.prop(.Interrupts) orelse {
+        log.err("error adding virtIO device '{s}': missing 'interrupts' field on device node", .{ device.name });
+        return error.InvalidVirtioDevice;
+    };
     const irq = blk: {
         if (system.sdf.arch.isArm()) {
             break :blk dtb.armGicIrqNumber(interrupts[0][1], dtb.armGicIrqType(interrupts[0][0]));
@@ -284,9 +290,6 @@ fn allocateDtbAddress(dtb_size: u64, ram_start: u64, ram_end: u64, initrd_start:
     }
 }
 
-// TODO: deal with the general problem of having multiple gic vcpu mappings but only one MR.
-// Two options, find the GIC vcpu mr and if it it doesn't exist, create it, if it does, use it.
-// other option is to have each a 'VirtualMachineSystem' that is responsible for every single VM.
 pub fn connect(system: *Self) !void {
     const allocator = system.allocator;
     var sdf = system.sdf;
@@ -295,7 +298,10 @@ pub fn connect(system: *Self) !void {
     try vmm.setVirtualMachine(guest);
 
     if (sdf.arch.isArm()) {
-        const gic = dtb.ArmGic.fromDtb(system.guest_dtb);
+        const gic = dtb.ArmGic.fromDtb(system.guest_dtb) orelse {
+        log.err("error connecting VMM '{s}' system: could not find GIC interrupt controller DTB node", .{ vmm.name });
+            return error.MissinGicNode;
+        };
         if (gic.hasMmioCpuInterface()) {
             const gic_vcpu_mr_name = fmt(allocator, "{s}/vcpu", .{ gic.node.name });
             defer allocator.free(gic_vcpu_mr_name);
@@ -315,10 +321,19 @@ pub fn connect(system: *Self) !void {
         }
     }
 
-    const memory_node = dtb.memory(system.guest_dtb).?;
-    const memory_reg = memory_node.prop(.Reg).?;
-    // TODO
-    std.debug.assert(memory_reg.len == 1);
+    const memory_node = dtb.memory(system.guest_dtb) orelse {
+        log.err("error connecting VMM '{s}' system: could not find 'memory' DTB node", .{ vmm.name });
+        return error.MissingMemoryNode;
+    };
+    const memory_reg = memory_node.prop(.Reg) orelse {
+        log.err("error connecting VMM '{s}' system: 'memory' node does not have 'reg' field", .{ vmm.name });
+        return error.InvalidMemoryNode;
+    };
+    if (memory_reg.len != 1) {
+        log.err("error connecting VMM '{s}' system: expected 1 main memory region, found {}", .{ vmm.name, memory_reg.len });
+        return error.InvalidMemoryNode;
+    }
+
     const memory_paddr: u64 = @intCast(memory_reg[0][0]);
     const guest_mr_name = std.fmt.allocPrint(allocator, "guest_ram_{s}", .{guest.name}) catch @panic("OOM");
     defer allocator.free(guest_mr_name);

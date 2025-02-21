@@ -204,7 +204,10 @@ export fn sdfgen_vm_create(name: [*c]u8, c_vcpus: [*c]*align(8) anyopaque, num_v
     }
 
     const vm = allocator.create(Vm) catch @panic("OOM");
-    vm.* = Vm.create(allocator, std.mem.span(name), vcpus.items, .{}) catch return null;
+    vm.* = Vm.create(allocator, std.mem.span(name), vcpus.items, .{}) catch |e| {
+        log.err("falied to create VM '{s}': {any}", .{ name, e });
+        return null;
+    };
 
     return vm;
 }
@@ -220,12 +223,11 @@ export fn sdfgen_vm_set_priority(c_vm: *align(8) anyopaque, priority: u8) void {
     vm.priority = priority;
 }
 
-export fn sdfgen_vm_vcpu_create(id: u8, cpu: u16) *anyopaque {
+export fn sdfgen_vm_vcpu_create(id: u8, cpu: [*c]u8) *anyopaque {
     const vcpu: *Vm.Vcpu = allocator.create(Vm.Vcpu) catch @panic("OOM");
     vcpu.* = Vm.Vcpu{ .id = id };
-    // TODO: this is kind of hacky?
-    if (cpu != 0) {
-        vcpu.cpu = cpu;
+    if (cpu != null) {
+        vcpu.cpu = cpu.*;
     }
 
     return vcpu;
