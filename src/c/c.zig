@@ -251,10 +251,22 @@ export fn sdfgen_sddf_init(path: [*c]u8) bool {
     return true;
 }
 
-export fn sdfgen_irq_create(irq_number: u32) *anyopaque {
+export fn sdfgen_irq_create(number: u32, c_trigger: [*c]bindings.sdfgen_irq_trigger_t, c_id: [*c]u8) *anyopaque {
     const irq = allocator.create(Irq) catch @panic("OOM");
-    // TODO: handle options
-    irq.* = Irq.create(irq_number, .{});
+    var options: Irq.Options = .{};
+    if (c_trigger != null) {
+        const trigger: Irq.Trigger = switch (c_trigger.*) {
+            0 => .edge,
+            1 => .level,
+            else => @panic("TODO"),
+        };
+        options.trigger = trigger;
+    }
+    if (c_id != null) {
+        options.id = c_id.*;
+    }
+
+    irq.* = Irq.create(number, options);
 
     return irq;
 }

@@ -706,7 +706,10 @@ pub const SystemDescription = struct {
         trigger: ?Trigger,
         id: ?u8,
 
-        pub const Trigger = enum { edge, level };
+        pub const Trigger = enum(u8) {
+            edge,
+            level,
+        };
 
         pub const Options = struct {
             trigger: ?Trigger = null,

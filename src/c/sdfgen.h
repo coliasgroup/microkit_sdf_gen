@@ -67,6 +67,13 @@ void sdfgen_channel_destroy(void *ch);
 uint8_t sdfgen_channel_get_pd_a_id(void *ch);
 uint8_t sdfgen_channel_get_pd_b_id(void *ch);
 
+typedef enum {
+    IRQ_TRIGGER_EDGE = 0,
+    IRQ_TRIGGER_LEVEL = 1,
+} sdfgen_irq_trigger_t;
+
+void *sdfgen_irq_create(uint32_t number, sdfgen_irq_trigger_t *trigger, uint8_t *id);
+
 void *sdfgen_mr_create(char *name, uint64_t size);
 void *sdfgen_mr_create_physical(char *name, uint64_t size, uint64_t paddr);
 bool sdgen_mr_get_paddr(void *mr, uint64_t *paddr);

@@ -92,7 +92,7 @@ libsdfgen.sdfgen_mr_destroy.restype = None
 libsdfgen.sdfgen_mr_destroy.argtypes = [c_void_p]
 
 libsdfgen.sdfgen_irq_create.restype = c_void_p
-libsdfgen.sdfgen_irq_create.argtypes = [c_uint32]
+libsdfgen.sdfgen_irq_create.argtypes = [c_uint32, POINTER(c_uint32), POINTER(c_uint8)]
 libsdfgen.sdfgen_irq_destroy.restype = None
 libsdfgen.sdfgen_irq_destroy.argtypes = [c_void_p]
 
@@ -292,6 +292,15 @@ def ffi_uint8_ptr(n: Optional[int]):
 
     return pointer(c_uint8(n))
 
+def ffi_uint32_ptr(n: Optional[int]):
+    """
+    Convert an int value to a uint32_t pointer for FFI.
+    If 'n' is None then we return None (which acts as a null pointer)
+    """
+    if n is None:
+        return None
+
+    return pointer(c_uint32(n))
 
 def ffi_bool_ptr(val: Optional[bool]):
     """
@@ -547,12 +556,17 @@ class SystemDescription:
     class Irq:
         _obj: c_void_p
 
-        # TODO: handle options
+        class Trigger(IntEnum):
+            EDGE = 0,
+            LEVEL = 1,
+
         def __init__(
             self,
             irq: int,
+            trigger: Optional[Trigger] = None,
+            id: Optional[int] = None,
         ):
-            self._obj = libsdfgen.sdfgen_irq_create(irq)
+            self._obj = libsdfgen.sdfgen_irq_create(irq, ffi_uint32_ptr(trigger), ffi_uint8_ptr(id))
 
         def __del__(self):
             libsdfgen.sdfgen_irq_destroy(self._obj)
