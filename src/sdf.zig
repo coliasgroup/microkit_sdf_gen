@@ -38,6 +38,7 @@ pub const SystemDescription = struct {
         }
 
         pub fn defaultPageSize(_: Arch) u64 {
+            // All the architectures we currently support default to this page size.
             return 0x1000;
         }
 
