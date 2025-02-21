@@ -604,6 +604,8 @@ class SystemDescription:
                 ffi_bool_ptr(notify_b),
                 ffi_uint8_ptr(c_pp),
             )
+            if self._obj is None:
+                raise Exception("failed to create channel")
 
         @property
         def pd_a_id(self) -> int:
@@ -1056,6 +1058,8 @@ class LionsOs:
             ):
                 assert isinstance(blk, Sddf.Blk)
                 self._obj = libsdfgen.sdfgen_lionsos_fs_fat(sdf._obj, fs._obj, client._obj, blk._obj, partition)
+                if self._obj:
+                    raise Exception("failed to create FAT file system")
 
             def connect(self) -> bool:
                 return libsdfgen.sdfgen_lionsos_fs_fat_connect(self._obj)

@@ -331,7 +331,10 @@ export fn sdfgen_map_destroy(c_map: *align(8) anyopaque) void {
     allocator.destroy(map);
 }
 
-export fn sdfgen_channel_create(pd_a: *align(8) anyopaque, pd_b: *align(8) anyopaque, pd_a_id: [*c]u8, pd_b_id: [*c]u8, pd_a_notify: [*c]bool, pd_b_notify: [*c]bool, pp: [*c]u8) *anyopaque {
+export fn sdfgen_channel_create(c_pd_a: *align(8) anyopaque, c_pd_b: *align(8) anyopaque, pd_a_id: [*c]u8, pd_b_id: [*c]u8, pd_a_notify: [*c]bool, pd_b_notify: [*c]bool, pp: [*c]u8) ?*anyopaque {
+    const pd_a: *Pd = @ptrCast(c_pd_a);
+    const pd_b: *Pd = @ptrCast(c_pd_b);
+
     var options: Channel.Options = .{};
     if (pd_a_id != null) {
         options.pd_a_id = pd_a_id.*;
@@ -356,7 +359,10 @@ export fn sdfgen_channel_create(pd_a: *align(8) anyopaque, pd_b: *align(8) anyop
     }
 
     const ch = allocator.create(Channel) catch @panic("OOM");
-    ch.* = Channel.create(@ptrCast(pd_a), @ptrCast(pd_b), options) catch @panic("TODO");
+    ch.* = Channel.create(pd_a, pd_b, options) catch |e| {
+        log.err("failed to create channel between '{s}' and '{s}': {any}", .{ pd_a.name, pd_b.name, e });
+        return null;
+    };
 
     return ch;
 }
@@ -370,14 +376,6 @@ export fn sdfgen_channel_get_pd_b_id(c_ch: *align(8) anyopaque) u8 {
     const ch: *Channel = @ptrCast(c_ch);
     return ch.pd_b_id;
 }
-
-// export fn sdfgen_channel_set_options(c_ch: *align(8) anyopaque, pp_a: bool, pp_b: bool, notify_a: bool, notify_b: bool) void {
-//     const ch: *Channel = @ptrCast(c_ch);
-//     ch.pp_a = pp_a;
-//     ch.pp_b = pp_b;
-//     ch.notify_a = notify_a;
-//     ch.notify_b = notify_b;
-// }
 
 export fn sdfgen_channel_destroy(c_ch: *align(8) anyopaque) void {
     const ch: *Channel = @ptrCast(c_ch);
@@ -655,27 +653,39 @@ export fn sdfgen_vmm(c_sdf: *align(8) anyopaque, vmm_pd: *align(8) anyopaque, vm
 
 export fn sdfgen_vmm_add_passthrough_device(c_vmm: *align(8) anyopaque, c_device: *align(8) anyopaque) bool {
     const vmm: *Vmm = @ptrCast(c_vmm);
-    vmm.addPassthroughDevice(@ptrCast(c_device), .{}) catch @panic("TODO");
+    const device: *dtb.Node = @ptrCast(c_device);
+    vmm.addPassthroughDevice(device, .{}) catch |e| {
+        log.err("failed to add passthrough device '{s}' to VMM '{s}': {any}", .{ device.name, vmm.vmm.name, e });
+        return false;
+    };
 
     return true;
 }
 
 export fn sdfgen_vmm_add_passthrough_device_regions(c_vmm: *align(8) anyopaque, c_device: *align(8) anyopaque, regions: [*c]u8, num_regions: u8) bool {
     const vmm: *Vmm = @ptrCast(c_vmm);
-    vmm.addPassthroughDevice(@ptrCast(c_device), .{
+    const device: *dtb.Node = @ptrCast(c_device);
+    vmm.addPassthroughDevice(device, .{
         .regions = if (regions == null) null else regions[0..num_regions],
         .irqs = &.{},
-    }) catch @panic("TODO");
+    }) catch |e| {
+        log.err("failed to add passthrough regions for device '{s}' to VMM '{s}': {any}", .{ device.name, vmm.vmm.name, e });
+        return false;
+    };
 
     return true;
 }
 
 export fn sdfgen_vmm_add_passthrough_device_irqs(c_vmm: *align(8) anyopaque, c_device: *align(8) anyopaque, irqs: [*c]u8, num_irqs: u8) bool {
     const vmm: *Vmm = @ptrCast(c_vmm);
-    vmm.addPassthroughDevice(@ptrCast(c_device), .{
+    const device: *dtb.Node = @ptrCast(c_device);
+    vmm.addPassthroughDevice(device, .{
         .regions = &.{},
         .irqs = if (irqs == null) null else irqs[0..num_irqs],
-    }) catch @panic("TODO");
+    }) catch |e| {
+        log.err("failed to add passthrough IRQs for device '{s}' to VMM '{s}': {any}", .{ device.name, vmm.vmm.name, e });
+        return false;
+    };
 
     return true;
 }
@@ -683,34 +693,49 @@ export fn sdfgen_vmm_add_passthrough_device_irqs(c_vmm: *align(8) anyopaque, c_d
 export fn sdfgen_vmm_add_passthrough_irq(c_vmm: *align(8) anyopaque, c_irq: *align(8) anyopaque) bool {
     const vmm: *Vmm = @ptrCast(c_vmm);
     const irq: *Irq = @ptrCast(c_irq);
-    vmm.addPassthroughIrq(irq.*) catch @panic("TODO");
+    vmm.addPassthroughIrq(irq.*) catch |e| {
+        log.err("failed to add passthrough IRQ '{}' to VMM '{s}': {any}", .{ irq.irq, vmm.vmm.name, e });
+        return false;
+    };
 
     return true;
 }
 
 export fn sdfgen_vmm_add_virtio_mmio_console(c_vmm: *align(8) anyopaque, c_device: *align(8) anyopaque, serial: *align(8) anyopaque) bool {
     const vmm: *Vmm = @ptrCast(c_vmm);
-    vmm.addVirtioMmioConsole(@ptrCast(c_device), @ptrCast(serial)) catch @panic("TODO");
+    const device: *dtb.Node = @ptrCast(c_device);
+    vmm.addVirtioMmioConsole(device, @ptrCast(serial)) catch |e| {
+        log.err("failed to add virtIO MMIO console device '{s}' to VMM '{s}': {any}", .{ device.name, vmm.vmm.name, e });
+        return false;
+    };
 
     return true;
 }
 
 export fn sdfgen_vmm_add_virtio_mmio_blk(c_vmm: *align(8) anyopaque, c_device: *align(8) anyopaque, blk: *align(8) anyopaque, partition: u32) bool {
     const vmm: *Vmm = @ptrCast(c_vmm);
-    vmm.addVirtioMmioBlk(@ptrCast(c_device), @ptrCast(blk), .{
+    const device: *dtb.Node = @ptrCast(c_device);
+    vmm.addVirtioMmioBlk(device, @ptrCast(blk), .{
         .partition = partition,
-    }) catch @panic("TODO");
+    }) catch |e| {
+        log.err("failed to add virtIO MMIO block device '{s}' to VMM '{s}': {any}", .{ device.name, vmm.vmm.name, e });
+        return false;
+    };
 
     return true;
 }
 
 export fn sdfgen_vmm_add_virtio_mmio_net(c_vmm: *align(8) anyopaque, c_device: *align(8) anyopaque, net: *align(8) anyopaque, copier: *align(8) anyopaque, mac_addr: [*c]u8) bool {
     const vmm: *Vmm = @ptrCast(c_vmm);
+    const device: *dtb.Node = @ptrCast(c_device);
     var options: sddf.Net.ClientOptions = .{};
     if (mac_addr) |a| {
         options.mac_addr = std.mem.span(a);
     }
-    vmm.addVirtioMmioNet(@ptrCast(c_device), @ptrCast(net), @ptrCast(copier), options) catch @panic("TODO");
+    vmm.addVirtioMmioNet(device, @ptrCast(net), @ptrCast(copier), options) catch |e| {
+        log.err("failed to add virtIO MMIO net device '{s}' to VMM '{s}': {any}", .{ device.name, vmm.vmm.name, e });
+        return false;
+    };
 
     return true;
 }
@@ -729,32 +754,54 @@ export fn sdfgen_vmm_serialise_config(c_vmm: *align(8) anyopaque, output_dir: [*
     return true;
 }
 
-export fn sdfgen_lionsos_fs_fat(c_sdf: *align(8) anyopaque, c_fs: *align(8) anyopaque, c_client: *align(8) anyopaque, blk: *align(8) anyopaque, partition: u32) *anyopaque {
+export fn sdfgen_lionsos_fs_fat(c_sdf: *align(8) anyopaque, c_fs: *align(8) anyopaque, c_client: *align(8) anyopaque, blk: *align(8) anyopaque, partition: u32) ?*anyopaque {
     const sdf: *SystemDescription = @ptrCast(c_sdf);
+    const fs_pd: *Pd = @ptrCast(c_fs);
     const fs = allocator.create(lionsos.FileSystem.Fat) catch @panic("OOM");
-    fs.* = lionsos.FileSystem.Fat.init(allocator, sdf, @ptrCast(c_fs), @ptrCast(c_client), @ptrCast(blk), .{
+    fs.* = lionsos.FileSystem.Fat.init(allocator, sdf, fs_pd, @ptrCast(c_client), @ptrCast(blk), .{
         .partition = partition,
-    }) catch @panic("TODO");
+    }) catch |e| {
+        log.err("failed to create FAT file system '{s}': {any}", .{ fs_pd.name, e });
+        return null;
+    };
 
     return fs;
 }
 
 export fn sdfgen_lionsos_fs_fat_connect(system: *align(8) anyopaque) bool {
     const fat: *lionsos.FileSystem.Fat = @ptrCast(system);
-    fat.connect() catch @panic("TODO");
+    fat.connect() catch |e| {
+        log.err("failed to connect FAT file system '{s}': {any}", .{ fat.fs.fs.name, e });
+        return false;
+    };
 
     return true;
 }
 
 export fn sdfgen_lionsos_fs_fat_serialise_config(system: *align(8) anyopaque, output_dir: [*c]u8) bool {
     const fat: *lionsos.FileSystem.Fat = @ptrCast(system);
-    fat.serialiseConfig(std.mem.span(output_dir)) catch return false;
+    fat.serialiseConfig(std.mem.span(output_dir)) catch |e| {
+        log.err("failed to serialise FAT file system '{s}': {any}", .{ fat.fs.fs.name, e });
+        return false;
+    };
 
     return true;
 }
 
-export fn sdfgen_lionsos_fs_nfs(c_sdf: *align(8) anyopaque, c_fs: *align(8) anyopaque, c_client: *align(8) anyopaque, c_net: *align(8) anyopaque, c_net_copier: *align(8) anyopaque, mac_addr: [*c]u8, c_serial: *align(8) anyopaque, c_timer: *align(8) anyopaque, nfs_server: [*c]u8, nfs_export_path: [*c]u8) *anyopaque {
+export fn sdfgen_lionsos_fs_nfs(
+        c_sdf: *align(8) anyopaque,
+        c_fs: *align(8) anyopaque,
+        c_client: *align(8) anyopaque,
+        c_net: *align(8) anyopaque,
+        c_net_copier: *align(8) anyopaque,
+        mac_addr: [*c]u8,
+        c_serial: *align(8) anyopaque,
+        c_timer: *align(8) anyopaque,
+        nfs_server: [*c]u8,
+        nfs_export_path: [*c]u8
+    ) ?*anyopaque {
     const sdf: *SystemDescription = @ptrCast(c_sdf);
+    const fs_pd: *Pd = @ptrCast(c_fs);
     const fs = allocator.create(lionsos.FileSystem.Nfs) catch @panic("OOM");
     var options: lionsos.FileSystem.Nfs.Options = .{
         .server = std.mem.span(nfs_server),
@@ -763,21 +810,30 @@ export fn sdfgen_lionsos_fs_nfs(c_sdf: *align(8) anyopaque, c_fs: *align(8) anyo
     if (mac_addr) |a| {
         options.mac_addr = std.mem.span(a);
     }
-    fs.* = lionsos.FileSystem.Nfs.init(allocator, sdf, @ptrCast(c_fs), @ptrCast(c_client), @ptrCast(c_net), @ptrCast(c_net_copier), @ptrCast(c_serial), @ptrCast(c_timer), options) catch @panic("TODO");
+    fs.* = lionsos.FileSystem.Nfs.init(allocator, sdf, fs_pd, @ptrCast(c_client), @ptrCast(c_net), @ptrCast(c_net_copier), @ptrCast(c_serial), @ptrCast(c_timer), options) catch |e| {
+        log.err("failed to create NFS file system '{s}': {any}", .{ fs_pd.name, e });
+        return null;
+    };
 
     return fs;
 }
 
 export fn sdfgen_lionsos_fs_nfs_connect(system: *align(8) anyopaque) bool {
     const nfs: *lionsos.FileSystem.Nfs = @ptrCast(system);
-    nfs.connect() catch @panic("TODO");
+    nfs.connect() catch |e| {
+        log.err("failed to connect NFS file system '{s}': {any}", .{ nfs.fs.fs.name, e });
+        return false;
+    };
 
     return true;
 }
 
 export fn sdfgen_lionsos_fs_nfs_serialise_config(system: *align(8) anyopaque, output_dir: [*c]u8) bool {
     const nfs: *lionsos.FileSystem.Nfs = @ptrCast(system);
-    nfs.serialiseConfig(std.mem.span(output_dir)) catch return false;
+    nfs.serialiseConfig(std.mem.span(output_dir)) catch |e| {
+        log.err("failed to serialise NFS file system '{s}': {any}", .{ nfs.fs.fs.name, e });
+        return false;
+    };
 
     return true;
 }
@@ -790,7 +846,10 @@ export fn sdfgen_sddf_lwip(c_sdf: *align(8) anyopaque, c_net: *align(8) anyopaqu
 
 export fn sdfgen_sddf_lwip_connect(c_lib: *align(8) anyopaque) bool {
     const lib: *sddf.Lwip = @ptrCast(c_lib);
-    lib.connect() catch @panic("TODO");
+    lib.connect()  catch |e| {
+        log.err("failed to connect lwIP '{s}': {any}", .{ lib.pd.name, e });
+        return false;
+    };
 
     return true;
 }
