@@ -369,11 +369,7 @@ pub fn serialiseConfig(system: *Self, prefix: []const u8) !void {
     if (!system.connected) return error.NotConnected;
 
     const allocator = system.allocator;
-    const data_name = fmt(allocator, "vmm_{s}.data", .{system.vmm.name});
+    const config_name = fmt(allocator, "vmm_{s}.data", .{system.vmm.name});
 
-    try mod_data.serialize(system.data, try fs.path.join(allocator, &.{ prefix, data_name }));
-    if (mod_data.emit_json) {
-        const json_name = fmt(allocator, "vmm_{s}.json", .{system.vmm.name});
-        try mod_data.jsonify(system.data, try fs.path.join(allocator, &.{ prefix, json_name }));
-    }
+    try mod_data.serialize(allocator, system.data, prefix, config_name);
 }

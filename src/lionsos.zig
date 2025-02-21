@@ -132,19 +132,15 @@ pub const FileSystem = struct {
     pub fn serialiseConfig(system: *FileSystem, prefix: []const u8) !void {
         const allocator = system.allocator;
 
-        const server_config_data_name = fmt(allocator, "fs_server_{s}.data", .{system.fs.name});
-        try data.serialize(system.server_config, try std.fs.path.join(allocator, &.{ prefix, server_config_data_name }));
-        // TODO don't output json in non-debug mode
-        const server_config_json_name = fmt(allocator, "fs_server_{s}.json", .{system.fs.name});
-        try data.jsonify(system.server_config, try std.fs.path.join(allocator, &.{ prefix, server_config_json_name }));
+        const server_config = fmt(allocator, "fs_server_{s}", .{system.fs.name});
+        try data.serialize(allocator, system.server_config, prefix, server_config);
 
-        const client_config_data_name = fmt(allocator, "fs_client_{s}.data", .{system.client.name});
-        try data.serialize(system.client_config, try std.fs.path.join(allocator, &.{ prefix, client_config_data_name }));
-        const client_config_json_name = fmt(allocator, "fs_client_{s}.json", .{system.client.name});
-        try data.jsonify(system.client_config, try std.fs.path.join(allocator, &.{ prefix, client_config_json_name }));
+        const client_config = fmt(allocator, "fs_client_{s}", .{system.client.name});
+        try data.serialize(allocator, system.client_config, prefix, client_config);
     }
 
     pub const Nfs = struct {
+        allocator: Allocator,
         fs: FileSystem,
         data: ConfigResources.Nfs,
         serial: *Serial,
@@ -169,6 +165,7 @@ pub const FileSystem = struct {
             const mac_addr = if (options.mac_addr) |m| allocator.dupe(u8, m) catch @panic("OOM") else null;
 
             return .{
+                .allocator = allocator,
                 .fs = try FileSystem.init(allocator, sdf, fs, client, .{}),
                 .data = nfs_data,
                 .serial = serial,
@@ -193,16 +190,13 @@ pub const FileSystem = struct {
         }
 
         pub fn serialiseConfig(nfs: *Nfs, prefix: []const u8) !void {
-            try data.serialize(nfs.data, try std.fs.path.join(nfs.fs.allocator, &.{ prefix, "nfs_config.data" }));
-            nfs.fs.serialiseConfig(prefix) catch @panic("Could not serialise config");
-
-            if (data.emit_json) {
-                try data.jsonify(nfs.data, try std.fs.path.join(nfs.fs.allocator, &.{ prefix, "nfs_config.json" }));
-            }
+            try data.serialize(nfs.allocator, nfs.data, prefix, "nfs_config");
+            try nfs.fs.serialiseConfig(prefix);
         }
     };
 
     pub const Fat = struct {
+        allocator: Allocator,
         fs: FileSystem,
         data: ConfigResources.Fs,
         blk: *Blk,
@@ -214,6 +208,7 @@ pub const FileSystem = struct {
 
         pub fn init(allocator: Allocator, sdf: *SystemDescription, fs: *Pd, client: *Pd, blk: *Blk, options: Fat.Options) Error!Fat {
             return .{
+                .allocator = allocator,
                 .fs = try FileSystem.init(allocator, sdf, fs, client, .{}),
                 .blk = blk,
                 .blk_partition = options.partition,
@@ -222,7 +217,7 @@ pub const FileSystem = struct {
         }
 
         pub fn connect(fat: *Fat) !void {
-            const allocator = fat.fs.allocator;
+            const allocator = fat.allocator;
             const sdf = fat.fs.sdf;
             const fs_pd = fat.fs.fs;
 
@@ -246,12 +241,8 @@ pub const FileSystem = struct {
         }
 
         pub fn serialiseConfig(fat: *Fat, prefix: []const u8) !void {
-            try data.serialize(fat.data, try std.fs.path.join(fat.fs.allocator, &.{ prefix, "fat_config.data" }));
-            fat.fs.serialiseConfig(prefix) catch @panic("Could not serialise config");
-
-            if (data.emit_json) {
-                try data.jsonify(fat.data, try std.fs.path.join(fat.fs.allocator, &.{ prefix, "fat_config.json" }));
-            }
+            try data.serialize(fat.allocator, fat.data, prefix, "fat_config");
+            try fat.fs.serialiseConfig(prefix);
         }
     };
 };

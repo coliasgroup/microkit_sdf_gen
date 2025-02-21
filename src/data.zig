@@ -1,6 +1,7 @@
 const std = @import("std");
 const builtin = @import("builtin");
 const sdf = @import("sdf.zig");
+const Allocator = std.mem.Allocator;
 
 const MAGIC_START: [4]u8 = .{ 's', 'D', 'D', 'F' };
 const LIONS_MAGIC_START: [7]u8 = .{ 'L', 'i', 'o', 'n', 's', 'O', 'S' };
@@ -378,18 +379,20 @@ pub const Resources = struct {
     };
 };
 
-pub fn serialize(s: anytype, path: []const u8) !void {
+pub fn serialize(allocator: Allocator, s: anytype, prefix: []const u8, path: []const u8) !void {
     const bytes = std.mem.asBytes(&s);
-    const serialize_file = try std.fs.cwd().createFile(path, .{});
+    const full_path = try std.fs.path.join(allocator, &.{ prefix, path });
+    const full_path_data = try std.fmt.allocPrint(allocator, "{s}.data", .{ full_path });
+    const full_path_json = try std.fmt.allocPrint(allocator, "{s}.json", .{ full_path });
+
+    const serialize_file = try std.fs.cwd().createFile(full_path_data, .{});
     defer serialize_file.close();
     try serialize_file.writeAll(bytes);
-}
 
-pub fn jsonify(s: anytype, path: []const u8) !void {
-    const json_file = try std.fs.cwd().createFile(path, .{});
-    defer json_file.close();
-
-    const writer = json_file.writer();
-
-    try std.json.stringify(s, .{ .whitespace = .indent_4 }, writer);
+    if (emit_json) {
+        const json_file = try std.fs.cwd().createFile(full_path_json, .{});
+        defer json_file.close();
+        const writer = json_file.writer();
+        try std.json.stringify(s, .{ .whitespace = .indent_4 }, writer);
+    }
 }
