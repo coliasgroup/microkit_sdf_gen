@@ -2,7 +2,7 @@ from __future__ import annotations
 import ctypes
 import importlib.util
 from ctypes import (
-    cast, c_void_p, c_char_p, c_uint8, c_uint16, c_uint32, c_uint64, c_bool, POINTER, byref, pointer
+    cast, c_void_p, c_char_p, c_int8, c_uint8, c_uint16, c_uint32, c_uint64, c_bool, POINTER, byref, pointer
 )
 from typing import Optional, List, Tuple
 from enum import IntEnum
@@ -117,11 +117,11 @@ libsdfgen.sdfgen_pd_create.argtypes = [c_char_p, c_char_p]
 libsdfgen.sdfgen_pd_destroy.restype = None
 libsdfgen.sdfgen_pd_destroy.argtypes = [c_void_p]
 
-libsdfgen.sdfgen_pd_add_child.restype = c_uint8
+libsdfgen.sdfgen_pd_add_child.restype = c_int8
 libsdfgen.sdfgen_pd_add_child.argtypes = [c_void_p, c_void_p, POINTER(c_uint8)]
 libsdfgen.sdfgen_pd_add_map.restype = None
 libsdfgen.sdfgen_pd_add_map.argtypes = [c_void_p, c_void_p]
-libsdfgen.sdfgen_pd_add_irq.restype = c_uint8
+libsdfgen.sdfgen_pd_add_irq.restype = c_int8
 libsdfgen.sdfgen_pd_add_irq.argtypes = [c_void_p, c_void_p]
 
 libsdfgen.sdfgen_sddf_timer.restype = c_void_p
@@ -439,19 +439,23 @@ class SystemDescription:
             """
             c_child_id = byref(c_uint8(child_id)) if child_id else None
 
-            returned_id = libsdfgen.sdfgen_pd_add_child(self._obj, child_pd._obj, c_child_id)
-            if returned_id is None:
-                raise Exception("Could not allocate child PD ID")
+            id = libsdfgen.sdfgen_pd_add_child(self._obj, child_pd._obj, c_child_id)
+            if id < 0:
+                raise Exception(f"failed to add child to PD '{self.name}'")
 
             self._child_pds.append(child_pd)
 
-            return returned_id
+            return id
 
         def add_map(self, map: SystemDescription.Map):
             libsdfgen.sdfgen_pd_add_map(self._obj, map._obj)
 
         def add_irq(self, irq: SystemDescription.Irq) -> int:
-            return libsdfgen.sdfgen_pd_add_irq(self._obj, irq._obj)
+            id = libsdfgen.sdfgen_pd_add_irq(self._obj, irq._obj)
+            if id < 0:
+                raise Exception(f"failed to add IRQ to PD '{self.name}'")
+
+            return id
 
         def set_virtual_machine(self, vm: SystemDescription.VirtualMachine):
             ret = libsdfgen.sdfgen_pd_set_virtual_machine(self._obj, vm._obj)
@@ -524,6 +528,8 @@ class SystemDescription:
             cached: bool = True,
         ) -> None:
             self._obj = libsdfgen.sdfgen_map_create(mr._obj, vaddr, perms._to_c_bindings(), cached)
+            if self._obj is None:
+                raise Exception("failed to create mapping")
 
     class MemoryRegion:
         _obj: c_void_p
@@ -694,6 +700,8 @@ class Sddf:
             self._obj = libsdfgen.sdfgen_sddf_serial(
                 sdf._obj, device_obj, driver._obj, virt_tx._obj, virt_rx_obj
             )
+            if self._obj is None:
+                raise Exception("failed to create serial system")
 
         def add_client(self, client: SystemDescription.ProtectionDomain):
             """Add a new client connection to the serial system."""
@@ -779,6 +787,8 @@ class Sddf:
                 device_obj = device._obj
 
             self._obj = libsdfgen.sdfgen_sddf_blk(sdf._obj, device_obj, driver._obj, virt._obj)
+            if self._obj is None:
+                raise Exception("failed to create blk system")
 
         def add_client(self, client: SystemDescription.ProtectionDomain, *, partition: int):
             ret = libsdfgen.sdfgen_sddf_blk_add_client(self._obj, client._obj, partition)

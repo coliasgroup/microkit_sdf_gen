@@ -152,13 +152,11 @@ pub fn probe(allocator: Allocator, path: []const u8) !void {
                 const config_bytes = try config_file.reader().readAllAlloc(allocator, config_file_stat.size);
                 // TODO; free config? we'd have to dupe the json data when populating our data structures
                 assert(config_bytes.len == config_file_stat.size);
-                // TODO: we have no information if the parsing fails. We need to do some error output if
-                // it the input is malformed.
                 // TODO: should probably free the memory at some point
                 // We are using an ArenaAllocator so calling parseFromSliceLeaky instead of parseFromSlice
                 // is recommended.
                 const json = std.json.parseFromSliceLeaky(Config.Driver.Json, allocator, config_bytes, .{}) catch |e| {
-                    log.err("Failed to parse JSON configuration '{s}/{s}/{s}' with error '{}'", .{ path, driver_dir, config_path, e });
+                    log.err("failed to parse JSON configuration '{s}/{s}/{s}' with error '{}'", .{ path, driver_dir, config_path, e });
                     return error.JsonParse;
                 };
 
@@ -348,6 +346,7 @@ pub const Timer = struct {
 
     pub fn deinit(system: *Timer) void {
         system.clients.deinit();
+        system.client_configs.deinit();
     }
 
     pub fn addClient(system: *Timer, client: *Pd) Error!void {
@@ -448,6 +447,11 @@ pub const I2c = struct {
             // TODO: handle properly
             .num_buffers = 128,
         };
+    }
+
+    pub fn deinit(system: *I2c) void {
+        system.clients.deinit();
+        system.client_configs.deinit();
     }
 
     pub fn addClient(system: *I2c, client: *Pd) Error!void {
@@ -639,17 +643,18 @@ pub const Blk = struct {
         clients: std.ArrayList(ConfigResources.Blk.Client),
     };
 
-    pub const Error = SystemError;
+    pub const Error = SystemError || error{
+        InvalidVirt,
+    };
 
     pub const Options = struct {};
 
     const STORAGE_INFO_REGION_SIZE: usize = 0x1000;
 
-    pub fn init(allocator: Allocator, sdf: *SystemDescription, device: *dtb.Node, driver: *Pd, virt: *Pd, _: Options) Blk {
+    pub fn init(allocator: Allocator, sdf: *SystemDescription, device: *dtb.Node, driver: *Pd, virt: *Pd, _: Options) Error!Blk {
         if (std.mem.eql(u8, driver.name, virt.name)) {
             log.err("invalid blk virtualiser, same name as driver '{s}", .{virt.name});
-            // return Error.InvalidVirt;
-            @panic("TODO");
+            return Error.InvalidVirt;
         }
         return .{
             .allocator = allocator,
@@ -870,7 +875,9 @@ pub const Serial = struct {
     virt_tx_config: ConfigResources.Serial.VirtTx,
     client_configs: std.ArrayList(ConfigResources.Serial.Client),
 
-    pub const Error = SystemError;
+    pub const Error = SystemError || error{
+        InvalidVirt,
+    };
 
     pub const Options = struct {
         data_size: usize = 0x10000,
@@ -878,22 +885,19 @@ pub const Serial = struct {
         virt_rx: ?*Pd = null,
     };
 
-    pub fn init(allocator: Allocator, sdf: *SystemDescription, device: *dtb.Node, driver: *Pd, virt_tx: *Pd, options: Options) Serial {
+    pub fn init(allocator: Allocator, sdf: *SystemDescription, device: *dtb.Node, driver: *Pd, virt_tx: *Pd, options: Options) Error!Serial {
         if (std.mem.eql(u8, driver.name, virt_tx.name)) {
             log.err("invalid serial tx virtualiser, same name as driver '{s}", .{virt_tx.name});
-            // return Error.InvalidVirt;
-            @panic("TODO");
+            return Error.InvalidVirt;
         }
         if (options.virt_rx) |virt_rx| {
             if (std.mem.eql(u8, driver.name, virt_rx.name)) {
                 log.err("invalid serial rx virtualiser, same name as driver '{s}", .{virt_rx.name});
-                // return Error.InvalidVirt;
-                @panic("TODO");
+                return Error.InvalidVirt;
             }
             if (std.mem.eql(u8, virt_tx.name, virt_rx.name)) {
                 log.err("invalid serial rx virtualiser, same name as tx virtualiser '{s}", .{virt_rx.name});
-                // return Error.InvalidVirt;
-                @panic("TODO");
+                return Error.InvalidVirt;
             }
         }
         return .{
@@ -917,6 +921,7 @@ pub const Serial = struct {
 
     pub fn deinit(system: *Serial) void {
         system.clients.deinit();
+        system.client_configs.deinit();
     }
 
     pub fn addClient(system: *Serial, client: *Pd) Error!void {
@@ -1097,6 +1102,14 @@ pub const Net = struct {
             .client_info = std.ArrayList(ClientInfo).init(allocator),
             .rx_buffers = options.rx_buffers,
         };
+    }
+
+    pub fn deinit(system: *Net) void {
+        system.copiers.deinit();
+        system.clients.deinit();
+        system.copy_configs.deinit();
+        system.client_configs.deinit();
+        system.client_info.deinit();
     }
 
     fn parseMacAddr(mac_str: []const u8) ![6]u8 {
@@ -1657,9 +1670,7 @@ pub fn createDriver(sdf: *SystemDescription, pd: *Pd, device: *dtb.Node, class: 
             const dt_reg = device.prop(.Reg).?;
             assert(region_resource.dt_index.? < dt_reg.len);
 
-            // TODO: use helpers for these
             const dt_reg_entry = dt_reg[region_resource.dt_index.?];
-            assert(dt_reg_entry.len == 2);
             const dt_reg_paddr = dt_reg_entry[0];
             const dt_reg_size = sdf.arch.roundToPage(@intCast(dt_reg_entry[1]));
 
@@ -1668,7 +1679,7 @@ pub fn createDriver(sdf: *SystemDescription, pd: *Pd, device: *dtb.Node, class: 
                 return error.InvalidConfig;
             }
 
-            if (region_resource.size != null and region_resource.size.? & ((1 << 12) - 1) != 0) {
+            if (region_resource.size != null and region_resource.size.? & (sdf.arch.defaultPageSize() - 1) != 0) {
                 log.err("device '{s}' has config region size not aligned to page size for dt_index '{?}'", .{ device.name, region_resource.dt_index });
                 return error.InvalidConfig;
             }
@@ -1680,11 +1691,12 @@ pub fn createDriver(sdf: *SystemDescription, pd: *Pd, device: *dtb.Node, class: 
 
             const mr_size = if (region_resource.size != null) region_resource.size.? else dt_reg_size;
 
-            const device_paddr = dtb.regPaddr(device, @intCast(dt_reg_paddr));
+            const device_paddr = dtb.regPaddr(sdf.arch, device, @intCast(dt_reg_paddr));
             device_reg_offset = @intCast(dt_reg_paddr % sdf.arch.defaultPageSize());
 
-            // TODO: hack when we have multiple virtIO devices. Need to come up with
-            // a proper solution.
+            // If we are dealing with a device that shares the same page of memory as another
+            // device, we need to check whether an MR has already been created and use that
+            // for our mapping instead.
             for (sdf.mrs.items) |existing_mr| {
                 if (existing_mr.paddr) |paddr| {
                     if (paddr == device_paddr) {

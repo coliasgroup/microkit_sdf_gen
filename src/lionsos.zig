@@ -177,6 +177,12 @@ pub const FileSystem = struct {
             };
         }
 
+        pub fn deinit(system: *Nfs) void {
+            if (system.mac_addr) |mac_addr| {
+                system.allocator.destroy(mac_addr);
+            }
+        }
+
         pub fn connect(nfs: *Nfs) !void {
             const fs_pd = nfs.fs.fs;
             // NFS depends on being connected via the network, serial, and timer sub-sytems.

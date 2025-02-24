@@ -93,7 +93,7 @@ fn fmt(allocator: Allocator, comptime s: []const u8, args: anytype) []u8 {
 }
 
 fn addPassthroughDeviceMapping(system: *Self, name: []const u8, device: *dtb.Node, device_reg: [][2]u128, index: usize) void {
-    const device_paddr = dtb.regPaddr(device, device_reg[index][0]);
+    const device_paddr = dtb.regPaddr(system.sdf.arch, device, device_reg[index][0]);
     const device_size = system.sdf.arch.roundToPage(@intCast(device_reg[index][1]));
 
     const map_perms: Map.Perms = .rw;
@@ -227,7 +227,7 @@ fn addVirtioMmioDevice(system: *Self, device: *dtb.Node, t: Data.VirtioMmioDevic
         log.err("error adding virtIO device '{s}': invalid number of device regions", .{ device.name });
         return error.InvalidVirtioDevice;
     }
-    const device_paddr = dtb.regPaddr(device, device_reg[0][0]);
+    const device_paddr = dtb.regPaddr(system.sdf.arch, device, device_reg[0][0]);
     const device_size = system.sdf.arch.roundToPage(@intCast(device_reg[0][1]));
 
     const interrupts = device.prop(.Interrupts) orelse {
@@ -298,7 +298,7 @@ pub fn connect(system: *Self) !void {
     try vmm.setVirtualMachine(guest);
 
     if (sdf.arch.isArm()) {
-        const gic = dtb.ArmGic.fromDtb(system.guest_dtb) orelse {
+        const gic = dtb.ArmGic.fromDtb(sdf.arch, system.guest_dtb) orelse {
         log.err("error connecting VMM '{s}' system: could not find GIC interrupt controller DTB node", .{ vmm.name });
             return error.MissinGicNode;
         };

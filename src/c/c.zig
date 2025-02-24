@@ -133,12 +133,17 @@ export fn sdfgen_pd_destroy(c_pd: *align(8) anyopaque) void {
     allocator.destroy(pd);
 }
 
-export fn sdfgen_pd_add_child(c_pd: *align(8) anyopaque, c_child_pd: *align(8) anyopaque, c_child_id: ?*u8) u8 {
+export fn sdfgen_pd_add_child(c_pd: *align(8) anyopaque, c_child_pd: *align(8) anyopaque, c_child_id: ?*u8) i8 {
     const pd: *Pd = @ptrCast(c_pd);
     const child_pd: *Pd = @ptrCast(c_child_pd);
     const child_id = if (c_child_id) |c| c.* else null;
 
-    return pd.addChild(child_pd, .{ .id = child_id }) catch @panic("TODO");
+    const id = pd.addChild(child_pd, .{ .id = child_id }) catch |e| {
+        log.err("failed to add child '{s}' to parent '{s}': {any}", .{ child_pd.name, pd.name, e });
+        return -1;
+    };
+
+    return @intCast(id);
 }
 
 export fn sdfgen_pd_add_map(c_pd: *align(8) anyopaque, c_map: *align(8) anyopaque) void {
@@ -148,11 +153,16 @@ export fn sdfgen_pd_add_map(c_pd: *align(8) anyopaque, c_map: *align(8) anyopaqu
     pd.addMap(map.*);
 }
 
-export fn sdfgen_pd_add_irq(c_pd: *align(8) anyopaque, c_irq: *align(8) anyopaque) u8 {
+export fn sdfgen_pd_add_irq(c_pd: *align(8) anyopaque, c_irq: *align(8) anyopaque) i8 {
     const pd: *Pd = @ptrCast(c_pd);
     const irq: *Irq = @ptrCast(c_irq);
 
-    return pd.addIrq(irq.*) catch @panic("TODO");
+    const id = pd.addIrq(irq.*) catch |e| {
+        log.err("failed to add IRQ '{}' to PD '{s}': {}", .{ irq.irq, pd.name, e });
+        return -1;
+    };
+
+    return @intCast(id);
 }
 
 export fn sdfgen_pd_set_priority(c_pd: *align(8) anyopaque, priority: u8) void {
@@ -309,7 +319,7 @@ export fn sdfgen_mr_destroy(c_mr: *align(8) anyopaque) void {
     allocator.destroy(mr);
 }
 
-export fn sdfgen_map_create(c_mr: *align(8) anyopaque, vaddr: u64, c_perms: bindings.sdfgen_map_perms_t, cached: bool) *anyopaque {
+export fn sdfgen_map_create(c_mr: *align(8) anyopaque, vaddr: u64, c_perms: bindings.sdfgen_map_perms_t, cached: bool) ?*anyopaque {
     const mr: *Mr = @ptrCast(c_mr);
 
     var perms: Map.Perms = .{};
@@ -405,6 +415,7 @@ export fn sdfgen_sddf_timer(c_sdf: *align(8) anyopaque, c_device: ?*align(8) any
 
 export fn sdfgen_sddf_timer_destroy(system: *align(8) anyopaque) void {
     const timer: *sddf.Timer = @ptrCast(system);
+    timer.deinit();
     allocator.destroy(timer);
 }
 
@@ -436,10 +447,15 @@ export fn sdfgen_sddf_timer_serialise_config(system: *align(8) anyopaque, output
     return true;
 }
 
-export fn sdfgen_sddf_serial(c_sdf: *align(8) anyopaque, c_device: ?*align(8) anyopaque, driver: *align(8) anyopaque, virt_tx: *align(8) anyopaque, virt_rx: ?*align(8) anyopaque) *anyopaque {
+export fn sdfgen_sddf_serial(c_sdf: *align(8) anyopaque, c_device: ?*align(8) anyopaque, driver: *align(8) anyopaque, virt_tx: *align(8) anyopaque, virt_rx: ?*align(8) anyopaque) ?*anyopaque {
     const sdf: *SystemDescription = @ptrCast(c_sdf);
+    const device: *dtb.Node = @ptrCast(c_device);
     const serial = allocator.create(sddf.Serial) catch @panic("OOM");
-    serial.* = sddf.Serial.init(allocator, sdf, @ptrCast(c_device), @ptrCast(driver), @ptrCast(virt_tx), .{ .virt_rx = @ptrCast(virt_rx) });
+    serial.* = sddf.Serial.init(allocator, sdf, device, @ptrCast(driver), @ptrCast(virt_tx), .{ .virt_rx = @ptrCast(virt_rx) }) catch |e| {
+        log.err("failed to initialiase serial system for device '{s}': {any}", .{ device.name, e });
+        allocator.destroy(serial);
+        return null;
+    };
 
     return serial;
 }
@@ -447,6 +463,7 @@ export fn sdfgen_sddf_serial(c_sdf: *align(8) anyopaque, c_device: ?*align(8) an
 export fn sdfgen_sddf_serial_destroy(system: *align(8) anyopaque) void {
     const serial: *sddf.Serial = @ptrCast(system);
     serial.deinit();
+    allocator.destroy(serial);
 }
 
 export fn sdfgen_sddf_serial_add_client(system: *align(8) anyopaque, client: *align(8) anyopaque) bindings.sdfgen_sddf_status_t {
@@ -456,6 +473,7 @@ export fn sdfgen_sddf_serial_add_client(system: *align(8) anyopaque, client: *al
             sddf.Serial.Error.DuplicateClient => return 1,
             sddf.Serial.Error.InvalidClient => return 2,
             // Should never happen when adding a client
+            sddf.Serial.Error.InvalidVirt,
             sddf.Serial.Error.NotConnected => @panic("internal error"),
         }
     };
@@ -486,6 +504,7 @@ export fn sdfgen_sddf_i2c(c_sdf: *align(8) anyopaque, c_device: ?*align(8) anyop
 
 export fn sdfgen_sddf_i2c_destroy(system: *align(8) anyopaque) void {
     const i2c: *sddf.I2c = @ptrCast(system);
+    i2c.deinit();
     allocator.destroy(i2c);
 }
 
@@ -516,10 +535,15 @@ export fn sdfgen_sddf_i2c_serialise_config(system: *align(8) anyopaque, output_d
     return true;
 }
 
-export fn sdfgen_sddf_blk(c_sdf: *align(8) anyopaque, c_device: *align(8) anyopaque, driver: *align(8) anyopaque, virt: *align(8) anyopaque) *anyopaque {
+export fn sdfgen_sddf_blk(c_sdf: *align(8) anyopaque, c_device: *align(8) anyopaque, driver: *align(8) anyopaque, virt: *align(8) anyopaque) ?*anyopaque {
     const sdf: *SystemDescription = @ptrCast(c_sdf);
+    const device: *dtb.Node = @ptrCast(c_device);
     const block = allocator.create(sddf.Blk) catch @panic("OOM");
-    block.* = sddf.Blk.init(allocator, sdf, @ptrCast(c_device), @ptrCast(driver), @ptrCast(virt), .{});
+    block.* = sddf.Blk.init(allocator, sdf, device, @ptrCast(driver), @ptrCast(virt), .{}) catch |e| {
+        log.err("failed to initialiase blk system for device '{s}': {any}", .{ device.name, e });
+        allocator.destroy(block);
+        return null;
+    };
 
     return block;
 }
@@ -537,6 +561,7 @@ export fn sdfgen_sddf_blk_add_client(system: *align(8) anyopaque, client: *align
             sddf.Blk.Error.DuplicateClient => return 1,
             sddf.Blk.Error.InvalidClient => return 2,
             // Should never happen when adding a client
+            sddf.Blk.Error.InvalidVirt,
             sddf.Blk.Error.NotConnected => @panic("internal error"),
         }
     };
@@ -602,6 +627,7 @@ export fn sdfgen_sddf_net_serialise_config(system: *align(8) anyopaque, output_d
 
 export fn sdfgen_sddf_net_destroy(system: *align(8) anyopaque) void {
     const net: *sddf.Net = @ptrCast(system);
+    net.deinit();
     allocator.destroy(net);
 }
 

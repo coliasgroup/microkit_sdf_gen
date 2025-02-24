@@ -4,10 +4,11 @@
 /// This module serves to do common higher-level things on the device tree
 /// for our device drivers, virtual machines etc.
 const std = @import("std");
-const sdf = @import("sdf.zig");
 const dtb = @import("dtb");
+const mod_sdf = @import("sdf.zig");
 
-const Irq = sdf.SystemDescription.Irq;
+const SystemDescription = mod_sdf.SystemDescription;
+const Irq = SystemDescription.Irq;
 
 pub const Node = dtb.Node;
 pub const parse = dtb.parse;
@@ -84,7 +85,7 @@ pub const ArmGic = struct {
         }
     }
 
-    pub fn create(node: *dtb.Node) ArmGic {
+    pub fn create(arch: SystemDescription.Arch, node: *dtb.Node) ArmGic {
         // Get the GIC version first.
         const node_compatible = node.prop(.Compatible).?;
         const version = blk: {
@@ -106,10 +107,10 @@ pub const ArmGic = struct {
             .three => 2,
         };
         const gic_reg = node.prop(.Reg).?;
-        const vcpu_paddr = if (vcpu_dt_index < gic_reg.len) regPaddr(node, gic_reg[vcpu_dt_index][0]) else null;
+        const vcpu_paddr = if (vcpu_dt_index < gic_reg.len) regPaddr(arch, node, gic_reg[vcpu_dt_index][0]) else null;
         // Cast should be safe as vCPU should never be larger than u64
         const vcpu_size: ?u64 = if (vcpu_dt_index < gic_reg.len) @intCast(gic_reg[vcpu_dt_index][1]) else null;
-        const cpu_paddr = if (cpu_dt_index < gic_reg.len) regPaddr(node, gic_reg[cpu_dt_index][0]) else null;
+        const cpu_paddr = if (cpu_dt_index < gic_reg.len) regPaddr(arch, node, gic_reg[cpu_dt_index][0]) else null;
 
         return .{
             .node = node,
@@ -120,10 +121,10 @@ pub const ArmGic = struct {
         };
     }
 
-    pub fn fromDtb(d: *dtb.Node) ?ArmGic {
+    pub fn fromDtb(arch: SystemDescription.Arch, d: *dtb.Node) ?ArmGic {
         // Find the GIC with any compatible string, regardless of version.
         const gic_node = findCompatible(d, &ArmGic.compatible) orelse return null;
-        return ArmGic.create(gic_node);
+        return ArmGic.create(arch, gic_node);
     }
 };
 
@@ -179,11 +180,11 @@ pub fn findCompatible(d: *dtb.Node, compatibles: []const []const u8) ?*dtb.Node 
 // mappable MMIO address. This involves traversing any higher-level busses
 // to find the CPU visible address rather than some address relative to the
 // particular bus the address is on. We also align to the smallest page size;
-// Assumes smallest page size is 0x1000.
-pub fn regPaddr(device: *dtb.Node, paddr: u128) u64 {
-    // We have to case here because any mappable address in seL4 must be a
+pub fn regPaddr(arch: SystemDescription.Arch, device: *dtb.Node, paddr: u128) u64 {
+    const page_bits = @ctz(arch.defaultPageSize());
+    // We have to @intCast here because any mappable address in seL4 must be a
     // 64-bit address or smaller.
-    var device_paddr: u64 = @intCast((paddr >> 12) << 12);
+    var device_paddr: u64 = @intCast((paddr >> page_bits) << page_bits);
     var parent_node_maybe: ?*dtb.Node = device.parent;
     while (parent_node_maybe) |parent_node| : (parent_node_maybe = parent_node.parent) {
         if (parent_node.prop(.Ranges)) |ranges| {

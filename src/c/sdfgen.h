@@ -45,7 +45,7 @@ void *sdfgen_pd_create(char *name, char *elf);
 void sdfgen_pd_destroy(void *pd);
 
 /* Can specifiy a fixed ID  */
-uint8_t *sdfgen_pd_add_child(void *sdf, void *child_pd, uint8_t *child_id);
+int8_t sdfgen_pd_add_child(void *sdf, void *child_pd, uint8_t *child_id);
 void sdfgen_pd_add_map(void *pd, void *map);
 void sdfgen_pd_set_priority(void *pd, uint8_t priority);
 void sdfgen_pd_set_budget(void *pd, uint32_t budget);

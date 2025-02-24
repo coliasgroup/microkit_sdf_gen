@@ -208,6 +208,14 @@ pub const SystemDescription = struct {
             pub const wx = Perms{ .write = true, .execute = true };
             pub const rwx = Perms{ .read = true, .write = true, .execute = true };
 
+            pub fn valid(perms: Perms) bool {
+                if (!perms.read and !perms.execute and perms.write) {
+                    return false;
+                }
+
+                return true;
+            }
+
             pub fn toString(perms: Perms, buf: *[3]u8) []u8 {
                 var i: u8 = 0;
                 if (perms.read) {
@@ -227,7 +235,6 @@ pub const SystemDescription = struct {
                 return buf[0..i];
             }
 
-            // TODO: error checking
             pub fn fromString(str: []const u8) !Perms {
                 const read_count = std.mem.count(u8, str, "r");
                 const write_count = std.mem.count(u8, str, "w");
@@ -235,7 +242,10 @@ pub const SystemDescription = struct {
                 if (read_count > 1 or write_count > 1 or exec_count > 1) {
                     return error.InvalidPerms;
                 }
-
+                if (read_count == 0 and exec_count == 0 and write_count == 1) {
+                    return error.InvalidPerms;
+                }
+                std.debug.assert(str.len == read_count + write_count + exec_count);
                 var perms: Perms = .{};
                 if (read_count > 0) {
                     perms.read = true;
@@ -253,7 +263,11 @@ pub const SystemDescription = struct {
 
         // TODO: make vaddr optional so its easier to allocate it automatically
         pub fn create(mr: MemoryRegion, vaddr: u64, perms: Perms, options: Options) Map {
-            // const vaddr = if (options.vaddr) |fixed_vaddr| fixed_vaddr else ;
+            if (!perms.valid()) {
+                log.err("error creating mapping for '{s}': invalid permissions given", .{ mr.name });
+                @panic("todo");
+            }
+
             return Map{
                 .mr = mr,
                 .vaddr = vaddr,
