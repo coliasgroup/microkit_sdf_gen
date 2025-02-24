@@ -1642,7 +1642,7 @@ pub fn createDriver(sdf: *SystemDescription, pd: *Pd, device: *dtb.Node, class: 
         log.err("Cannot find driver matching '{s}' for class '{s}'", .{ device.name, @tagName(class) });
         return error.UnknownDevice;
     };
-    log.debug("Found compatible driver '{s}'", .{ driver.dir });
+    log.debug("Found compatible driver '{s}'", .{driver.dir});
 
     // If a status property does exist, we should check that it is 'okay'
     if (device.prop(.Status)) |status| {
@@ -1659,7 +1659,7 @@ pub fn createDriver(sdf: *SystemDescription, pd: *Pd, device: *dtb.Node, class: 
         }
 
         if (region_resource.dt_index != null and region_resource.cached != null and region_resource.cached.? == true) {
-            log.err("driver '{s}' has region resource '{s}' which tries to map MMIO region as cached", .{ driver.dir , region_resource.name });
+            log.err("driver '{s}' has region resource '{s}' which tries to map MMIO region as cached", .{ driver.dir, region_resource.name });
         }
 
         const mr_name = fmt(sdf.allocator, "{s}/{s}/{s}", .{ device.name, driver.dir, region_resource.name });

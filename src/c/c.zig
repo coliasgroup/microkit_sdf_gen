@@ -370,7 +370,7 @@ export fn sdfgen_channel_create(c_pd_a: *align(8) anyopaque, c_pd_b: *align(8) a
             else => {
                 log.err("failed to create channel between '{s}' and '{s}': invalid pp option given '{}'", .{ pd_a.name, pd_b.name, c_pp.* });
                 return null;
-            }
+            },
         };
         options.pp = pp;
     }
@@ -473,8 +473,7 @@ export fn sdfgen_sddf_serial_add_client(system: *align(8) anyopaque, client: *al
             sddf.Serial.Error.DuplicateClient => return 1,
             sddf.Serial.Error.InvalidClient => return 2,
             // Should never happen when adding a client
-            sddf.Serial.Error.InvalidVirt,
-            sddf.Serial.Error.NotConnected => @panic("internal error"),
+            sddf.Serial.Error.InvalidVirt, sddf.Serial.Error.NotConnected => @panic("internal error"),
         }
     };
 
@@ -561,8 +560,7 @@ export fn sdfgen_sddf_blk_add_client(system: *align(8) anyopaque, client: *align
             sddf.Blk.Error.DuplicateClient => return 1,
             sddf.Blk.Error.InvalidClient => return 2,
             // Should never happen when adding a client
-            sddf.Blk.Error.InvalidVirt,
-            sddf.Blk.Error.NotConnected => @panic("internal error"),
+            sddf.Blk.Error.InvalidVirt, sddf.Blk.Error.NotConnected => @panic("internal error"),
         }
     };
 
@@ -820,18 +818,7 @@ export fn sdfgen_lionsos_fs_fat_serialise_config(system: *align(8) anyopaque, ou
     return true;
 }
 
-export fn sdfgen_lionsos_fs_nfs(
-        c_sdf: *align(8) anyopaque,
-        c_fs: *align(8) anyopaque,
-        c_client: *align(8) anyopaque,
-        c_net: *align(8) anyopaque,
-        c_net_copier: *align(8) anyopaque,
-        mac_addr: [*c]u8,
-        c_serial: *align(8) anyopaque,
-        c_timer: *align(8) anyopaque,
-        nfs_server: [*c]u8,
-        nfs_export_path: [*c]u8
-    ) ?*anyopaque {
+export fn sdfgen_lionsos_fs_nfs(c_sdf: *align(8) anyopaque, c_fs: *align(8) anyopaque, c_client: *align(8) anyopaque, c_net: *align(8) anyopaque, c_net_copier: *align(8) anyopaque, mac_addr: [*c]u8, c_serial: *align(8) anyopaque, c_timer: *align(8) anyopaque, nfs_server: [*c]u8, nfs_export_path: [*c]u8) ?*anyopaque {
     const sdf: *SystemDescription = @ptrCast(c_sdf);
     const fs_pd: *Pd = @ptrCast(c_fs);
     const fs = allocator.create(lionsos.FileSystem.Nfs) catch @panic("OOM");
@@ -878,7 +865,7 @@ export fn sdfgen_sddf_lwip(c_sdf: *align(8) anyopaque, c_net: *align(8) anyopaqu
 
 export fn sdfgen_sddf_lwip_connect(c_lib: *align(8) anyopaque) bool {
     const lib: *sddf.Lwip = @ptrCast(c_lib);
-    lib.connect()  catch |e| {
+    lib.connect() catch |e| {
         log.err("failed to connect lwIP '{s}': {any}", .{ lib.pd.name, e });
         return false;
     };

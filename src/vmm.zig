@@ -220,18 +220,18 @@ pub fn addPassthroughDevice(system: *Self, device: *dtb.Node, options: Passthrou
 
 fn addVirtioMmioDevice(system: *Self, device: *dtb.Node, t: Data.VirtioMmioDevice.Type) !void {
     const device_reg = device.prop(.Reg) orelse {
-        log.err("error adding virtIO device '{s}': missing 'reg' field on device node", .{ device.name });
+        log.err("error adding virtIO device '{s}': missing 'reg' field on device node", .{device.name});
         return error.InvalidVirtioDevice;
     };
     if (device_reg.len != 1) {
-        log.err("error adding virtIO device '{s}': invalid number of device regions", .{ device.name });
+        log.err("error adding virtIO device '{s}': invalid number of device regions", .{device.name});
         return error.InvalidVirtioDevice;
     }
     const device_paddr = dtb.regPaddr(system.sdf.arch, device, device_reg[0][0]);
     const device_size = system.sdf.arch.roundToPage(@intCast(device_reg[0][1]));
 
     const interrupts = device.prop(.Interrupts) orelse {
-        log.err("error adding virtIO device '{s}': missing 'interrupts' field on device node", .{ device.name });
+        log.err("error adding virtIO device '{s}': missing 'interrupts' field on device node", .{device.name});
         return error.InvalidVirtioDevice;
     };
     const irq = blk: {
@@ -299,11 +299,11 @@ pub fn connect(system: *Self) !void {
 
     if (sdf.arch.isArm()) {
         const gic = dtb.ArmGic.fromDtb(sdf.arch, system.guest_dtb) orelse {
-        log.err("error connecting VMM '{s}' system: could not find GIC interrupt controller DTB node", .{ vmm.name });
+            log.err("error connecting VMM '{s}' system: could not find GIC interrupt controller DTB node", .{vmm.name});
             return error.MissinGicNode;
         };
         if (gic.hasMmioCpuInterface()) {
-            const gic_vcpu_mr_name = fmt(allocator, "{s}/vcpu", .{ gic.node.name });
+            const gic_vcpu_mr_name = fmt(allocator, "{s}/vcpu", .{gic.node.name});
             defer allocator.free(gic_vcpu_mr_name);
             // On ARM, map in the GIC vCPU device as the GIC CPU device in the guest's memory.
             var gic_vcpu_mr: ?Mr = null;
@@ -322,11 +322,11 @@ pub fn connect(system: *Self) !void {
     }
 
     const memory_node = dtb.memory(system.guest_dtb) orelse {
-        log.err("error connecting VMM '{s}' system: could not find 'memory' DTB node", .{ vmm.name });
+        log.err("error connecting VMM '{s}' system: could not find 'memory' DTB node", .{vmm.name});
         return error.MissingMemoryNode;
     };
     const memory_reg = memory_node.prop(.Reg) orelse {
-        log.err("error connecting VMM '{s}' system: 'memory' node does not have 'reg' field", .{ vmm.name });
+        log.err("error connecting VMM '{s}' system: 'memory' node does not have 'reg' field", .{vmm.name});
         return error.InvalidMemoryNode;
     };
     if (memory_reg.len != 1) {

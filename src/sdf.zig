@@ -264,7 +264,7 @@ pub const SystemDescription = struct {
         // TODO: make vaddr optional so its easier to allocate it automatically
         pub fn create(mr: MemoryRegion, vaddr: u64, perms: Perms, options: Options) Map {
             if (!perms.valid()) {
-                log.err("error creating mapping for '{s}': invalid permissions given", .{ mr.name });
+                log.err("error creating mapping for '{s}': invalid permissions given", .{mr.name});
                 @panic("todo");
             }
 
@@ -368,7 +368,7 @@ pub const SystemDescription = struct {
             for (vm.vcpus) |vcpu| {
                 try std.fmt.format(writer, "{s}<vcpu id=\"{}\"", .{ child_separator, vcpu.id });
                 if (vcpu.cpu) |cpu| {
-                    try std.fmt.format(writer, " cpu=\"{}\"", .{ cpu });
+                    try std.fmt.format(writer, " cpu=\"{}\"", .{cpu});
                 }
                 _ = try writer.write(" />\n");
             }
@@ -377,7 +377,7 @@ pub const SystemDescription = struct {
                 try map.render(writer, child_separator);
             }
 
-            try std.fmt.format(writer, "{s}</virtual_machine>\n", .{ separator });
+            try std.fmt.format(writer, "{s}</virtual_machine>\n", .{separator});
         }
     };
 
@@ -690,7 +690,7 @@ pub const SystemDescription = struct {
             try std.fmt.format(writer, "{s}<channel>\n{s}<end pd=\"{s}\" id=\"{}\"", .{ separator, child_separator, ch.pd_a.name, ch.pd_a_id });
 
             if (ch.pd_a_notify) |notify| {
-                try std.fmt.format(writer, " notify=\"{}\"", .{ notify });
+                try std.fmt.format(writer, " notify=\"{}\"", .{notify});
             }
 
             if (ch.pp != null and ch.pp.? == .a) {
@@ -701,14 +701,14 @@ pub const SystemDescription = struct {
             try std.fmt.format(writer, "{s}<end pd=\"{s}\" id=\"{}\"", .{ child_separator, ch.pd_b.name, ch.pd_b_id });
 
             if (ch.pd_b_notify) |notify| {
-                try std.fmt.format(writer, " notify=\"{}\"", .{ notify });
+                try std.fmt.format(writer, " notify=\"{}\"", .{notify});
             }
 
             if (ch.pp != null and ch.pp.? == .b) {
                 _ = try writer.write(" pp=\"true\"");
             }
 
-            try std.fmt.format(writer, " />\n{s}</channel>\n", .{ separator });
+            try std.fmt.format(writer, " />\n{s}</channel>\n", .{separator});
         }
     };
 
@@ -731,11 +731,7 @@ pub const SystemDescription = struct {
         };
 
         pub fn create(irq: u32, options: Options) Irq {
-            return .{
-                .irq = irq,
-                .trigger = options.trigger,
-                .id = options.id
-            };
+            return .{ .irq = irq, .trigger = options.trigger, .id = options.id };
         }
 
         pub fn render(irq: *const Irq, writer: ArrayList(u8).Writer, separator: []const u8) !void {
@@ -744,7 +740,7 @@ pub const SystemDescription = struct {
 
             try std.fmt.format(writer, "{s}<irq irq=\"{}\" id=\"{}\"", .{ separator, irq.irq, irq.id.? });
             if (irq.trigger) |trigger| {
-                try std.fmt.format(writer, " trigger=\"{s}\"", .{ @tagName(trigger) });
+                try std.fmt.format(writer, " trigger=\"{s}\"", .{@tagName(trigger)});
             }
 
             _ = try writer.write(" />\n");
