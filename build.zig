@@ -28,14 +28,12 @@ pub fn build(b: *std.Build) !void {
 
     const dtb_step = b.step("dtbs", "Compile Device Tree Sources into .dtb");
     inline for (test_device_trees) |device_tree| {
-        const dtc_cmd = b.addSystemCommand(&[_][]const u8{
-            "dtc", "-q", "-I", "dts", "-O", "dtb"
-        });
-        const device_tree_path = b.path(b.fmt("examples/dts/{s}.dts", .{ device_tree }));
+        const dtc_cmd = b.addSystemCommand(&[_][]const u8{ "dtc", "-q", "-I", "dts", "-O", "dtb" });
+        const device_tree_path = b.path(b.fmt("examples/dts/{s}.dts", .{device_tree}));
         dtc_cmd.addFileInput(device_tree_path);
         dtc_cmd.addFileArg(device_tree_path);
         const dtb = dtc_cmd.captureStdOut();
-        dtb_step.dependOn(&b.addInstallFileWithDir(dtb, .{ .custom = "dtb" }, b.fmt("{s}.dtb", .{ device_tree })).step);
+        dtb_step.dependOn(&b.addInstallFileWithDir(dtb, .{ .custom = "dtb" }, b.fmt("{s}.dtb", .{device_tree})).step);
     }
 
     const zig_example_step = b.step("zig_example", "Exmaples of using Zig bindings");
@@ -48,7 +46,7 @@ pub fn build(b: *std.Build) !void {
     // TODO: should these be runtime options instead?
     const zig_example_options = b.addOptions();
     zig_example_options.addOptionPath("sddf", b.path("sddf"));
-    zig_example_options.addOption([]const u8, "dtbs", b.getInstallPath(.{ .custom = "dtb"}, ""));
+    zig_example_options.addOption([]const u8, "dtbs", b.getInstallPath(.{ .custom = "dtb" }, ""));
     zig_example_options.addOption([]const u8, "data_output", b.getInstallPath(.prefix, ""));
 
     zig_example.root_module.addOptions("config", zig_example_options);
