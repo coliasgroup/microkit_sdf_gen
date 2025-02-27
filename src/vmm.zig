@@ -465,7 +465,7 @@ pub fn connect(system: *Self) !void {
     }
 
     if (initrd_end > memory_paddr + guest_ram_size or initrd_start < memory_paddr) {
-        log.err("invalid initrd region for VMM '{s}': initrd at [0x{x}..0x{x}) is not within guest main memory [0x{x}..0x{x})", .{ vmm.name, initrd_start, initrd_end, memory_paddr, guest_ram_size });
+        log.err("invalid initrd region for VMM '{s}': initrd at [0x{x}..0x{x}) is not within guest main memory [0x{x}..0x{x})", .{ vmm.name, initrd_start, initrd_end, memory_paddr, memory_paddr + guest_ram_size });
         return error.InvalidInitrd;
     }
 
