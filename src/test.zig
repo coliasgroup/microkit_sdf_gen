@@ -25,6 +25,19 @@ fn readTestFile(test_path: []const u8) ![]const u8 {
     );
 }
 
+test "rounding" {
+    const sdf = SystemDescription.create(allocator, .aarch64, 0x100_000_000);
+    const arch = sdf.arch;
+
+    try std.testing.expectEqual(arch.roundDownToPage(0x1000), 0x1000);
+    try std.testing.expectEqual(arch.roundDownToPage(0x1001), 0x1000);
+    try std.testing.expectEqual(arch.roundDownToPage(0x1100), 0x1000);
+
+    try std.testing.expectEqual(arch.roundUpToPage(0x1000), 0x1000);
+    try std.testing.expectEqual(arch.roundUpToPage(0x1001), 0x2000);
+    try std.testing.expectEqual(arch.roundUpToPage(0x1100), 0x2000);
+}
+
 test "basic" {
     var sdf = SystemDescription.create(allocator, .aarch64, 0x100_000_000);
 

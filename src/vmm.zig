@@ -11,6 +11,7 @@ const Allocator = std.mem.Allocator;
 const fs = std.fs;
 
 const SystemDescription = mod_sdf.SystemDescription;
+const Arch = SystemDescription.Arch;
 const Mr = SystemDescription.MemoryRegion;
 const Pd = SystemDescription.ProtectionDomain;
 const Irq = SystemDescription.Irq;
@@ -107,7 +108,7 @@ fn fmt(allocator: Allocator, comptime s: []const u8, args: anytype) []u8 {
 
 fn addPassthroughDeviceMapping(system: *Self, name: []const u8, device: *dtb.Node, device_reg: [][2]u128, index: usize) void {
     const device_paddr = dtb.regPaddr(system.sdf.arch, device, device_reg[index][0]);
-    const device_size = system.sdf.arch.roundToPage(@intCast(device_reg[index][1]));
+    const device_size = system.sdf.arch.roundUpToPage(@intCast(device_reg[index][1]));
 
     const map_perms: Map.Perms = .rw;
     const map_options: Map.Options = .{ .cached = false };
@@ -242,7 +243,7 @@ fn addVirtioMmioDevice(system: *Self, device: *dtb.Node, t: Data.VirtioMmioDevic
         return error.InvalidVirtioDevice;
     }
     const device_paddr = dtb.regPaddr(system.sdf.arch, device, device_reg[0][0]);
-    const device_size = system.sdf.arch.roundToPage(@intCast(device_reg[0][1]));
+    const device_size = system.sdf.arch.roundUpToPage(@intCast(device_reg[0][1]));
 
     const interrupts = device.prop(.Interrupts) orelse {
         log.err("error adding virtIO device '{s}': missing 'interrupts' field on device node", .{device.name});
@@ -293,12 +294,19 @@ pub fn addPassthroughIrq(system: *Self, irq: Irq) !void {
 
 /// Figure out where to place the DTB based on the guest's RAM and initrd.
 /// Our preference is to place it towards the end of RAM.
-fn allocateDtbAddress(dtb_size: u64, ram_start: u64, ram_end: u64, initrd_start: u64, initrd_end: u64) !u64 {
-    if (initrd_end + dtb_size <= ram_end) {
+/// The DTB is always allocated at a page-aligned address.
+fn allocateDtbAddress(arch: Arch, dtb_size: u64, ram_start: u64, ram_end: u64, initrd_start: u64, initrd_end: u64) !u64 {
+    std.debug.assert(arch.pageAligned(ram_start));
+    std.debug.assert(arch.pageAligned(ram_end));
+
+    const initrd_start_page_aligned = arch.roundDownToPage(initrd_start);
+    const initrd_end_page_aligned = arch.roundUpToPage(initrd_end);
+    const dtb_size_page_aligned = arch.roundUpToPage(dtb_size);
+    if (initrd_end_page_aligned + dtb_size <= ram_end) {
         // We can fit it after the DTB
-        return initrd_end;
-    } else if (initrd_start - dtb_size > ram_start) {
-        return initrd_start - dtb_size;
+        return initrd_end_page_aligned;
+    } else if (initrd_start_page_aligned - dtb_size_page_aligned > ram_start) {
+        return initrd_start_page_aligned - dtb_size_page_aligned;
     } else {
         return error.CouldNotAllocateDtb;
     }
@@ -371,6 +379,7 @@ pub fn findUio(system: *Self, target_name: []const u8) ?*LinuxUioRegion {
 pub fn connect(system: *Self) !void {
     const allocator = system.allocator;
     var sdf = system.sdf;
+    const arch = sdf.arch;
     const vmm = system.vmm;
     const guest = system.guest;
     try vmm.setVirtualMachine(guest);
@@ -454,7 +463,7 @@ pub fn connect(system: *Self) !void {
 
     system.data.ram = memory_paddr;
     system.data.ram_size = guest_ram_size;
-    system.data.dtb = try allocateDtbAddress(system.guest_dtb_size, system.data.ram, system.data.ram + system.data.ram_size, initrd_start, initrd_end);
+    system.data.dtb = try allocateDtbAddress(arch, system.guest_dtb_size, system.data.ram, system.data.ram + system.data.ram_size, initrd_start, initrd_end);
     system.data.initrd = initrd_start;
 
     system.connected = true;

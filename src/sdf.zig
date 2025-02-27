@@ -42,7 +42,22 @@ pub const SystemDescription = struct {
             return 0x1000;
         }
 
-        pub fn roundToPage(arch: Arch, n: u64) u64 {
+        pub fn pageAligned(arch: Arch, n: u64) bool {
+            return (n % arch.defaultPageSize() == 0);
+        }
+
+        pub fn roundDownToPage(arch: Arch, n: u64) u64 {
+            const page_size = arch.defaultPageSize();
+            if (n < page_size) {
+                return 0;
+            } else if (n % page_size == 0) {
+                return n;
+            } else {
+                return n - (n % page_size);
+            }
+        }
+
+        pub fn roundUpToPage(arch: Arch, n: u64) u64 {
             const page_size = arch.defaultPageSize();
             if (n < page_size) {
                 return page_size;
