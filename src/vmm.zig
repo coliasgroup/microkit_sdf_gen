@@ -302,7 +302,7 @@ fn allocateDtbAddress(arch: Arch, dtb_size: u64, ram_start: u64, ram_end: u64, i
     const initrd_start_page_aligned = arch.roundDownToPage(initrd_start);
     const initrd_end_page_aligned = arch.roundUpToPage(initrd_end);
     const dtb_size_page_aligned = arch.roundUpToPage(dtb_size);
-    if (initrd_end_page_aligned + dtb_size <= ram_end) {
+    if (initrd_end_page_aligned + dtb_size_page_aligned <= ram_end) {
         // We can fit it after the DTB
         return initrd_end_page_aligned;
     } else if (initrd_start_page_aligned - dtb_size_page_aligned > ram_start) {
@@ -458,6 +458,16 @@ pub fn connect(system: *Self) !void {
             return error.MissingInitrd;
         }
     };
+
+    if (initrd_end <= initrd_start) {
+        log.err("invalid initrd region for VMM '{s}': end address 0x{x} is less than start address 0x{x}", .{ vmm.name, initrd_end, initrd_start });
+        return error.InvalidInitrd;
+    }
+
+    if (initrd_end > memory_paddr + guest_ram_size or initrd_start < memory_paddr) {
+        log.err("invalid initrd region for VMM '{s}': initrd at [0x{x}..0x{x}) is not within guest main memory [0x{x}..0x{x})", .{ vmm.name, initrd_start, initrd_end, memory_paddr, guest_ram_size });
+        return error.InvalidInitrd;
+    }
 
     try parseUios(system);
 
