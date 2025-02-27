@@ -321,7 +321,7 @@ fn blk(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !void {
     var blk_virt = Pd.create(allocator, "blk_virt", "blk_virt.elf", .{});
     sdf.addProtectionDomain(&blk_virt);
 
-    var blk_system = sddf.Blk.init(allocator, sdf, blk_node, &blk_driver, &blk_virt, .{});
+    var blk_system = try sddf.Blk.init(allocator, sdf, blk_node, &blk_driver, &blk_virt, .{});
     try blk_system.addClient(&client, .{
         .partition = 0,
     });
@@ -390,7 +390,7 @@ fn webserver(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !vo
     try timer_system.addClient(&micropython);
     // timer_system.addClient(&nfs);
 
-    var serial_system = sddf.Serial.init(allocator, sdf, uart_node, &uart_driver, &serial_virt_tx, .{});
+    var serial_system = try sddf.Serial.init(allocator, sdf, uart_node, &uart_driver, &serial_virt_tx, .{});
     try serial_system.addClient(&micropython);
     // serial_system.addClient(&nfs);
 
@@ -401,7 +401,7 @@ fn webserver(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !vo
     var blk_virt = Pd.create(allocator, "blk_virt", "blk_virt.elf", .{});
     sdf.addProtectionDomain(&blk_virt);
 
-    var blk_system = sddf.Blk.init(allocator, sdf, blk_node, &blk_driver, &blk_virt, .{});
+    var blk_system = try sddf.Blk.init(allocator, sdf, blk_node, &blk_driver, &blk_virt, .{});
     try blk_system.addClient(&fatfs, .{
         .partition = 0,
     });
@@ -463,7 +463,7 @@ fn webserver(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !vo
     sdf.addMemoryRegion(fatfs_metadata);
 
     var fs = try lionsos.FileSystem.init(allocator, sdf, &fatfs, &micropython, .{});
-    fs.connect();
+    fs.connect(.{});
 
     try sdf.print();
 }
@@ -509,7 +509,7 @@ fn echo_server(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !
     const uart_node = board.defaultUartNode(blob);
     var uart_driver = Pd.create(allocator, "uart_driver", "uart_driver.elf", .{});
     var serial_virt_tx = Pd.create(allocator, "serial_virt_tx", "serial_virt_tx.elf", .{});
-    var serial_system = sddf.Serial.init(allocator, sdf, uart_node, &uart_driver, &serial_virt_tx, .{});
+    var serial_system = try sddf.Serial.init(allocator, sdf, uart_node, &uart_driver, &serial_virt_tx, .{});
 
     // Ethernet system
 
@@ -633,14 +633,9 @@ fn echo_server(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !
     bench_client_config.stop_channel = bench_stop_channel.pd_b_id;
     idle_config.init_channel = bench_init_channel.pd_b_id;
 
-    try data.serialize(bench_config, try std.fs.path.join(allocator, &.{ data_output, "benchmark_config.data" }));
-    try data.jsonify(bench_config, try std.fs.path.join(allocator, &.{ data_output, "benchmark_config.json" }));
-
-    try data.serialize(bench_client_config, try std.fs.path.join(allocator, &.{ data_output, "benchmark_client_config.data" }));
-    try data.jsonify(bench_client_config, try std.fs.path.join(allocator, &.{ data_output, "benchmark_client_config.json" }));
-
-    try data.serialize(idle_config, try std.fs.path.join(allocator, &.{ data_output, "benchmark_idle_config.data" }));
-    try data.jsonify(idle_config, try std.fs.path.join(allocator, &.{ data_output, "benchmark_idle_config.json" }));
+    try data.serialize(allocator, bench_config, data_output, "benchmark_config");
+    try data.serialize(allocator, bench_client_config, data_output, "benchmark_client_config");
+    try data.serialize(allocator, idle_config, data_output, "benchmark_idle_config");
 
     try eth_system.connect();
     try timer_system.connect();
@@ -672,7 +667,7 @@ fn serial(allocator: Allocator, sdf: *SystemDescription, blob: *dtb.Node) !void 
     var client1 = Pd.create(allocator, "client1", "serial_server.elf", .{});
     sdf.addProtectionDomain(&client1);
 
-    var serial_system = sddf.Serial.init(allocator, sdf, uart_node, &uart_driver, &serial_virt_tx, .{ .virt_rx = &serial_virt_rx });
+    var serial_system = try sddf.Serial.init(allocator, sdf, uart_node, &uart_driver, &serial_virt_tx, .{ .virt_rx = &serial_virt_rx });
     try serial_system.addClient(&client0);
     try serial_system.addClient(&client1);
 
