@@ -191,14 +191,13 @@ pub const FileSystem = struct {
                 .timer = timer,
                 .net = net,
                 .net_copier = net_copier,
-                // TODO: free in init
                 .mac_addr = mac_addr,
             };
         }
 
-        pub fn deinit(system: *Nfs) void {
-            if (system.mac_addr) |mac_addr| {
-                system.allocator.destroy(mac_addr);
+        pub fn deinit(nfs: *Nfs) void {
+            if (nfs.mac_addr) |mac_addr| {
+                nfs.allocator.free(mac_addr);
             }
         }
 

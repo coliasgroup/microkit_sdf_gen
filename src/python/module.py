@@ -274,6 +274,8 @@ libsdfgen.sdfgen_lionsos_fs_nfs_connect.restype = c_bool
 libsdfgen.sdfgen_lionsos_fs_nfs_connect.argtypes = [c_void_p]
 libsdfgen.sdfgen_lionsos_fs_nfs_serialise_config.restype = c_bool
 libsdfgen.sdfgen_lionsos_fs_nfs_serialise_config.argtypes = [c_void_p, c_char_p]
+libsdfgen.sdfgen_lionsos_fs_nfs_destroy.restype = None
+libsdfgen.sdfgen_lionsos_fs_nfs_destroy.argtypes = [c_void_p]
 libsdfgen.sdfgen_lionsos_fs_vmfs.restype = c_void_p
 libsdfgen.sdfgen_lionsos_fs_vmfs.argtypes = [c_void_p, c_void_p, c_void_p, c_void_p, c_void_p, c_uint32]
 libsdfgen.sdfgen_lionsos_fs_vmfs_connect.restype = c_bool
@@ -1138,6 +1140,9 @@ class LionsOs:
                     c_server,
                     c_export_path
                 )
+
+            def __del__(self):
+                libsdfgen.sdfgen_lionsos_fs_nfs_destroy(self._obj)
 
             def connect(self) -> bool:
                 return libsdfgen.sdfgen_lionsos_fs_nfs_connect(self._obj)

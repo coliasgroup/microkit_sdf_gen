@@ -857,6 +857,11 @@ export fn sdfgen_lionsos_fs_nfs_serialise_config(system: *align(8) anyopaque, ou
     return true;
 }
 
+export fn sdfgen_lionsos_fs_nfs_destroy(system: *align(8) anyopaque) void {
+    const nfs: *lionsos.FileSystem.Nfs = @ptrCast(system);
+    nfs.deinit();
+}
+
 export fn sdfgen_lionsos_fs_vmfs(c_sdf: *align(8) anyopaque, c_fs_vm_sys: *align(8) anyopaque, c_client: *align(8) anyopaque, c_blk: *align(8) anyopaque, c_virtio_device: *align(8) anyopaque, partition: u32) ?*anyopaque {
     const sdf: *SystemDescription = @ptrCast(c_sdf);
     const fs = allocator.create(lionsos.FileSystem.VmFs) catch @panic("OOM");
