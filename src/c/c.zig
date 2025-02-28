@@ -79,7 +79,7 @@ export fn sdfgen_dtb_parse(path: [*c]u8) ?*anyopaque {
         log.err("could not stat DTB '{s}' for parsing with error: {any}", .{ path, e });
         return null;
     };
-    const bytes = file.reader().readAllAlloc(allocator, stat.size) catch |e| {
+    const bytes = file.reader().readAllAlloc(allocator, @intCast(stat.size)) catch |e| {
         log.err("could not read DTB '{s}' for parsing with error: {any}", .{ path, e });
         return null;
     };

@@ -149,7 +149,7 @@ pub fn probe(allocator: Allocator, path: []const u8) !void {
                     log.err("failed to stat driver config file: {s}: {}", .{ config_path, e });
                     return e;
                 };
-                const config_bytes = try config_file.reader().readAllAlloc(allocator, config_file_stat.size);
+                const config_bytes = try config_file.reader().readAllAlloc(allocator, @intCast(config_file_stat.size));
                 // TODO; free config? we'd have to dupe the json data when populating our data structures
                 assert(config_bytes.len == config_file_stat.size);
                 // TODO: should probably free the memory at some point
