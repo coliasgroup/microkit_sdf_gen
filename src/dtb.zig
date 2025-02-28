@@ -194,7 +194,7 @@ pub const LinuxUio = struct {
         };
 
         const dt_reg = node.prop(.Reg) orelse {
-            log.err("expected UIO device '{s}' to have 'reg' property", .{ node.name });
+            log.err("expected UIO device '{s}' to have 'reg' property", .{node.name});
             return error.InvalidUio;
         };
 
@@ -315,7 +315,6 @@ pub fn parseIrqs(allocator: Allocator, arch: SystemDescription.Arch, irqs: [][]u
             const parsed_irq = armGicIrqNumber(irq[1], armGicIrqType(irq[0]));
             parsed_irqs.appendAssumeCapacity(parsed_irq);
         }
-
     } else if (arch.isRiscv()) {
         for (irqs) |irq| {
             if (irq.len != 1) {

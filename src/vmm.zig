@@ -330,7 +330,7 @@ fn parseUios(system: *Self) !void {
 
         if (compatibles.len != 2) {
             // NULL must be used as the delimiter as the DTB parser assumes NULL.
-            log.err("Compatibile string {s} isn't in the expected format of 'generic-uio\\0<name>'.", .{ node.prop(.Compatible).? });
+            log.err("Compatibile string {s} isn't in the expected format of 'generic-uio\\0<name>'.", .{node.prop(.Compatible).?});
             return error.InvalidUio;
         }
         const node_name = compatibles[1];
