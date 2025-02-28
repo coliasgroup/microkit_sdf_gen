@@ -2,7 +2,7 @@ from __future__ import annotations
 import ctypes
 import importlib.util
 from ctypes import (
-    cast, c_void_p, c_char_p, c_int8, c_uint8, c_uint16, c_uint32, c_uint64, c_bool, POINTER, byref, pointer
+    cast, c_void_p, c_char_p, c_int8, c_uint8, c_uint32, c_uint64, c_bool, POINTER, byref, pointer
 )
 from typing import Optional, List, Tuple
 from enum import IntEnum
@@ -85,7 +85,7 @@ libsdfgen.sdfgen_mr_create.restype = c_void_p
 libsdfgen.sdfgen_mr_create.argtypes = [c_char_p, c_uint64]
 libsdfgen.sdfgen_mr_create_physical.restype = c_void_p
 libsdfgen.sdfgen_mr_create_physical.argtypes = [c_char_p, c_uint64, c_uint64]
-libsdfgen.sdfgen_mr_get_paddr.restype = c_bool;
+libsdfgen.sdfgen_mr_get_paddr.restype = c_bool
 libsdfgen.sdfgen_mr_get_paddr.argtypes = [c_void_p, POINTER(c_uint64)]
 
 libsdfgen.sdfgen_mr_destroy.restype = None
@@ -288,6 +288,7 @@ libsdfgen.sdfgen_sddf_lwip_connect.argtypes = [c_void_p]
 libsdfgen.sdfgen_sddf_lwip_serialise_config.restype = c_bool
 libsdfgen.sdfgen_sddf_lwip_serialise_config.argtypes = [c_void_p, c_char_p]
 
+
 def ffi_uint8_ptr(n: Optional[int]):
     """
     Convert an int value to a uint8_t pointer for FFI.
@@ -298,6 +299,7 @@ def ffi_uint8_ptr(n: Optional[int]):
 
     return pointer(c_uint8(n))
 
+
 def ffi_uint32_ptr(n: Optional[int]):
     """
     Convert an int value to a uint32_t pointer for FFI.
@@ -307,6 +309,7 @@ def ffi_uint32_ptr(n: Optional[int]):
         return None
 
     return pointer(c_uint32(n))
+
 
 def ffi_bool_ptr(val: Optional[bool]):
     """
@@ -1014,14 +1017,14 @@ class Vmm:
             # Pass through specific IRQs, all regions
             c_irqs = cast((c_uint8 * len(irqs))(*irqs), POINTER(c_uint8))
             irqs_len = len(irqs)
-            ret = libsdfgen.sdfgen_vmm_add_passthrough_device_irqs(self._obj, device._obj, c_irqs, irqs_len)
-            ret = libsdfgen.sdfgen_vmm_add_passthrough_device_regions(self._obj, device._obj, None, 0)
+            assert libsdfgen.sdfgen_vmm_add_passthrough_device_irqs(self._obj, device._obj, c_irqs, irqs_len)
+            assert libsdfgen.sdfgen_vmm_add_passthrough_device_regions(self._obj, device._obj, None, 0)
         elif regions is not None:
             # Pass through specific regions, all IRQs
             c_regions = cast((c_uint8 * len(regions))(*regions), POINTER(c_uint8))
             regions_len = len(regions)
-            ret = libsdfgen.sdfgen_vmm_add_passthrough_device_regions(self._obj, device._obj, c_regions, regions_len)
-            ret = libsdfgen.sdfgen_vmm_add_passthrough_device_irqs(self._obj, device._obj, None, 0)
+            assert libsdfgen.sdfgen_vmm_add_passthrough_device_regions(self._obj, device._obj, c_regions, regions_len)
+            assert libsdfgen.sdfgen_vmm_add_passthrough_device_irqs(self._obj, device._obj, None, 0)
         else:
             # unreachable case
             raise Exception("internal error")
