@@ -3,6 +3,18 @@ const builtin = @import("builtin");
 const sdf = @import("sdf.zig");
 const Allocator = std.mem.Allocator;
 
+comptime {
+    if (@sizeOf(usize) != 8) {
+        // Why do we only support 64-bit?
+        // The main problem is this file, where we serialise C structs
+        // into binary for consumption by runtime programs. The problem
+        // is that any implicit padding which exists will be different on 64-bit
+        // vs 32-bit.
+        // To allow 32-bit builds, this problem should be solved.
+        @compileError("only 64-bit targets are supported");
+    }
+}
+
 const MAGIC_START: [4]u8 = .{ 's', 'D', 'D', 'F' };
 const LIONS_MAGIC_START: [7]u8 = .{ 'L', 'i', 'o', 'n', 's', 'O', 'S' };
 
