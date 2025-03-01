@@ -161,24 +161,11 @@ fn addPassthroughDeviceMapping(system: *Self, name: []const u8, device: *dtb.Nod
 }
 
 pub fn addPassthroughDeviceIrq(system: *Self, interrupt: []u32) !void {
-    // TODO: use dtb.parseIrqs
-    var irq_id: u8 = undefined;
-    var irq_number: u32 = undefined;
-    if (system.sdf.arch.isArm()) {
-        // Determine the IRQ trigger and (software-observable) number based on the device tree.
-        const irq_type = dtb.armGicIrqType(interrupt[0]);
-        const irq_trigger = dtb.armGicTrigger(interrupt[2]);
-        irq_number = dtb.armGicIrqNumber(interrupt[1], irq_type);
-        irq_id = try system.vmm.addIrq(.create(irq_number, .{ .trigger = irq_trigger }));
-    } else if (system.sdf.arch.isRiscv()) {
-        irq_number = interrupt[0];
-        irq_id = try system.vmm.addIrq(.create(irq_number, .{}));
-    } else {
-        @panic("unknown architecture");
-    }
+    const irq = try dtb.parseIrq(system.sdf.arch, interrupt);
+    const irq_id = try system.vmm.addIrq(irq);
     system.data.irqs[system.data.num_irqs] = .{
         .id = irq_id,
-        .irq = irq_number,
+        .irq = irq.irq,
     };
     system.data.num_irqs += 1;
 }
@@ -249,21 +236,19 @@ fn addVirtioMmioDevice(system: *Self, device: *dtb.Node, t: Data.VirtioMmioDevic
         log.err("error adding virtIO device '{s}': missing 'interrupts' field on device node", .{device.name});
         return error.InvalidVirtioDevice;
     };
-    const irq = blk: {
-        if (system.sdf.arch.isArm()) {
-            break :blk dtb.armGicIrqNumber(interrupts[0][1], dtb.armGicIrqType(interrupts[0][0]));
-        } else if (system.sdf.arch.isRiscv()) {
-            break :blk interrupts[0][0];
-        } else {
-            @panic("unexpected architecture");
-        }
-    };
+
+    if (interrupts.len != 1) {
+        log.err("error adding virtIO device '{s}': expected one entry in 'interrupts' property", .{device.name});
+        return error.InvalidVirtioDevice;
+    }
+
+    const irq = try dtb.parseIrq(system.sdf.arch, interrupts[0]);
     // TODO: maybe use device resources like everything else? idk
     system.data.virtio_mmio_devices[system.data.num_virtio_mmio_devices] = .{
         .type = @intFromEnum(t),
         .addr = device_paddr,
         .size = @intCast(device_size),
-        .irq = irq,
+        .irq = irq.irq,
     };
     system.data.num_virtio_mmio_devices += 1;
 }

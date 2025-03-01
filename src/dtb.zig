@@ -218,11 +218,12 @@ pub const LinuxUio = struct {
         const paddr: u64 = regPaddr(arch, node, dt_paddr);
         const size: u64 = @intCast(dt_size);
 
+        const irq_number = if (irq) |i| i.irq else null;
         return .{
             .node = node,
             .guest_paddr = paddr,
             .size = size,
-            .irq = irq,
+            .irq = irq_number,
         };
     }
 };
@@ -304,27 +305,33 @@ pub fn regPaddr(arch: SystemDescription.Arch, device: *dtb.Node, paddr: u128) u6
 /// This is a helper to take the value of an 'interrupt' property on a DTB node,
 /// and convert for use in our operating system.
 /// Returns ArrayList containing parsed IRQs, caller owns memory.
-pub fn parseIrqs(allocator: Allocator, arch: SystemDescription.Arch, irqs: [][]u32) !std.ArrayList(u32) {
-    var parsed_irqs = try std.ArrayList(u32).initCapacity(allocator, irqs.len);
+pub fn parseIrqs(allocator: Allocator, arch: SystemDescription.Arch, irqs: [][]u32) !std.ArrayList(Irq) {
+    var parsed_irqs = try std.ArrayList(Irq).initCapacity(allocator, irqs.len);
     errdefer parsed_irqs.deinit();
-    if (arch.isArm()) {
-        for (irqs) |irq| {
-            if (irq.len != 3) {
-                return error.InvalidInterruptCells;
-            }
-            const parsed_irq = armGicIrqNumber(irq[1], armGicIrqType(irq[0]));
-            parsed_irqs.appendAssumeCapacity(parsed_irq);
-        }
-    } else if (arch.isRiscv()) {
-        for (irqs) |irq| {
-            if (irq.len != 1) {
-                return error.InvalidInterruptCells;
-            }
-            parsed_irqs.appendAssumeCapacity(irq[0]);
-        }
-    } else {
-        @panic("unsupported architecture");
+
+    for (irqs) |irq| {
+        parsed_irqs.appendAssumeCapacity(try parseIrq(arch, irq));
     }
 
     return parsed_irqs;
+}
+
+pub fn parseIrq(arch: SystemDescription.Arch, irq: []u32) !Irq {
+    if (arch.isArm()) {
+        if (irq.len != 3) {
+            return error.InvalidInterruptCells;
+        }
+        const trigger = armGicTrigger(irq[2]);
+        const number = armGicIrqNumber(irq[1], armGicIrqType(irq[0]));
+        return Irq.create(number, .{
+            .trigger = trigger,
+        });
+    } else if (arch.isRiscv()) {
+        if (irq.len != 1) {
+            return error.InvalidInterruptCells;
+        }
+        return Irq.create(irq[0], .{});
+    } else {
+        @panic("unsupported architecture");
+    }
 }

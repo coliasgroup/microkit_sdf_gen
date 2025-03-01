@@ -1676,11 +1676,13 @@ pub fn createDriver(sdf: *SystemDescription, pd: *Pd, device: *dtb.Node, class: 
     for (driver.resources.regions) |region_resource| {
         // TODO: all this error checking should be done when we parse config.json
         if (region_resource.dt_index == null and region_resource.size == null) {
-            log.err("driver '{s}' has region resource '{s}'' which specifies neither dt_index nor size: one or both must be specified", .{ driver.dir, region_resource.name });
+            log.err("driver '{s}' has region resource '{s}' which specifies neither dt_index nor size: one or both must be specified", .{ driver.dir, region_resource.name });
+            return error.InvalidConfig;
         }
 
         if (region_resource.dt_index != null and region_resource.cached != null and region_resource.cached.? == true) {
             log.err("driver '{s}' has region resource '{s}' which tries to map MMIO region as cached", .{ driver.dir, region_resource.name });
+            return error.InvalidConfig;
         }
 
         const mr_name = fmt(sdf.allocator, "{s}/{s}/{s}", .{ device.name, driver.dir, region_resource.name });
@@ -1705,7 +1707,7 @@ pub fn createDriver(sdf: *SystemDescription, pd: *Pd, device: *dtb.Node, class: 
                 return error.InvalidConfig;
             }
 
-            if (dt_reg_size & ((1 << 12) - 1) != 0) {
+            if (sdf.arch.pageAligned(dt_reg_size)) {
                 log.err("device '{s}' has DTB region size not aligned to page size for dt_index '{?}'", .{ device.name, region_resource.dt_index });
                 return error.InvalidConfig;
             }
@@ -1780,31 +1782,15 @@ pub fn createDriver(sdf: *SystemDescription, pd: *Pd, device: *dtb.Node, class: 
         }
         const dt_irq = dt_irqs[driver_irq.dt_index];
 
-        const irq = blk: {
-            if (sdf.arch.isArm()) {
-                std.debug.assert(dt_irq.len == 3);
-                // Determine the IRQ trigger and (software-observable) number based on the device tree.
-                const irq_type = dtb.armGicIrqType(dt_irq[0]);
-                const irq_number = dtb.armGicIrqNumber(dt_irq[1], irq_type);
-                const irq_trigger = dtb.armGicTrigger(dt_irq[2]);
-
-                break :blk SystemDescription.Irq.create(irq_number, .{
-                    .trigger = irq_trigger,
-                    .id = driver_irq.channel_id,
-                });
-            } else if (sdf.arch.isRiscv()) {
-                std.debug.assert(dt_irq.len == 1);
-                const irq_number = dt_irq[0];
-                break :blk SystemDescription.Irq.create(irq_number, .{ .id = driver_irq.channel_id });
-            } else {
-                @panic("device driver IRQ handling is unimplemented for given arch");
-            }
-        };
-
-        const irq_channel = try pd.addIrq(irq);
+        const irq = try dtb.parseIrq(sdf.arch, dt_irq);
+        const irq_id = try pd.addIrq(.{
+            .irq = irq.irq,
+            .trigger = irq.trigger,
+            .id = driver_irq.channel_id,
+        });
 
         device_res.irqs[device_res.num_irqs] = .{
-            .id = irq_channel,
+            .id = irq_id,
         };
         device_res.num_irqs += 1;
     }
