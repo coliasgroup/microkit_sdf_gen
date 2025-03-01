@@ -1124,7 +1124,6 @@ class LionsOs:
                 if mac_addr is not None:
                     c_mac_addr = c_char_p(mac_addr.encode("utf-8"))
 
-                # TODO: error checking on export path and server args
                 c_server = c_char_p(server.encode("utf-8"))
                 c_export_path = c_char_p(export_path.encode("utf-8"))
 
