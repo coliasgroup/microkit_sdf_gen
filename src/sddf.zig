@@ -1309,6 +1309,9 @@ pub const Net = struct {
                     // In order to ensure we have generated an LAA, we set the
                     // second-least-signifcant bit of the first octet.
                     mac_addr[0] |= (1 << 1);
+                    // Ensure first bit is set since this is an 'individual' address,
+                    // not a 'group' address.
+                    mac_addr[0] &= 0b11111110;
                     var unique = true;
                     for (0..i) |j| {
                         const b = system.client_info.items[j].mac_addr.?;
