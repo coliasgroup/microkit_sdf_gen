@@ -1320,6 +1320,7 @@ pub const Net = struct {
                         break;
                     }
                 }
+                std.log.debug("generated mac_addr: {x}", .{ mac_addr });
                 system.client_info.items[i].mac_addr = mac_addr;
             }
         }
@@ -1712,7 +1713,7 @@ pub fn createDriver(sdf: *SystemDescription, pd: *Pd, device: *dtb.Node, class: 
                 return error.InvalidConfig;
             }
 
-            if (sdf.arch.pageAligned(dt_reg_size)) {
+            if (!sdf.arch.pageAligned(dt_reg_size)) {
                 log.err("device '{s}' has DTB region size not aligned to page size for dt_index '{?}'", .{ device.name, region_resource.dt_index });
                 return error.InvalidConfig;
             }
