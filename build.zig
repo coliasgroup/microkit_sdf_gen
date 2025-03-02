@@ -16,7 +16,7 @@ pub fn build(b: *std.Build) !void {
     const version_bytes = try (try std.fs.cwd().openFile(VERSION_FILE, .{})).readToEndAlloc(b.allocator, 100);
     const version = try std.SemanticVersion.parse(version_bytes);
 
-    const dtbzig_dep = b.dependency("dtb.zig", .{});
+    const dtbzig_dep = b.dependency("dtb", .{});
     const dtb_module = dtbzig_dep.module("dtb");
 
     const sdf_module = b.addModule("sdf", .{

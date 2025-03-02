@@ -1,10 +1,10 @@
 .{
-    .name = "sdfgen",
+    .name = .sdfgen,
     .version = "0.1.0",
     .dependencies = .{
-        .@"dtb.zig" = .{
-            .url = "https://github.com/Ivan-Velickovic/dtb.zig/archive/6a1307379f5a0c048dbf8e4eb01644eb215c76e7.tar.gz",
-            .hash = "12208605f828f0ce1d3deeb965cf929aea48f2914088df5e38d3664b33c7662ac02e"
+        .dtb = .{
+            .url = "https://github.com/Ivan-Velickovic/dtb.zig/archive/fc940d8ebefebe6f27713ebc92fda1ee7fe342c7.tar.gz",
+            .hash = "12207c24e40bf9152aea80c3248b81f26b25fa6d997e71b1fd6d16276a2f0a776fe7"
         },
     },
     .paths = .{
@@ -12,5 +12,6 @@
         "build.zig.zon",
         "src",
         "examples",
-    }
+    },
+    .fingerprint = 0xb193a986df46ea92,
 }
