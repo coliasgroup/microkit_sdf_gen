@@ -1323,7 +1323,6 @@ pub const Net = struct {
                         break;
                     }
                 }
-                std.log.debug("generated mac_addr: {x}", .{ mac_addr });
                 system.client_info.items[i].mac_addr = mac_addr;
             }
         }
