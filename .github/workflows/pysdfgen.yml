@@ -23,13 +23,13 @@ jobs:
           submodules: 'true'
       - uses: mlugg/setup-zig@v1.2.1
         with:
-          version: 0.14.0-dev.3050+d72f3d353
+          version: 0.14.0-dev.3445+6c3cbb0c8
       - name: Build wheels
         uses: pypa/cibuildwheel@v2.21.3
         env:
           CIBW_BUILD: 'cp39-* cp310-* cp311-* cp312-* cp313-*'
           CIBW_ARCHS_LINUX: 'x86_64'
-          CIBW_ENVIRONMENT: 'PATH=$PATH:/host/opt/hostedtoolcache/zig/0.14.0-dev.3050/x64/'
+          CIBW_ENVIRONMENT: 'PATH=$PATH:/host/opt/hostedtoolcache/zig/0.14.0-dev.3445/x64/'
           CIBW_REPAIR_WHEEL_COMMAND_MACOS: ""
         with:
           output-dir: wheelhouse
