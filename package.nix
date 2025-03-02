@@ -12,10 +12,10 @@
 }:
 
   let deps = linkFarm "zig-packages" [ {
-    name = "12208605f828f0ce1d3deeb965cf929aea48f2914088df5e38d3664b33c7662ac02e";
+    name = "12207c24e40bf9152aea80c3248b81f26b25fa6d997e71b1fd6d16276a2f0a776fe7";
     path = fetchzip {
-      url = "https://github.com/Ivan-Velickovic/dtb.zig/archive/6a1307379f5a0c048dbf8e4eb01644eb215c76e7.tar.gz";
-      hash = "sha256-a86Yg/amDqK28YoTBB6Ex0l1Wi39ZCI1M1qD93mkPFc=";
+      url = "https://github.com/Ivan-Velickovic/dtb.zig/archive/fc940d8ebefebe6f27713ebc92fda1ee7fe342c7.tar.gz";
+      hash = "sha256-vUfOPtGLWl2gqkmL6v/KtrXvMcihVyXTLZTBQG8ntyI=";
     };
   } ];
 in
