@@ -1297,6 +1297,8 @@ pub const Net = struct {
         client_config.tx_data = .createFromMap(data_mr_client_map);
     }
 
+    /// Generate a LAA (locally administered adresss) for each client
+    /// that does not already have one.
     pub fn generateMacAddrs(system: *Net) void {
         const rand = std.crypto.random;
         for (system.clients.items, 0..) |_, i| {
@@ -1304,6 +1306,9 @@ pub const Net = struct {
                 var mac_addr: [6]u8 = undefined;
                 while (true) {
                     rand.bytes(&mac_addr);
+                    // In order to ensure we have generated an LAA, we set the
+                    // second-least-signifcant bit of the first octet.
+                    mac_addr[0] |= (1 << 1);
                     var unique = true;
                     for (0..i) |j| {
                         const b = system.client_info.items[j].mac_addr.?;
