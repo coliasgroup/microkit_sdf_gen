@@ -203,7 +203,7 @@ libsdfgen.sdfgen_sddf_gpu_destroy.restype = None
 libsdfgen.sdfgen_sddf_gpu_destroy.argtypes = [c_void_p]
 
 libsdfgen.sdfgen_sddf_gpu_add_client.restype = c_uint32
-libsdfgen.sdfgen_sddf_gpu_add_client.argtypes = [c_void_p, c_void_p, c_uint32]
+libsdfgen.sdfgen_sddf_gpu_add_client.argtypes = [c_void_p, c_void_p]
 
 libsdfgen.sdfgen_sddf_gpu_connect.restype = c_bool
 libsdfgen.sdfgen_sddf_gpu_connect.argtypes = [c_void_p]
