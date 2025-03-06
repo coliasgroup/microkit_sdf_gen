@@ -23,7 +23,7 @@
           inherit system;
         };
 
-        zig = zig-overlay.packages.${system}.master;
+        zig = zig-overlay.packages.${system}."0.14.0";
 
         pysdfgen = pkgs.callPackage ./package.nix { zig = zig; pythonPackages = pkgs.python312Packages; };
       in
