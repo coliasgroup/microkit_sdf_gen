@@ -38,10 +38,7 @@ Pre-built archives of the C library are available in each
 
 ### Dependencies
 
-* Zig (`0.14.0-dev.3050+d72f3d353` or higher)
-  * See https://ziglang.org/download/, until 0.14.0 is released we rely on a
-    master version of Zig. Once 0.14.0 is released (most likely Feb'25) we can
-    pin to that release.
+* [Zig 0.14.0](https://ziglang.org/download)
 
 ### C library (libcsdfgen)
 
