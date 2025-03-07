@@ -7,8 +7,8 @@ Microkit-based systems.
 > This project is experimental, we are using it internally to get it into a
 > usable state for the public. For development this work exists in a separate
 > repository, but that may change once it has matured (e.g by the Microkit part
-> of the tooling part of the official Microkit repository, same with sDDF
-> and LionsOS etc).
+> of the tooling part of the official Microkit repository, the sDDF part being
+> in the sDDF repository, etc).
 
 ## Use
 
