@@ -513,32 +513,28 @@ class SystemDescription:
     class Map:
         _obj: c_void_p
 
-        class Perms:
-            def __init__(self, *, r: bool = False, w: bool = False, x: bool = False):
-                self.read = r
-                self.write = w
-                self.execute = x
+        @staticmethod
+        def _perms_to_c_bindings(s: str) -> int:
+            c_perms = 0
+            if "r" in s:
+                c_perms |= 0b001
+            if "w" in s:
+                c_perms |= 0b010
+            if "x" in s:
+                c_perms |= 0b100
 
-            def _to_c_bindings(self) -> int:
-                c_perms = 0
-                if self.read:
-                    c_perms |= 0b001
-                if self.write:
-                    c_perms |= 0b010
-                if self.execute:
-                    c_perms |= 0b100
-
-                return c_perms
+            return c_perms
 
         def __init__(
             self,
             mr: SystemDescription.MemoryRegion,
             vaddr: int,
-            perms: Perms,
+            perms: str,
             *,
             cached: bool = True,
         ) -> None:
-            self._obj = libsdfgen.sdfgen_map_create(mr._obj, vaddr, perms._to_c_bindings(), cached)
+            c_perms = SystemDescription.Map._perms_to_c_bindings(perms)
+            self._obj = libsdfgen.sdfgen_map_create(mr._obj, vaddr, c_perms, cached)
             if self._obj is None:
                 raise Exception("failed to create mapping")
 
