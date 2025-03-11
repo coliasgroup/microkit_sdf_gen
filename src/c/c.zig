@@ -537,25 +537,35 @@ export fn sdfgen_sddf_i2c_serialise_config(system: *align(8) anyopaque, output_d
 export fn sdfgen_sddf_blk(c_sdf: *align(8) anyopaque, c_device: *align(8) anyopaque, driver: *align(8) anyopaque, virt: *align(8) anyopaque) ?*anyopaque {
     const sdf: *SystemDescription = @ptrCast(c_sdf);
     const device: *dtb.Node = @ptrCast(c_device);
-    const block = allocator.create(sddf.Blk) catch @panic("OOM");
-    block.* = sddf.Blk.init(allocator, sdf, device, @ptrCast(driver), @ptrCast(virt), .{}) catch |e| {
+    const blk = allocator.create(sddf.Blk) catch @panic("OOM");
+    blk.* = sddf.Blk.init(allocator, sdf, device, @ptrCast(driver), @ptrCast(virt), .{}) catch |e| {
         log.err("failed to initialiase blk system for device '{s}': {any}", .{ device.name, e });
-        allocator.destroy(block);
+        allocator.destroy(blk);
         return null;
     };
 
-    return block;
+    return blk;
 }
 
 export fn sdfgen_sddf_blk_destroy(system: *align(8) anyopaque) void {
-    const block: *sddf.Blk = @ptrCast(system);
-    block.deinit();
-    allocator.destroy(block);
+    const blk: *sddf.Blk = @ptrCast(system);
+    blk.deinit();
+    allocator.destroy(blk);
 }
 
-export fn sdfgen_sddf_blk_add_client(system: *align(8) anyopaque, client: *align(8) anyopaque, partition: u32) bindings.sdfgen_sddf_status_t {
-    const block: *sddf.Blk = @ptrCast(system);
-    block.addClient(@ptrCast(client), .{ .partition = partition }) catch |e| {
+export fn sdfgen_sddf_blk_add_client(system: *align(8) anyopaque, client: *align(8) anyopaque, partition: u32, queue_capacity: [*c]u16, data_size: [*c]u32) bindings.sdfgen_sddf_status_t {
+    var options: sddf.Blk.ClientOptions = .{
+        .partition = partition,
+    };
+    if (queue_capacity != null) {
+        options.queue_capacity = queue_capacity.*;
+    }
+    if (data_size != null) {
+        options.data_size = data_size.*;
+    }
+
+    const blk: *sddf.Blk = @ptrCast(system);
+    blk.addClient(@ptrCast(client), options) catch |e| {
         switch (e) {
             sddf.Blk.Error.DuplicateClient => return 1,
             sddf.Blk.Error.InvalidClient => return 2,
@@ -568,15 +578,15 @@ export fn sdfgen_sddf_blk_add_client(system: *align(8) anyopaque, client: *align
 }
 
 export fn sdfgen_sddf_blk_connect(system: *align(8) anyopaque) bool {
-    const block: *sddf.Blk = @ptrCast(system);
-    block.connect() catch return false;
+    const blk: *sddf.Blk = @ptrCast(system);
+    blk.connect() catch return false;
 
     return true;
 }
 
 export fn sdfgen_sddf_blk_serialise_config(system: *align(8) anyopaque, output_dir: [*c]u8) bool {
-    const block: *sddf.Blk = @ptrCast(system);
-    block.serialiseConfig(std.mem.span(output_dir)) catch return false;
+    const blk: *sddf.Blk = @ptrCast(system);
+    blk.serialiseConfig(std.mem.span(output_dir)) catch return false;
 
     return true;
 }

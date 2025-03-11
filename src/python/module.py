@@ -2,7 +2,7 @@ from __future__ import annotations
 import ctypes
 import importlib.util
 from ctypes import (
-    cast, c_void_p, c_char_p, c_int8, c_uint8, c_uint32, c_uint64, c_bool, POINTER, byref, pointer
+    cast, c_void_p, c_char_p, c_int8, c_uint8, c_uint16, c_uint32, c_uint64, c_bool, POINTER, byref, pointer
 )
 from typing import Optional, List, Tuple
 from enum import IntEnum
@@ -156,7 +156,7 @@ libsdfgen.sdfgen_sddf_blk_destroy.restype = None
 libsdfgen.sdfgen_sddf_blk_destroy.argtypes = [c_void_p]
 
 libsdfgen.sdfgen_sddf_blk_add_client.restype = c_uint32
-libsdfgen.sdfgen_sddf_blk_add_client.argtypes = [c_void_p, c_void_p, c_uint32]
+libsdfgen.sdfgen_sddf_blk_add_client.argtypes = [c_void_p, c_void_p, c_uint32, POINTER(c_uint16), POINTER(c_uint32)]
 
 libsdfgen.sdfgen_sddf_blk_connect.restype = c_bool
 libsdfgen.sdfgen_sddf_blk_connect.argtypes = [c_void_p]
@@ -300,6 +300,17 @@ def ffi_uint8_ptr(n: Optional[int]):
         return None
 
     return pointer(c_uint8(n))
+
+
+def ffi_uint16_ptr(n: Optional[int]):
+    """
+    Convert an int value to a uint16_t pointer for FFI.
+    If 'n' is None then we return None (which acts as a null pointer)
+    """
+    if n is None:
+        return None
+
+    return pointer(c_uint16(n))
 
 
 def ffi_uint32_ptr(n: Optional[int]):
@@ -798,8 +809,21 @@ class Sddf:
             if self._obj is None:
                 raise Exception("failed to create blk system")
 
-        def add_client(self, client: SystemDescription.ProtectionDomain, *, partition: int):
-            ret = libsdfgen.sdfgen_sddf_blk_add_client(self._obj, client._obj, partition)
+        def add_client(
+            self,
+            client: SystemDescription.ProtectionDomain,
+            *,
+            partition: int,
+            queue_capacity: Optional[int] = None,
+            data_size: Optional[int] = None
+        ):
+            ret = libsdfgen.sdfgen_sddf_blk_add_client(
+                self._obj,
+                client._obj,
+                partition,
+                ffi_uint16_ptr(queue_capacity),
+                ffi_uint32_ptr(data_size)
+            )
             if ret == SddfStatus.OK:
                 return
             elif ret == SddfStatus.DUPLICATE_CLIENT:

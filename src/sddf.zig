@@ -626,6 +626,7 @@ pub const I2c = struct {
     }
 };
 
+// TODO: probably make all queue_capacity/num_buffers u32
 pub const Blk = struct {
     allocator: Allocator,
     sdf: *SystemDescription,
@@ -633,15 +634,19 @@ pub const Blk = struct {
     device: *dtb.Node,
     device_res: ConfigResources.Device,
     virt: *Pd,
-    clients: std.ArrayList(*Pd),
-    client_partitions: std.ArrayList(u32),
+    clients: std.ArrayList(Client),
     connected: bool = false,
     serialised: bool = false,
-    // TODO: make this configurable per component
-    queue_mr_size: usize = 2 * 1024 * 1024,
-    // TODO: make configurable
-    queue_capacity: u16 = 128,
+    // Only needed for initialisation to read partition table
+    driver_data_size: u32 = 4096,
     config: Blk.Config,
+
+    const Client = struct {
+        pd: *Pd,
+        partition: u32,
+        queue_capacity: u16,
+        data_size: u32,
+    };
 
     const Config = struct {
         driver: ConfigResources.Blk.Driver = undefined,
@@ -666,8 +671,7 @@ pub const Blk = struct {
         return .{
             .allocator = allocator,
             .sdf = sdf,
-            .clients = std.ArrayList(*Pd).init(allocator),
-            .client_partitions = std.ArrayList(u32).init(allocator),
+            .clients = std.ArrayList(Client).init(allocator),
             .driver = driver,
             .device = device,
             .device_res = std.mem.zeroInit(ConfigResources.Device, .{}),
@@ -681,19 +685,24 @@ pub const Blk = struct {
 
     pub fn deinit(system: *Blk) void {
         system.clients.deinit();
-        system.client_partitions.deinit();
         system.config.virt_clients.deinit();
         system.config.clients.deinit();
     }
 
+    // TODO: need to do more error checking on data size and queue capacity.
     pub const ClientOptions = struct {
+        // Zero-index of device partition to use.
         partition: u32,
+        // Maximum possible entries in a single queue.
+        queue_capacity: u16 = 128,
+        // Default to 2MB.
+        data_size: u32 = 2 * 1024 * 1024,
     };
 
     pub fn addClient(system: *Blk, client: *Pd, options: ClientOptions) Error!void {
         // Check that the client does not already exist
         for (system.clients.items) |existing_client| {
-            if (std.mem.eql(u8, existing_client.name, client.name)) {
+            if (std.mem.eql(u8, existing_client.pd.name, client.name)) {
                 return Error.DuplicateClient;
             }
         }
@@ -705,8 +714,27 @@ pub const Blk = struct {
             log.err("invalid blk client, same name as virt '{s}", .{client.name});
             return Error.InvalidClient;
         }
-        system.clients.append(client) catch @panic("Could not add client to Blk");
-        system.client_partitions.append(options.partition) catch @panic("Could not add client to Blk");
+        system.clients.append(.{
+            .pd = client,
+            .partition = options.partition,
+            .queue_capacity = options.queue_capacity,
+            .data_size = options.data_size,
+        }) catch @panic("Could not add client to Blk");
+    }
+
+    fn driverQueueCapacity(system: *Blk) u16 {
+        var total_capacity: u16 = 0;
+        for (system.clients.items) |client| {
+            total_capacity += client.queue_capacity;
+        }
+
+        return total_capacity;
+    }
+
+    fn driverQueueMrSize(system: *Blk) u32 {
+        // TODO: 128 bytes is enough for each queue entry, but need to be
+        // better about how this is determined.
+        return @as(u32, driverQueueCapacity(system)) * @as(u32, 128);
     }
 
     pub fn connectDriver(system: *Blk) void {
@@ -714,6 +742,8 @@ pub const Blk = struct {
         const allocator = system.allocator;
         const driver = system.driver;
         const virt = system.virt;
+        const queue_mr_size = driverQueueMrSize(system);
+        const queue_capacity = driverQueueCapacity(system);
 
         const mr_storage_info = Mr.create(allocator, "blk_driver_storage_info", STORAGE_INFO_REGION_SIZE, .{});
         const map_storage_info_driver = Map.create(mr_storage_info, system.driver.getMapVaddr(&mr_storage_info), .rw, .{});
@@ -723,7 +753,7 @@ pub const Blk = struct {
         driver.addMap(map_storage_info_driver);
         virt.addMap(map_storage_info_virt);
 
-        const mr_req = Mr.create(allocator, "blk_driver_request", system.queue_mr_size, .{});
+        const mr_req = Mr.create(allocator, "blk_driver_request", queue_mr_size, .{});
         const map_req_driver = Map.create(mr_req, driver.getMapVaddr(&mr_req), .rw, .{});
         const map_req_virt = Map.create(mr_req, virt.getMapVaddr(&mr_req), .rw, .{});
 
@@ -731,7 +761,7 @@ pub const Blk = struct {
         driver.addMap(map_req_driver);
         virt.addMap(map_req_virt);
 
-        const mr_resp = Mr.create(allocator, "blk_driver_response", system.queue_mr_size, .{});
+        const mr_resp = Mr.create(allocator, "blk_driver_response", queue_mr_size, .{});
         const map_resp_driver = Map.create(mr_resp, driver.getMapVaddr(&mr_resp), .rw, .{});
         const map_resp_virt = Map.create(mr_resp, virt.getMapVaddr(&mr_resp), .rw, .{});
 
@@ -739,7 +769,7 @@ pub const Blk = struct {
         driver.addMap(map_resp_driver);
         virt.addMap(map_resp_virt);
 
-        const mr_data = Mr.physical(allocator, sdf, "blk_driver_data", system.queue_mr_size, .{});
+        const mr_data = Mr.physical(allocator, sdf, "blk_driver_data", system.driver_data_size, .{});
         const map_data_virt = Map.create(mr_data, virt.getMapVaddr(&mr_data), .rw, .{});
 
         sdf.addMemoryRegion(mr_data);
@@ -753,7 +783,7 @@ pub const Blk = struct {
                 .storage_info = .createFromMap(map_storage_info_driver),
                 .req_queue = .createFromMap(map_req_driver),
                 .resp_queue = .createFromMap(map_resp_driver),
-                .num_buffers = system.queue_capacity,
+                .num_buffers = queue_capacity,
                 .id = ch.pd_b_id,
             },
         };
@@ -763,51 +793,53 @@ pub const Blk = struct {
                 .storage_info = .createFromMap(map_storage_info_virt),
                 .req_queue = .createFromMap(map_req_virt),
                 .resp_queue = .createFromMap(map_resp_virt),
-                .num_buffers = system.queue_capacity,
+                .num_buffers = queue_capacity,
                 .id = ch.pd_a_id,
             },
             .data = .createFromMap(map_data_virt),
         };
     }
 
-    pub fn connectClient(system: *Blk, client: *Pd, i: usize) void {
+    pub fn connectClient(system: *Blk, client: *Client, i: usize) void {
         const sdf = system.sdf;
         const allocator = system.allocator;
-        const queue_mr_size = system.queue_mr_size;
+        const queue_mr_size: u32 = @as(u32, client.queue_capacity) * @as(u32, 128);
+        const data_mr_size = client.data_size;
+        const client_pd = client.pd;
 
-        const mr_storage_info = Mr.create(allocator, fmt(allocator, "blk_client_{s}_storage_info", .{client.name}), STORAGE_INFO_REGION_SIZE, .{});
+        const mr_storage_info = Mr.create(allocator, fmt(allocator, "blk_client_{s}_storage_info", .{client_pd.name}), STORAGE_INFO_REGION_SIZE, .{});
         const map_storage_info_virt = Map.create(mr_storage_info, system.virt.getMapVaddr(&mr_storage_info), .rw, .{});
-        const map_storage_info_client = Map.create(mr_storage_info, client.getMapVaddr(&mr_storage_info), .r, .{});
+        const map_storage_info_client = Map.create(mr_storage_info, client_pd.getMapVaddr(&mr_storage_info), .r, .{});
 
         system.sdf.addMemoryRegion(mr_storage_info);
         system.virt.addMap(map_storage_info_virt);
-        client.addMap(map_storage_info_client);
+        client_pd.addMap(map_storage_info_client);
 
-        const mr_req = Mr.create(allocator, fmt(allocator, "blk_client_{s}_request", .{client.name}), queue_mr_size, .{});
+        const mr_req = Mr.create(allocator, fmt(allocator, "blk_client_{s}_request", .{client_pd.name}), queue_mr_size, .{});
         const map_req_virt = Map.create(mr_req, system.virt.getMapVaddr(&mr_req), .rw, .{});
-        const map_req_client = Map.create(mr_req, client.getMapVaddr(&mr_req), .rw, .{});
+        const map_req_client = Map.create(mr_req, client_pd.getMapVaddr(&mr_req), .rw, .{});
 
         system.sdf.addMemoryRegion(mr_req);
         system.virt.addMap(map_req_virt);
-        client.addMap(map_req_client);
+        client_pd.addMap(map_req_client);
 
-        const mr_resp = Mr.create(allocator, fmt(allocator, "blk_client_{s}_response", .{client.name}), queue_mr_size, .{});
+        const mr_resp = Mr.create(allocator, fmt(allocator, "blk_client_{s}_response", .{client_pd.name}), queue_mr_size, .{});
         const map_resp_virt = Map.create(mr_resp, system.virt.getMapVaddr(&mr_resp), .rw, .{});
-        const map_resp_client = Map.create(mr_resp, client.getMapVaddr(&mr_resp), .rw, .{});
+        const map_resp_client = Map.create(mr_resp, client_pd.getMapVaddr(&mr_resp), .rw, .{});
 
         system.sdf.addMemoryRegion(mr_resp);
         system.virt.addMap(map_resp_virt);
-        client.addMap(map_resp_client);
+        client_pd.addMap(map_resp_client);
 
-        const mr_data = Mr.physical(allocator, sdf, fmt(allocator, "blk_client_{s}_data", .{client.name}), queue_mr_size, .{});
+        const mr_data = Mr.physical(allocator, sdf, fmt(allocator, "blk_client_{s}_data", .{client_pd.name}), data_mr_size, .{});
         const map_data_virt = Map.create(mr_data, system.virt.getMapVaddr(&mr_data), .rw, .{});
-        const map_data_client = Map.create(mr_data, client.getMapVaddr(&mr_data), .rw, .{});
+        const map_data_client = Map.create(mr_data, client_pd.getMapVaddr(&mr_data), .rw, .{});
 
         system.sdf.addMemoryRegion(mr_data);
         system.virt.addMap(map_data_virt);
-        client.addMap(map_data_client);
+        client_pd.addMap(map_data_client);
 
-        const ch = Channel.create(system.virt, client, .{}) catch unreachable;
+        const ch = Channel.create(system.virt, client_pd, .{}) catch unreachable;
         system.sdf.addChannel(ch);
 
         system.config.virt_clients.append(.{
@@ -815,18 +847,18 @@ pub const Blk = struct {
                 .storage_info = .createFromMap(map_storage_info_virt),
                 .req_queue = .createFromMap(map_req_virt),
                 .resp_queue = .createFromMap(map_resp_virt),
-                .num_buffers = system.queue_capacity,
+                .num_buffers = client.queue_capacity,
                 .id = ch.pd_a_id,
             },
             .data = .createFromMap(map_data_virt),
-            .partition = system.client_partitions.items[i],
+            .partition = system.clients.items[i].partition,
         }) catch @panic("could not add virt client config");
 
         system.config.clients.append(.{ .virt = .{
             .storage_info = .createFromMap(map_storage_info_client),
             .req_queue = .createFromMap(map_req_client),
             .resp_queue = .createFromMap(map_resp_client),
-            .num_buffers = system.queue_capacity,
+            .num_buffers = client.queue_capacity,
             .id = ch.pd_b_id,
         }, .data = .createFromMap(map_data_client) }) catch @panic("could not add client config");
     }
@@ -839,7 +871,7 @@ pub const Blk = struct {
         // 2. Connect the driver to the virtualiser
         system.connectDriver();
         // 3. Connect each client to the virtualiser
-        for (system.clients.items, 0..) |client, i| {
+        for (system.clients.items, 0..) |*client, i| {
             system.connectClient(client, i);
         }
 
@@ -858,7 +890,7 @@ pub const Blk = struct {
         try data.serialize(allocator, virt_config, prefix, "blk_virt");
 
         for (system.config.clients.items, 0..) |config, i| {
-            const client_config = fmt(allocator, "blk_client_{s}", .{system.clients.items[i].name});
+            const client_config = fmt(allocator, "blk_client_{s}", .{system.clients.items[i].pd.name});
             try data.serialize(allocator, config, prefix, client_config);
         }
 
