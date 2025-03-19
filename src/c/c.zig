@@ -233,6 +233,16 @@ export fn sdfgen_vm_set_priority(c_vm: *align(8) anyopaque, priority: u8) void {
     vm.priority = priority;
 }
 
+export fn sdfgen_vm_set_budget(c_vm: *align(8) anyopaque, budget: u32) void {
+    const vm: *Pd = @ptrCast(c_vm);
+    vm.budget = budget;
+}
+
+export fn sdfgen_vm_set_period(c_vm: *align(8) anyopaque, period: u32) void {
+    const vm: *Pd = @ptrCast(c_vm);
+    vm.period = period;
+}
+
 export fn sdfgen_vm_vcpu_create(id: u8, cpu: [*c]u8) *anyopaque {
     const vcpu: *Vm.Vcpu = allocator.create(Vm.Vcpu) catch @panic("OOM");
     vcpu.* = Vm.Vcpu{ .id = id };
