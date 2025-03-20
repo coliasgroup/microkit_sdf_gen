@@ -12,7 +12,7 @@
 }:
 
   let deps = linkFarm "zig-packages" [ {
-    name = "12207c24e40bf9152aea80c3248b81f26b25fa6d997e71b1fd6d16276a2f0a776fe7";
+    name = "dtb-0.0.0-gULdmfUKAgB8JOQL-RUq6oDDJIuB8msl-m2ZfnGx_W0W";
     path = fetchzip {
       url = "https://github.com/Ivan-Velickovic/dtb.zig/archive/fc940d8ebefebe6f27713ebc92fda1ee7fe342c7.tar.gz";
       hash = "sha256-vUfOPtGLWl2gqkmL6v/KtrXvMcihVyXTLZTBQG8ntyI=";
