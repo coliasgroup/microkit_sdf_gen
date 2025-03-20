@@ -75,6 +75,9 @@ pub const Resources = struct {
         irqs: [MaxIrqs]Irq,
     };
 
+    // For all sDDF devices classes, let's just make them have 64 clients.
+    const MAX_NUM_CLIENTS: usize = 64;
+
     pub const Blk = struct {
         const MAGIC: [5]u8 = MAGIC_START ++ .{0x2};
 
@@ -93,8 +96,6 @@ pub const Resources = struct {
         };
 
         pub const Virt = extern struct {
-            const MAX_NUM_CLIENTS = 61;
-
             pub fn create(driver: Virt.Driver, clients: []const Virt.Client) Virt {
                 var clients_array = std.mem.zeroes([MAX_NUM_CLIENTS]Virt.Client);
                 for (clients, 0..) |client, i| {
@@ -132,8 +133,6 @@ pub const Resources = struct {
 
     pub const Serial = struct {
         const MAGIC: [5]u8 = MAGIC_START ++ .{0x3};
-
-        pub const MAX_NUM_CLIENTS = 61;
 
         pub const Connection = extern struct {
             queue: Region,
@@ -196,8 +195,6 @@ pub const Resources = struct {
         };
 
         pub const Virt = extern struct {
-            const MAX_NUM_CLIENTS = 61;
-
             pub const Client = extern struct {
                 conn: Connection,
                 driver_data_offset: u64,
@@ -222,8 +219,6 @@ pub const Resources = struct {
 
     pub const Net = struct {
         const MAGIC: [5]u8 = MAGIC_START ++ .{0x5};
-
-        pub const MAX_NUM_CLIENTS = 61;
 
         pub const Connection = extern struct {
             free_queue: Region,
@@ -285,8 +280,6 @@ pub const Resources = struct {
     pub const Timer = struct {
         const MAGIC: [5]u8 = MAGIC_START ++ .{0x6};
 
-        pub const MAX_NUM_CLIENTS = 61;
-
         pub const Client = extern struct {
             magic: [5]u8 = MAGIC,
             driver_id: u8,
@@ -311,8 +304,6 @@ pub const Resources = struct {
         };
 
         pub const Virt = extern struct {
-            const MAX_NUM_CLIENTS = 61;
-
             pub fn create(driver: Virt.Driver, clients: []const Virt.Client) Virt {
                 var clients_array = std.mem.zeroes([MAX_NUM_CLIENTS]Virt.Client);
                 for (clients, 0..) |client, i| {
