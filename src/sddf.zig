@@ -637,8 +637,9 @@ pub const Blk = struct {
     clients: std.ArrayList(Client),
     connected: bool = false,
     serialised: bool = false,
-    // Only needed for initialisation to read partition table
-    driver_data_size: u32 = 4096,
+    // Only needed for initialisation to read partition table, maximum of 10 pages
+    // for either MBR or GPT
+    driver_data_size: u32 = 10 * 0x1000,
     config: Blk.Config,
 
     const Client = struct {
