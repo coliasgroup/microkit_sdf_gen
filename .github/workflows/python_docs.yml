@@ -5,6 +5,9 @@ on:
   push:
     branches: [ "main" ]
 
+env:
+  ZIG_VERSION: 0.14.0
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -14,9 +17,9 @@ jobs:
         with:
           submodules: 'true'
       - name: Install Zig
-        uses: mlugg/setup-zig@v1.2.0
+        uses: mlugg/setup-zig@v1.2.1
         with:
-          version: master
+          version: ${{ env.ZIG_VERSION }}
       - name: Build docs
         id: build
         run: |
