@@ -913,6 +913,7 @@ pub const Serial = struct {
     connected: bool = false,
     enable_color: bool,
     serialised: bool = false,
+    begin_str: [:0]const u8,
 
     driver_config: ConfigResources.Serial.Driver,
     virt_rx_config: ConfigResources.Serial.VirtRx,
@@ -921,13 +922,18 @@ pub const Serial = struct {
 
     pub const Error = SystemError || error{
         InvalidVirt,
+        InvalidBeginString,
     };
+
+    const MAX_BEGIN_STR_LEN = 128;
+    const DEFAULT_BEGIN_STR = "Begin input\r\n";
 
     pub const Options = struct {
         data_size: usize = 0x10000,
         queue_size: usize = 0x1000,
         virt_rx: ?*Pd = null,
         enable_color: bool = true,
+        begin_str: [:0]const u8 = DEFAULT_BEGIN_STR,
     };
 
     pub fn init(allocator: Allocator, sdf: *SystemDescription, device: *dtb.Node, driver: *Pd, virt_tx: *Pd, options: Options) Error!Serial {
@@ -935,6 +941,7 @@ pub const Serial = struct {
             log.err("invalid serial tx virtualiser, same name as driver '{s}", .{virt_tx.name});
             return Error.InvalidVirt;
         }
+
         if (options.virt_rx) |virt_rx| {
             if (std.mem.eql(u8, driver.name, virt_rx.name)) {
                 log.err("invalid serial rx virtualiser, same name as driver '{s}", .{virt_rx.name});
@@ -945,6 +952,12 @@ pub const Serial = struct {
                 return Error.InvalidVirt;
             }
         }
+
+        if (options.begin_str.len > MAX_BEGIN_STR_LEN) {
+            log.err("invalid begin string '{s}', length of {} is greater than max length {}", .{ options.begin_str, options.begin_str.len, MAX_BEGIN_STR_LEN });
+            return error.InvalidBeginString;
+        }
+
         return .{
             .allocator = allocator,
             .sdf = sdf,
@@ -957,6 +970,7 @@ pub const Serial = struct {
             .virt_rx = options.virt_rx,
             .virt_tx = virt_tx,
             .enable_color = options.enable_color,
+            .begin_str = allocator.dupeZ(u8, options.begin_str) catch @panic("OOM"),
 
             .driver_config = std.mem.zeroInit(ConfigResources.Serial.Driver, .{}),
             .virt_rx_config = std.mem.zeroInit(ConfigResources.Serial.VirtRx, .{}),
@@ -968,6 +982,7 @@ pub const Serial = struct {
     pub fn deinit(system: *Serial) void {
         system.clients.deinit();
         system.client_configs.deinit();
+        system.allocator.free(system.begin_str);
     }
 
     pub fn addClient(system: *Serial, client: *Pd) Error!void {
@@ -1052,11 +1067,8 @@ pub const Serial = struct {
 
         system.virt_tx_config.enable_colour = @intFromBool(system.enable_color);
 
-        const begin_str = "Begin input\n";
-        @memcpy(system.virt_tx_config.begin_str[0..begin_str.len], begin_str);
-        assert(system.virt_tx_config.begin_str[begin_str.len] == 0);
-
-        system.virt_tx_config.begin_str_len = begin_str.len;
+        @memcpy(system.virt_tx_config.begin_str[0..system.begin_str.len], system.begin_str);
+        assert(system.virt_tx_config.begin_str[system.begin_str.len] == 0);
 
         system.connected = true;
     }

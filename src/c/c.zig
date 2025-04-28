@@ -457,11 +457,18 @@ export fn sdfgen_sddf_timer_serialise_config(system: *align(8) anyopaque, output
     return true;
 }
 
-export fn sdfgen_sddf_serial(c_sdf: *align(8) anyopaque, c_device: ?*align(8) anyopaque, driver: *align(8) anyopaque, virt_tx: *align(8) anyopaque, virt_rx: ?*align(8) anyopaque, enable_color: bool) ?*anyopaque {
+export fn sdfgen_sddf_serial(c_sdf: *align(8) anyopaque, c_device: ?*align(8) anyopaque, driver: *align(8) anyopaque, virt_tx: *align(8) anyopaque, virt_rx: ?*align(8) anyopaque, enable_color: bool, begin_str: [*c]u8) ?*anyopaque {
     const sdf: *SystemDescription = @ptrCast(c_sdf);
     const device: *dtb.Node = @ptrCast(c_device);
+    var options: sddf.Serial.Options = .{
+        .virt_rx = @ptrCast(virt_rx),
+        .enable_color = enable_color,
+    };
+    if (begin_str != null) {
+        options.begin_str = std.mem.span(begin_str);
+    }
     const serial = allocator.create(sddf.Serial) catch @panic("OOM");
-    serial.* = sddf.Serial.init(allocator, sdf, device, @ptrCast(driver), @ptrCast(virt_tx), .{ .virt_rx = @ptrCast(virt_rx), .enable_color = enable_color }) catch |e| {
+    serial.* = sddf.Serial.init(allocator, sdf, device, @ptrCast(driver), @ptrCast(virt_tx), options) catch |e| {
         log.err("failed to initialiase serial system for device '{s}': {any}", .{ device.name, e });
         allocator.destroy(serial);
         return null;
@@ -483,7 +490,7 @@ export fn sdfgen_sddf_serial_add_client(system: *align(8) anyopaque, client: *al
             sddf.Serial.Error.DuplicateClient => return 1,
             sddf.Serial.Error.InvalidClient => return 2,
             // Should never happen when adding a client
-            sddf.Serial.Error.InvalidVirt, sddf.Serial.Error.NotConnected => @panic("internal error"),
+            sddf.Serial.Error.InvalidBeginString, sddf.Serial.Error.InvalidVirt, sddf.Serial.Error.NotConnected => @panic("internal error"),
         }
     };
 

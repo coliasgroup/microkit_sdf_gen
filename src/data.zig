@@ -171,7 +171,6 @@ pub const Resources = struct {
             clients: [MAX_NUM_CLIENTS]VirtTxClient,
             num_clients: u8,
             begin_str: [MAX_BEGIN_STR_LEN]u8,
-            begin_str_len: u8,
             enable_colour: u8,
             enable_rx: u8,
         };

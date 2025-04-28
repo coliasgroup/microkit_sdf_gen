@@ -169,7 +169,7 @@ libsdfgen.sdfgen_sddf_blk_serialise_config.restype = c_bool
 libsdfgen.sdfgen_sddf_blk_serialise_config.argtypes = [c_void_p, c_char_p]
 
 libsdfgen.sdfgen_sddf_serial.restype = c_void_p
-libsdfgen.sdfgen_sddf_serial.argtypes = [c_void_p, c_void_p, c_void_p, c_void_p, c_void_p, c_bool]
+libsdfgen.sdfgen_sddf_serial.argtypes = [c_void_p, c_void_p, c_void_p, c_void_p, c_void_p, c_bool, c_char_p]
 libsdfgen.sdfgen_sddf_serial_destroy.restype = None
 libsdfgen.sdfgen_sddf_serial_destroy.argtypes = [c_void_p]
 
@@ -719,7 +719,8 @@ class Sddf:
             virt_tx: SystemDescription.ProtectionDomain,
             *,
             virt_rx: Optional[SystemDescription.ProtectionDomain] = None,
-            enable_color: bool = True
+            enable_color: bool = True,
+            begin_str: Optional[str] = None,
         ) -> None:
             if device is None:
                 device_obj = None
@@ -731,8 +732,12 @@ class Sddf:
             else:
                 virt_rx_obj = virt_rx._obj
 
+            if begin_str:
+                c_begin_str = c_char_p(begin_str.encode("utf-8"))
+            else:
+                c_begin_str = None
             self._obj = libsdfgen.sdfgen_sddf_serial(
-                sdf._obj, device_obj, driver._obj, virt_tx._obj, virt_rx_obj, c_bool(enable_color)
+                sdf._obj, device_obj, driver._obj, virt_tx._obj, virt_rx_obj, c_bool(enable_color), c_begin_str
             )
             if self._obj is None:
                 raise Exception("failed to create serial system")
