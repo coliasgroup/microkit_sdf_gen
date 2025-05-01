@@ -416,7 +416,9 @@ pub const SystemDescription = struct {
         irqs: ArrayList(Irq),
         vm: ?*VirtualMachine,
         /// Keeping track of what IDs are available for channels, IRQs, etc
-        ids: std.bit_set.StaticBitSet(MAX_IDS),
+        channel_ids: std.bit_set.StaticBitSet(MAX_IDS),
+        child_ids: std.bit_set.StaticBitSet(MAX_IDS),
+
         /// Whether or not ARM SMC is available
         arm_smc: ?bool,
         /// If this PD is a child of another PD, this ID identifies it to its parent PD
@@ -454,7 +456,8 @@ pub const SystemDescription = struct {
                 .child_pds = ArrayList(*ProtectionDomain).initCapacity(allocator, MAX_CHILD_PDS) catch @panic("Could not allocate child_pds"),
                 .irqs = ArrayList(Irq).initCapacity(allocator, MAX_IRQS) catch @panic("Could not allocate irqs"),
                 .vm = null,
-                .ids = std.bit_set.StaticBitSet(MAX_IDS).initEmpty(),
+                .channel_ids = std.bit_set.StaticBitSet(MAX_IDS).initEmpty(),
+                .child_ids = std.bit_set.StaticBitSet(MAX_IDS).initEmpty(),
                 .setvars = ArrayList(SetVar).init(allocator),
                 .priority = options.priority,
                 .passive = options.passive,
@@ -489,19 +492,19 @@ pub const SystemDescription = struct {
         /// do not matter.
         /// This function is used to allocate an ID for use by one of those
         /// resources ensuring there are no clashes or duplicates.
-        pub fn allocateId(pd: *ProtectionDomain, id: ?u8) !u8 {
+        pub fn allocateId(id_set: *std.bit_set.StaticBitSet(MAX_IDS), id: ?u8) !u8 {
             if (id) |chosen_id| {
-                if (pd.ids.isSet(chosen_id)) {
-                    log.err("attempting to allocate id '{}' in PD '{s}'", .{ chosen_id, pd.name });
+                if (id_set.*.isSet(chosen_id)) {
+                    log.err("attempting to allocate id '{}' '", .{chosen_id});
                     return error.AlreadyAllocatedId;
                 } else {
-                    pd.ids.setValue(chosen_id, true);
+                    id_set.*.setValue(chosen_id, true);
                     return chosen_id;
                 }
             } else {
                 for (0..MAX_IDS) |i| {
-                    if (!pd.ids.isSet(i)) {
-                        pd.ids.setValue(i, true);
+                    if (!id_set.*.isSet(i)) {
+                        id_set.*.setValue(i, true);
                         return @intCast(i);
                     }
                 }
@@ -523,12 +526,12 @@ pub const SystemDescription = struct {
             // If the IRQ ID is already set, then we check that we can allocate it with
             // the PD.
             if (irq.id) |id| {
-                _ = try pd.allocateId(id);
+                _ = try allocateId(&pd.channel_ids, id);
                 try pd.irqs.append(irq);
                 return id;
             } else {
                 var irq_with_id = irq;
-                irq_with_id.id = try pd.allocateId(null);
+                irq_with_id.id = try allocateId(&pd.channel_ids, null);
                 try pd.irqs.append(irq_with_id);
                 return irq_with_id.id.?;
             }
@@ -551,7 +554,7 @@ pub const SystemDescription = struct {
             pd.child_pds.appendAssumeCapacity(child);
             // Even though we check that we haven't added too many children, it is still
             // possible that allocation can fail.
-            child.child_id = try pd.allocateId(options.id);
+            child.child_id = try allocateId(&pd.child_ids, options.id);
 
             return child.child_id.?;
         }
@@ -688,8 +691,8 @@ pub const SystemDescription = struct {
             return .{
                 .pd_a = pd_a,
                 .pd_b = pd_b,
-                .pd_a_id = try pd_a.allocateId(options.pd_a_id),
-                .pd_b_id = try pd_b.allocateId(options.pd_b_id),
+                .pd_a_id = try SystemDescription.ProtectionDomain.allocateId(&pd_a.channel_ids, options.pd_a_id),
+                .pd_b_id = try SystemDescription.ProtectionDomain.allocateId(&pd_b.channel_ids, options.pd_b_id),
                 .pd_a_notify = options.pd_a_notify,
                 .pd_b_notify = options.pd_b_notify,
                 .pp = options.pp,
