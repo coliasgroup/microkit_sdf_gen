@@ -476,13 +476,7 @@ pub const SystemDescription = struct {
                 pd.allocator.free(program_image);
             }
             pd.maps.deinit();
-            for (pd.child_pds.items) |child_pd| {
-                child_pd.destroy();
-            }
             pd.child_pds.deinit();
-            if (pd.vm) |vm| {
-                vm.destroy();
-            }
             pd.irqs.deinit();
         }
 
@@ -780,9 +774,7 @@ pub const SystemDescription = struct {
     }
 
     pub fn destroy(sdf: *SystemDescription) void {
-        for (sdf.pds.items) |pd| pd.destroy();
         sdf.pds.deinit();
-        for (sdf.mrs.items) |mr| mr.destroy();
         sdf.mrs.deinit();
         sdf.channels.deinit();
         sdf.xml_data.deinit();

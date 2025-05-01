@@ -29,6 +29,10 @@ guest_dtb_size: u64,
 data: Data,
 /// Whether or not to map guest RAM with 1-1 mappings with physical memory
 one_to_one_ram: bool,
+/// Becomes defined once connect() is called.
+guest_ram: Mr = undefined,
+gic_vcpu_mr: ?Mr = null,
+
 connected: bool = false,
 serialised: bool = false,
 
@@ -100,6 +104,13 @@ pub fn init(allocator: Allocator, sdf: *SystemDescription, vmm: *Pd, guest: *Vm,
         .data = std.mem.zeroInit(Data, .{}),
         .one_to_one_ram = options.one_to_one_ram,
     };
+}
+
+pub fn deinit(system: *Self) void {
+    system.guest_ram.destroy();
+    if (system.gic_vcpu_mr) |mr| {
+        mr.destroy();
+    }
 }
 
 fn fmt(allocator: Allocator, comptime s: []const u8, args: anytype) []u8 {
@@ -386,6 +397,7 @@ pub fn connect(system: *Self) !void {
             }
             if (gic_vcpu_mr == null) {
                 gic_vcpu_mr = Mr.physical(allocator, sdf, gic_vcpu_mr_name, gic.vcpu_size.?, .{ .paddr = gic.vcpu_paddr.? });
+                system.gic_vcpu_mr = gic_vcpu_mr;
                 sdf.addMemoryRegion(gic_vcpu_mr.?);
             }
             const gic_guest_map = Map.create(gic_vcpu_mr.?, gic.cpu_paddr.?, .rw, .{ .cached = false });
@@ -421,6 +433,8 @@ pub fn connect(system: *Self) !void {
     sdf.addMemoryRegion(guest_ram_mr);
     vmm.addMap(.create(guest_ram_mr, memory_paddr, .rw, .{}));
     guest.addMap(.create(guest_ram_mr, memory_paddr, .rwx, .{}));
+
+    system.guest_ram = guest_ram_mr;
 
     for (system.guest.vcpus) |vcpu| {
         system.data.vcpus[system.data.num_vcpus] = .{

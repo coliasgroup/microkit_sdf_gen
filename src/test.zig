@@ -42,6 +42,7 @@ test "basic" {
     var sdf = SystemDescription.create(allocator, .aarch64, 0x100_000_000);
 
     var pd = ProtectionDomain.create(allocator, "hello", "hello.elf", .{});
+    defer pd.destroy();
 
     sdf.addProtectionDomain(&pd);
 
@@ -55,11 +56,15 @@ test "basic" {
 
 test "PD + MR + mappings + channel" {
     var sdf = SystemDescription.create(allocator, .aarch64, 0x100_000_000);
+    defer sdf.destroy();
+
     const mr = MemoryRegion.create(allocator, "test", 0x1000, .{ .page_size = .small });
+    defer mr.destroy();
     sdf.addMemoryRegion(mr);
 
     const image = "hello.elf";
     var pd1 = ProtectionDomain.create(allocator, "hello-1", image, .{});
+    defer pd1.destroy();
     _ = try pd1.addIrq(.create(33, .{}));
     pd1.addMap(.create(mr, 0x400000000, .r, .{}));
     pd1.addMap(.create(mr, 0x500000000, .x, .{}));
@@ -69,6 +74,7 @@ test "PD + MR + mappings + channel" {
     pd1.addMap(.create(mr, 0x900000000, .rwx, .{}));
 
     var pd2 = ProtectionDomain.create(allocator, "hello-2", image, .{});
+    defer pd2.destroy();
 
     sdf.addProtectionDomain(&pd1);
     sdf.addProtectionDomain(&pd2);
@@ -78,16 +84,18 @@ test "PD + MR + mappings + channel" {
     const expected = try readTestFile("pd_mr_map_channel.system");
     const output = try sdf.render();
     defer allocator.free(expected);
-    defer sdf.destroy();
 
     try std.testing.expectEqualStrings(expected, output);
 }
 
 test "fixed channel" {
     var sdf = SystemDescription.create(allocator, .aarch64, 0x100_000_000);
+    defer sdf.destroy();
 
     var pd1 = ProtectionDomain.create(allocator, "hello-1", "hello.elf", .{});
+    defer pd1.destroy();
     var pd2 = ProtectionDomain.create(allocator, "hello-2", "hello.elf", .{});
+    defer pd2.destroy();
 
     sdf.addProtectionDomain(&pd1);
     sdf.addProtectionDomain(&pd2);
@@ -103,23 +111,26 @@ test "fixed channel" {
     const expected = try readTestFile("pd_fixed_channel.system");
     const output = try sdf.render();
     defer allocator.free(expected);
-    defer sdf.destroy();
 
     try std.testing.expectEqualStrings(expected, output);
 }
 
 test "channels" {
     var sdf = SystemDescription.create(allocator, .aarch64, 0x100_000_000);
+    defer sdf.destroy();
 
     var pd1 = ProtectionDomain.create(allocator, "hello-1", "hello.elf", .{
         .priority = 3,
     });
+    defer pd1.destroy();
     var pd2 = ProtectionDomain.create(allocator, "hello-2", "hello.elf", .{
         .priority = 2,
     });
+    defer pd2.destroy();
     var pd3 = ProtectionDomain.create(allocator, "hello-3", "hello.elf", .{
         .priority = 1,
     });
+    defer pd3.destroy();
 
     sdf.addProtectionDomain(&pd1);
     sdf.addProtectionDomain(&pd2);
@@ -149,9 +160,8 @@ test "channels" {
     }));
 
     const expected = try readTestFile("channels.system");
-    const output = try sdf.render();
     defer allocator.free(expected);
-    defer sdf.destroy();
+    const output = try sdf.render();
 
     try std.testing.expectEqualStrings(expected, output);
 }
@@ -183,6 +193,7 @@ test "C example" {
 
 test "basic VM" {
     var sdf = SystemDescription.create(allocator, .aarch64, 0x100_000_000);
+    defer sdf.destroy();
 
     const dtb_file = try std.fs.cwd().openFile(config.dtb ++ "/qemu_virt_aarch64.dtb", .{});
     const dtb_size = (try dtb_file.stat()).size;
@@ -193,24 +204,27 @@ test "basic VM" {
     defer guest_dtb.deinit(allocator);
 
     var vmm = ProtectionDomain.create(allocator, "vmm", "vmm.elf", .{});
+    defer vmm.destroy();
     sdf.addProtectionDomain(&vmm);
 
     var vm = try VirtualMachine.create(allocator, "vm", &.{.{ .id = 0 }}, .{});
+    defer vm.destroy();
 
     var vmm_system = Vmm.init(allocator, &sdf, &vmm, &vm, guest_dtb, dtb_size, .{});
+    defer vmm_system.deinit();
 
     try vmm_system.connect();
 
     const expected = try readTestFile("basic_vm.system");
     const output = try sdf.render();
     defer allocator.free(expected);
-    defer sdf.destroy();
 
     try std.testing.expectEqualStrings(expected, output);
 }
 
 test "two VMs" {
     var sdf = SystemDescription.create(allocator, .aarch64, 0x100_000_000);
+    defer sdf.destroy();
 
     const dtb_file = try std.fs.cwd().openFile(config.dtb ++ "/qemu_virt_aarch64.dtb", .{});
     const dtb_size = (try dtb_file.stat()).size;
@@ -221,14 +235,20 @@ test "two VMs" {
     defer guest_dtb.deinit(allocator);
 
     var vmm1 = ProtectionDomain.create(allocator, "vmm1", "vmm.elf", .{});
+    defer vmm1.destroy();
     sdf.addProtectionDomain(&vmm1);
     var vmm2 = ProtectionDomain.create(allocator, "vmm2", "vmm.elf", .{});
+    defer vmm2.destroy();
     sdf.addProtectionDomain(&vmm2);
 
     var vm1 = try VirtualMachine.create(allocator, "vm1", &.{.{ .id = 0 }}, .{});
+    defer vm1.destroy();
     var vmm_system1 = Vmm.init(allocator, &sdf, &vmm1, &vm1, guest_dtb, dtb_size, .{});
+    defer vmm_system1.deinit();
     var vm2 = try VirtualMachine.create(allocator, "vm2", &.{.{ .id = 0 }}, .{});
+    defer vm2.destroy();
     var vmm_system2 = Vmm.init(allocator, &sdf, &vmm2, &vm2, guest_dtb, dtb_size, .{});
+    defer vmm_system2.deinit();
 
     try vmm_system1.connect();
     try vmm_system2.connect();
@@ -236,7 +256,6 @@ test "two VMs" {
     const expected = try readTestFile("two_vms.system");
     const output = try sdf.render();
     defer allocator.free(expected);
-    defer sdf.destroy();
 
     try std.testing.expectEqualStrings(expected, output);
 }

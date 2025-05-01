@@ -406,9 +406,6 @@ class SystemDescription:
     """
 
     _obj: c_void_p
-    # We need to hold references to the PDs in case they get GC'd.
-    # TODO: is this really necessary?
-    _pds: List[ProtectionDomain]
 
     class Arch(IntEnum):
         """Target architecture. Used to resolve architecture specific features or attributes."""
@@ -423,8 +420,6 @@ class SystemDescription:
     class ProtectionDomain:
         _name: str
         _obj: c_void_p
-        # We need to hold references to the PDs in case they get GC'd.
-        _child_pds: List[SystemDescription.ProtectionDomain]
 
         def __init__(
             self,
@@ -441,7 +436,6 @@ class SystemDescription:
             c_name = c_char_p(name.encode("utf-8"))
             c_program_image = c_char_p(program_image.encode("utf-8"))
             self._obj = libsdfgen.sdfgen_pd_create(c_name, c_program_image)
-            self._child_pds = []
             if priority is not None:
                 libsdfgen.sdfgen_pd_set_priority(self._obj, priority)
             if budget is not None:
@@ -469,8 +463,6 @@ class SystemDescription:
             if id < 0:
                 raise Exception(f"failed to add child to PD '{self.name}'")
 
-            self._child_pds.append(child_pd)
-
             return id
 
         def add_map(self, map: SystemDescription.Map):
@@ -494,8 +486,6 @@ class SystemDescription:
         def __repr__(self) -> str:
             return f"ProtectionDomain({self.name})"
 
-    # TODO: __del__ is more complicated for virtual machine since it may be owned
-    # by a protection domain meaning it would result in a double free
     class VirtualMachine:
         _name: str
         _obj: c_void_p
@@ -532,6 +522,9 @@ class SystemDescription:
 
         def add_map(self, map: SystemDescription.Map):
             libsdfgen.sdfgen_vm_add_map(self._obj, map._obj)
+
+        def __del__(self):
+            libsdfgen.sdfgen_vm_destroy(self._obj)
 
         def __repr__(self) -> str:
             return f"VirtualMachine({self.name})"
@@ -665,13 +658,11 @@ class SystemDescription:
         Create a System Description
         """
         self._obj = libsdfgen.sdfgen_create(arch.value, paddr_top)
-        self._pds = []
 
     def __del__(self):
         libsdfgen.sdfgen_destroy(self._obj)
 
     def add_pd(self, pd: ProtectionDomain):
-        self._pds.append(pd)
         libsdfgen.sdfgen_add_pd(self._obj, pd._obj)
 
     def add_mr(self, mr: MemoryRegion):

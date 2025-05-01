@@ -130,6 +130,7 @@ export fn sdfgen_pd_create(name: [*c]u8, program_image: [*c]u8) *anyopaque {
 
 export fn sdfgen_pd_destroy(c_pd: *align(8) anyopaque) void {
     const pd: *Pd = @ptrCast(c_pd);
+    pd.destroy();
     allocator.destroy(pd);
 }
 
