@@ -495,7 +495,7 @@ pub const SystemDescription = struct {
         pub fn allocateId(id_set: *std.bit_set.StaticBitSet(MAX_IDS), id: ?u8) !u8 {
             if (id) |chosen_id| {
                 if (id_set.*.isSet(chosen_id)) {
-                    log.err("attempting to allocate id '{}' '", .{chosen_id});
+                    log.err("attempting to allocate already allocated ID '{}' '", .{chosen_id});
                     return error.AlreadyAllocatedId;
                 } else {
                     id_set.*.setValue(chosen_id, true);
@@ -691,8 +691,8 @@ pub const SystemDescription = struct {
             return .{
                 .pd_a = pd_a,
                 .pd_b = pd_b,
-                .pd_a_id = try SystemDescription.ProtectionDomain.allocateId(&pd_a.channel_ids, options.pd_a_id),
-                .pd_b_id = try SystemDescription.ProtectionDomain.allocateId(&pd_b.channel_ids, options.pd_b_id),
+                .pd_a_id = try ProtectionDomain.allocateId(&pd_a.channel_ids, options.pd_a_id),
+                .pd_b_id = try ProtectionDomain.allocateId(&pd_b.channel_ids, options.pd_b_id),
                 .pd_a_notify = options.pd_a_notify,
                 .pd_b_notify = options.pd_b_notify,
                 .pp = options.pp,
