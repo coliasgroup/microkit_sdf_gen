@@ -22,7 +22,7 @@ pub fn build(b: *std.Build) !void {
         .target = target,
         .optimize = optimize,
     });
-    const sddf_dep = b.lazyDependency("sddf", .{
+    const sddf_dep = b.dependency("sddf", .{
         .target = target,
         .optimize = optimize,
     });
@@ -30,7 +30,7 @@ pub fn build(b: *std.Build) !void {
         if (sddf_opt) |sddf_path| {
             break :blk sddf_path;
         } else {
-            break :blk sddf_dep.?.path("");
+            break :blk sddf_dep.path("");
         }
     };
 
