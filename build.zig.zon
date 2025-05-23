@@ -1,6 +1,6 @@
 .{
     .name = .sdfgen,
-    .version = "0.1.0",
+    .version = "0.0.0",
     .dependencies = .{
         .dtb = .{
             .url = "https://github.com/Ivan-Velickovic/dtb.zig/archive/fc940d8ebefebe6f27713ebc92fda1ee7fe342c7.tar.gz",
