@@ -13,11 +13,28 @@ pub fn build(b: *std.Build) !void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
+    const sddf_opt = b.option(std.Build.LazyPath, "sddf", "Override path to sDDF") orelse null;
+
     const version_bytes = try (try std.fs.cwd().openFile(VERSION_FILE, .{})).readToEndAlloc(b.allocator, 100);
     const version = try std.SemanticVersion.parse(version_bytes);
 
-    const dtbzig_dep = b.dependency("dtb", .{});
-    const dtb_module = dtbzig_dep.module("dtb");
+    const dtb_dep = b.dependency("dtb", .{
+        .target = target,
+        .optimize = optimize,
+    });
+    const sddf_dep = b.lazyDependency("sddf", .{
+        .target = target,
+        .optimize = optimize,
+    });
+    const sddf = blk: {
+        if (sddf_opt) |sddf_path| {
+            break :blk sddf_path;
+        } else {
+            break :blk sddf_dep.?.path("");
+        }
+    };
+
+    const dtb_module = dtb_dep.module("dtb");
 
     const sdf_module = b.addModule("sdf", .{
         .root_source_file = b.path("src/mod.zig"),
@@ -45,7 +62,7 @@ pub fn build(b: *std.Build) !void {
     });
     // TODO: should these be runtime options instead?
     const zig_example_options = b.addOptions();
-    zig_example_options.addOptionPath("sddf", b.path("sddf"));
+    zig_example_options.addOptionPath("sddf", sddf);
     zig_example_options.addOption([]const u8, "dtbs", b.getInstallPath(.{ .custom = "dtb" }, ""));
     zig_example_options.addOption([]const u8, "data_output", b.getInstallPath(.prefix, ""));
 
@@ -57,7 +74,7 @@ pub fn build(b: *std.Build) !void {
         zig_example_cmd.addArgs(args);
     }
     // In case any sDDF configuration files are changed
-    _ = try zig_example_cmd.step.addDirectoryWatchInput(b.path("sddf"));
+    _ = try zig_example_cmd.step.addDirectoryWatchInput(sddf);
     zig_example_cmd.step.dependOn(dtb_step);
 
     zig_example_step.dependOn(&zig_example_cmd.step);
@@ -105,8 +122,8 @@ pub fn build(b: *std.Build) !void {
     const c_example_step = b.step("c_example", "Run example program using C bindings");
     const c_example_cmd = b.addRunArtifact(c_example);
     // In case any sDDF configuration files are changed
-    c_example_cmd.addDirectoryArg(b.path("sddf"));
-    _ = try c_example_cmd.step.addDirectoryWatchInput(b.path("sddf"));
+    c_example_cmd.addDirectoryArg(sddf);
+    _ = try c_example_cmd.step.addDirectoryWatchInput(sddf);
     c_example_step.dependOn(&c_example_cmd.step);
 
     const c_example_install = b.addInstallFileWithDir(c_example.getEmittedBin(), .bin, "c_example");
@@ -142,7 +159,7 @@ pub fn build(b: *std.Build) !void {
     const test_options = b.addOptions();
     test_options.addOptionPath("c_example", .{ .cwd_relative = b.getInstallPath(.bin, c_example.name) });
     test_options.addOptionPath("test_dir", b.path("tests"));
-    test_options.addOptionPath("sddf", b.path("sddf"));
+    test_options.addOptionPath("sddf", sddf);
     test_options.addOption([]const u8, "dtb", b.getInstallPath(.{ .custom = "dtb" }, ""));
 
     tests.root_module.addImport("sdf", sdf_module);
@@ -154,5 +171,5 @@ pub fn build(b: *std.Build) !void {
     run_tests.step.dependOn(&c_example_install.step);
     run_tests.step.dependOn(dtb_step);
     // In case any sDDF configuration files are changed
-    _ = try test_step.addDirectoryWatchInput(b.path("sddf"));
+    _ = try test_step.addDirectoryWatchInput(sddf);
 }

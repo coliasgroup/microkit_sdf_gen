@@ -6,6 +6,11 @@
             .url = "https://github.com/Ivan-Velickovic/dtb.zig/archive/fc940d8ebefebe6f27713ebc92fda1ee7fe342c7.tar.gz",
             .hash = "dtb-0.0.0-gULdmfUKAgB8JOQL-RUq6oDDJIuB8msl-m2ZfnGx_W0W"
         },
+        .sddf = .{
+            .url = "https://github.com/au-ts/sddf/archive/b52ed06dbfd5b75d7f20e50d5cd6a36349a7e26d.tar.gz",
+            .hash = "sddf-0.0.0-6aJ67tNQYAAFau_HUtwWz4T8YGAjrfcVXabfbTypQEur",
+            .lazy = true,
+        },
     },
     .paths = .{
         "build.zig",
