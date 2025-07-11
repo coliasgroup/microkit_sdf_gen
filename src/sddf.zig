@@ -162,7 +162,7 @@ pub fn probe(allocator: Allocator, path: []const u8) !void {
 
                 // This should never fail since device_class.name must be valid since we are looping
                 // based on the valid device classes.
-                const config = Config.Driver.fromJson(json, device_class.name, driver_dir) catch unreachable;
+                const config = Config.Driver.fromJson(json, device_class.name, fmt(allocator, "{s}/{s}", .{ driver_dir, entry.name })) catch unreachable;
 
                 // Check IRQ resources are valid
                 var checked_irqs = std.ArrayList(DeviceTreeIndex).init(allocator);
