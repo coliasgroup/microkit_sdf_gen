@@ -29,9 +29,8 @@ jobs:
         with:
           version: ${{ env.ZIG_VERSION }}
       - run: |
-          echo "ZIG_PATH=$(dirname $(which zig))" >> $GITHUB_ENV
           mkdir -p /opt/zig/
-          cp -r ${{ env.ZIG_PATH }} /opt/zig/
+          cp -r "$(dirname $(which zig))" /opt/zig/
       - name: Build wheels
         uses: pypa/cibuildwheel@v2.21.3
         env:
