@@ -476,7 +476,7 @@ class SystemDescription:
             return self._name
 
         @property
-        def elf(self) -> str:
+        def program_image(self) -> str:
             return self._program_image
 
         def add_child_pd(self, child_pd: SystemDescription.ProtectionDomain, child_id=None) -> int:
