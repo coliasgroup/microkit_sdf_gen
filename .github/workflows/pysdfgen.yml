@@ -28,13 +28,13 @@ jobs:
         uses: mlugg/setup-zig@v2.0.5
         with:
           version: ${{ env.ZIG_VERSION }}
-      - run: which zig
+      - run: echo "ZIG_PATH=$(dirname $(which zig))" >> $GITHUB_ENV
       - name: Build wheels
         uses: pypa/cibuildwheel@v2.21.3
         env:
           CIBW_BUILD: 'cp39-* cp310-* cp311-* cp312-* cp313-*'
           CIBW_ARCHS_LINUX: 'x86_64'
-          CIBW_ENVIRONMENT: 'PATH=$PATH:/host/opt/hostedtoolcache/zig/${{ env.ZIG_VERSION }}/x64/'
+          CIBW_ENVIRONMENT: 'PATH=$PATH:${{ env.ZIG_PATH }}'
           CIBW_REPAIR_WHEEL_COMMAND_MACOS: ""
         with:
           output-dir: wheelhouse
