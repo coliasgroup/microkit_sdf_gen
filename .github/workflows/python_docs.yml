@@ -6,7 +6,7 @@ on:
     branches: [ "main" ]
 
 env:
-  ZIG_VERSION: 0.14.0
+  ZIG_VERSION: 0.15.1
 
 jobs:
   build:
@@ -17,7 +17,7 @@ jobs:
         with:
           submodules: 'true'
       - name: Install Zig
-        uses: mlugg/setup-zig@v2.0.0
+        uses: mlugg/setup-zig@v2.0.5
         with:
           version: ${{ env.ZIG_VERSION }}
       - name: Build docs
