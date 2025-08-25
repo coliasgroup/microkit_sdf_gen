@@ -34,7 +34,7 @@ jobs:
         env:
           CIBW_BUILD: 'cp39-* cp310-* cp311-* cp312-* cp313-*'
           CIBW_ARCHS_LINUX: 'x86_64'
-          CIBW_ENVIRONMENT: 'PATH=$PATH:${{ env.ZIG_PATH }}'
+          CIBW_ENVIRONMENT: 'PATH=$PATH:${{ env.ZIG_PATH }}/'
           CIBW_REPAIR_WHEEL_COMMAND_MACOS: ""
         with:
           output-dir: wheelhouse
