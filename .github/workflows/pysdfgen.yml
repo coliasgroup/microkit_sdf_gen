@@ -28,6 +28,7 @@ jobs:
         uses: mlugg/setup-zig@v2.0.5
         with:
           version: ${{ env.ZIG_VERSION }}
+      - run: which zig
       - name: Build wheels
         uses: pypa/cibuildwheel@v2.21.3
         env:
