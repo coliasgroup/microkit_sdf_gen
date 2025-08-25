@@ -56,9 +56,11 @@ pub fn build(b: *std.Build) !void {
     const zig_example_step = b.step("zig_example", "Exmaples of using Zig bindings");
     const zig_example = b.addExecutable(.{
         .name = "zig_example",
-        .root_source_file = b.path("examples/examples.zig"),
-        .target = target,
-        .optimize = optimize,
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("examples/examples.zig"),
+            .target = target,
+            .optimize = optimize,
+        }),
     });
     // TODO: should these be runtime options instead?
     const zig_example_options = b.addOptions();
@@ -112,8 +114,10 @@ pub fn build(b: *std.Build) !void {
 
     const c_example = b.addExecutable(.{
         .name = "c_example",
-        .target = target,
-        .optimize = optimize,
+        .root_module = b.createModule(.{
+            .target = target,
+            .optimize = optimize,
+        }),
     });
     c_example.addCSourceFile(.{ .file = b.path("examples/examples.c") });
     c_example.linkLibrary(csdfgen);
@@ -135,10 +139,12 @@ pub fn build(b: *std.Build) !void {
     });
     const wasm = b.addExecutable(.{
         .name = "gui_sdfgen",
-        .root_source_file = b.path("src/gui_sdfgen.zig"),
-        .target = wasm_target,
-        .optimize = .Debug,
-        .strip = false,
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/gui_sdfgen.zig"),
+            .target = wasm_target,
+            .optimize = .Debug,
+            .strip = false,
+        }),
     });
 
     wasm.root_module.addImport("dtb", dtb_module);
@@ -151,9 +157,11 @@ pub fn build(b: *std.Build) !void {
     wasm_step.dependOn(&wasm_install.step);
 
     const tests = b.addTest(.{
-        .root_source_file = b.path("src/test.zig"),
-        .target = target,
-        .optimize = optimize,
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/test.zig"),
+            .target = target,
+            .optimize = optimize,
+        }),
     });
 
     const test_options = b.addOptions();

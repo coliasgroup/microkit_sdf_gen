@@ -314,7 +314,7 @@ fn allocateDtbAddress(arch: Arch, dtb_size: u64, ram_start: u64, ram_end: u64, i
 fn parseUios(system: *Self) !void {
     const allocator = system.allocator;
 
-    const uio_nodes = try dtb.findAllCompatible(allocator, system.guest_dtb, &dtb.LinuxUio.compatible);
+    const uio_nodes = try dtb.findAllCompatible(allocator, system.guest_dtb, dtb.LinuxUio.compatible);
     defer uio_nodes.deinit();
     if (uio_nodes.items.len >= MAX_LINUX_UIO_REGIONS) {
         log.err("The DTB parser found {d} UIO nodes, but the limit is {d}", .{ uio_nodes.items.len, MAX_LINUX_UIO_REGIONS });
@@ -326,7 +326,7 @@ fn parseUios(system: *Self) !void {
 
         if (compatibles.len != 2) {
             // NULL must be used as the delimiter as the DTB parser assumes NULL.
-            log.err("Compatibile string {s} isn't in the expected format of 'generic-uio\\0<name>'.", .{node.prop(.Compatible).?});
+            log.err("Compatible string {any} isn't in the expected format of 'generic-uio\\0<name>'.", .{compatibles});
             return error.InvalidUio;
         }
         const node_name = compatibles[1];

@@ -6,7 +6,7 @@
   description = "A flake for building sdfgen";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.11";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.05";
     utils.url = "github:numtide/flake-utils";
     zig-overlay.url = "github:mitchellh/zig-overlay";
   };
@@ -23,7 +23,7 @@
           inherit system;
         };
 
-        zig = zig-overlay.packages.${system}."0.14.0";
+        zig = zig-overlay.packages.${system}."0.15.1";
 
         pysdfgen = pkgs.callPackage ./package.nix { zig = zig; pythonPackages = pkgs.python312Packages; };
       in

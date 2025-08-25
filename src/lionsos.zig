@@ -328,25 +328,27 @@ pub const FileSystem = struct {
 
             // Figure out where all the FS regions are supposed to go from DTB
             const compatible = dtb.LinuxUio.compatible;
+            // Error checking below assumes a single compatible string.
+            std.debug.assert(compatible.len == 1);
             const conf_uio_reg = vmfs.fs_vm_sys.findUio(UIO_SHARED_CONFIG) orelse {
-                log.err("failed to find UIO FS shared config node: expected node with compatible '{s}\\0{s}'", .{ compatible, UIO_SHARED_CONFIG });
+                log.err("failed to find UIO FS shared config node: expected node with compatible '{s}\\0{s}'", .{ compatible[0], UIO_SHARED_CONFIG });
                 return error.InvalidVMConf;
             };
             const cmd_uio_reg = vmfs.fs_vm_sys.findUio(UIO_CMD) orelse {
-                log.err("failed to find UIO FS command node: expected node with compatible '{s}\\0{s}'", .{ compatible, UIO_CMD });
+                log.err("failed to find UIO FS command node: expected node with compatible '{s}\\0{s}'", .{ compatible[0], UIO_CMD });
                 return error.InvalidVMConf;
             };
             const comp_uio_reg = vmfs.fs_vm_sys.findUio(UIO_COMP) orelse {
-                log.err("failed to find UIO FS completion node: expected node with compatible '{s}\\0{s}'", .{ compatible, UIO_COMP });
+                log.err("failed to find UIO FS completion node: expected node with compatible '{s}\\0{s}'", .{ compatible[0], UIO_COMP });
                 return error.InvalidVMConf;
             };
             const data_uio_reg = vmfs.fs_vm_sys.findUio(UIO_DATA) orelse {
-                log.err("failed to find UIO FS data node: expected node with compatible '{s}\\0{s}'", .{ compatible, UIO_DATA });
+                log.err("failed to find UIO FS data node: expected node with compatible '{s}\\0{s}'", .{ compatible[0], UIO_DATA });
                 return error.InvalidVMConf;
             };
 
             if (vmfs.fs_vm_sys.findUio(UIO_FAULT) == null) {
-                log.err("failed to find UIO FS fault data node: expected node with compatible '{s}\\0{s}'", .{ compatible, UIO_FAULT });
+                log.err("failed to find UIO FS fault data node: expected node with compatible '{s}\\0{s}'", .{ compatible[0], UIO_FAULT });
                 return error.InvalidVMConf;
             }
 

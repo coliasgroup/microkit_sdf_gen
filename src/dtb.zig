@@ -162,7 +162,7 @@ pub fn armGicTrigger(trigger: usize) Irq.Trigger {
 /// assume each node has a single memory region encoded as `reg` and
 /// optionally 1 IRQ.
 pub const LinuxUio = struct {
-    pub const compatible = [_][]const u8{"generic-uio"};
+    pub const compatible: []const []const u8 = &.{ "generic-uio" };
 
     node: *dtb.Node,
     size: u64,
@@ -171,7 +171,7 @@ pub const LinuxUio = struct {
 
     pub fn create(allocator: Allocator, node: *dtb.Node, arch: SystemDescription.Arch) !LinuxUio {
         const node_compatible = node.prop(.Compatible).?;
-        if (!isCompatible(node_compatible, &compatible)) {
+        if (!isCompatible(node_compatible, compatible)) {
             @panic("invalid UIO compatible string.");
         }
 
@@ -249,8 +249,8 @@ pub fn findCompatible(d: *dtb.Node, compatibles: []const []const u8) ?*dtb.Node 
     return null;
 }
 
-pub fn findAllCompatible(allocator: std.mem.Allocator, d: *dtb.Node, compatibles: []const []const u8) !std.ArrayList(*dtb.Node) {
-    var result = std.ArrayList(*dtb.Node).init(allocator);
+pub fn findAllCompatible(allocator: std.mem.Allocator, d: *dtb.Node, compatibles: []const []const u8) !std.array_list.Managed(*dtb.Node) {
+    var result = std.array_list.Managed(*dtb.Node).init(allocator);
     errdefer result.deinit();
 
     for (d.children) |child| {
@@ -305,8 +305,8 @@ pub fn regPaddr(arch: SystemDescription.Arch, device: *dtb.Node, paddr: u128) u6
 /// This is a helper to take the value of an 'interrupt' property on a DTB node,
 /// and convert for use in our operating system.
 /// Returns ArrayList containing parsed IRQs, caller owns memory.
-pub fn parseIrqs(allocator: Allocator, arch: SystemDescription.Arch, irqs: [][]u32) !std.ArrayList(Irq) {
-    var parsed_irqs = try std.ArrayList(Irq).initCapacity(allocator, irqs.len);
+pub fn parseIrqs(allocator: Allocator, arch: SystemDescription.Arch, irqs: [][]u32) !std.array_list.Managed(Irq) {
+    var parsed_irqs = try std.array_list.Managed(Irq).initCapacity(allocator, irqs.len);
     errdefer parsed_irqs.deinit();
 
     for (irqs) |irq| {

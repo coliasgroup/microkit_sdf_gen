@@ -19,7 +19,7 @@ fn readTestFile(test_path: []const u8) ![]const u8 {
     const test_dir = try std.fs.openDirAbsolute(config.test_dir, .{});
     const test_file = try test_dir.openFile(test_path, .{});
     const test_file_size = (try test_file.stat()).size;
-    return try test_file.reader().readAllAlloc(
+    return try test_file.deprecatedReader().readAllAlloc(
         allocator,
         test_file_size,
     );
@@ -197,7 +197,7 @@ test "basic VM" {
 
     const dtb_file = try std.fs.cwd().openFile(config.dtb ++ "/qemu_virt_aarch64.dtb", .{});
     const dtb_size = (try dtb_file.stat()).size;
-    const blob_bytes = try dtb_file.reader().readAllAlloc(allocator, dtb_size);
+    const blob_bytes = try dtb_file.deprecatedReader().readAllAlloc(allocator, dtb_size);
     defer allocator.free(blob_bytes);
     // Parse the DTB
     const guest_dtb = try mod.dtb.parse(allocator, blob_bytes);
@@ -228,7 +228,7 @@ test "two VMs" {
 
     const dtb_file = try std.fs.cwd().openFile(config.dtb ++ "/qemu_virt_aarch64.dtb", .{});
     const dtb_size = (try dtb_file.stat()).size;
-    const blob_bytes = try dtb_file.reader().readAllAlloc(allocator, dtb_size);
+    const blob_bytes = try dtb_file.deprecatedReader().readAllAlloc(allocator, dtb_size);
     defer allocator.free(blob_bytes);
     // Parse the DTB
     const guest_dtb = try mod.dtb.parse(allocator, blob_bytes);

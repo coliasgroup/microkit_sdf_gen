@@ -394,7 +394,11 @@ pub fn serialize(allocator: Allocator, s: anytype, prefix: []const u8, path: []c
     if (emit_json) {
         const json_file = try std.fs.cwd().createFile(full_path_json, .{});
         defer json_file.close();
-        const writer = json_file.writer();
-        try std.json.stringify(s, .{ .whitespace = .indent_4 }, writer);
+
+        var buf: [1024]u8 = undefined;
+        var writer = json_file.writer(&buf);
+        var stringify: std.json.Stringify = .{ .writer = &writer.interface, .options = .{ .whitespace = .indent_4 } };
+        try stringify.write(s);
+        try writer.end();
     }
 }

@@ -79,7 +79,7 @@ export fn sdfgen_dtb_parse(path: [*c]u8) ?*anyopaque {
         log.err("could not stat DTB '{s}' for parsing with error: {any}", .{ path, e });
         return null;
     };
-    const bytes = file.reader().readAllAlloc(allocator, @intCast(stat.size)) catch |e| {
+    const bytes = file.deprecatedReader().readAllAlloc(allocator, @intCast(stat.size)) catch |e| {
         log.err("could not read DTB '{s}' for parsing with error: {any}", .{ path, e });
         return null;
     };
@@ -212,7 +212,7 @@ export fn sdfgen_pd_set_virtual_machine(c_pd: *align(8) anyopaque, c_vm: *align(
 }
 
 export fn sdfgen_vm_create(name: [*c]u8, c_vcpus: [*c]*align(8) anyopaque, num_vcpus: u32) ?*anyopaque {
-    var vcpus = std.ArrayList(Vm.Vcpu).initCapacity(allocator, num_vcpus) catch @panic("OOM");
+    var vcpus = std.array_list.Managed(Vm.Vcpu).initCapacity(allocator, num_vcpus) catch @panic("OOM");
     defer vcpus.deinit();
 
     var i: usize = 0;

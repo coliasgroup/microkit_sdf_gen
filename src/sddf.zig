@@ -33,8 +33,8 @@ pub const DeviceTreeIndex = u8;
 /// device class and aa directory for each device class inside
 /// 'drivers/'.
 ///
-var drivers: std.ArrayList(Config.Driver) = undefined;
-var classes: std.ArrayList(Config.DeviceClass) = undefined;
+var drivers: std.array_list.Managed(Config.Driver) = undefined;
+var classes: std.array_list.Managed(Config.DeviceClass) = undefined;
 
 const CONFIG_FILENAME = "config.json";
 
@@ -55,7 +55,7 @@ pub fn compatibleDrivers(allocator: Allocator) ![]const []const u8 {
     for (drivers.items) |driver| {
         num_compatible += driver.compatible.len;
     }
-    var array = try std.ArrayList([]const u8).initCapacity(allocator, num_compatible);
+    var array = try std.array_list.Managed([]const u8).initCapacity(allocator, num_compatible);
     for (drivers.items) |driver| {
         for (driver.compatible) |compatible| {
             array.appendAssumeCapacity(compatible);
@@ -66,8 +66,8 @@ pub fn compatibleDrivers(allocator: Allocator) ![]const []const u8 {
 }
 
 // pub fn wasmProbe(allocator: Allocator, driverConfigs: anytype, classConfigs: anytype) !void {
-//     drivers = std.ArrayList(Config.Driver).init(allocator);
-//     classes = std.ArrayList(Config.DeviceClass).initCapacity(allocator, @typeInfo(Config.DeviceClass).Enum.fields.len);
+//     drivers = std.array_list.Managed(Config.Driver).init(allocator);
+//     classes = std.array_list.Managed(Config.DeviceClass).initCapacity(allocator, @typeInfo(Config.DeviceClass).Enum.fields.len);
 
 //     var i: usize = 0;
 //     while (i < driverConfigs.items.len) : (i += 1) {
@@ -97,7 +97,7 @@ pub fn compatibleDrivers(allocator: Allocator) ![]const []const u8 {
 /// files, parse them, and built up a data structure for us to then search
 /// through whenever we want to create a driver to the system description.
 pub fn probe(allocator: Allocator, path: []const u8) !void {
-    drivers = std.ArrayList(Config.Driver).init(allocator);
+    drivers = std.array_list.Managed(Config.Driver).init(allocator);
 
     log.debug("starting sDDF probe", .{});
     log.debug("opening sDDF root dir '{s}'", .{path});
@@ -109,7 +109,7 @@ pub fn probe(allocator: Allocator, path: []const u8) !void {
 
     const device_classes = comptime std.meta.fields(Config.Driver.Class);
     inline for (device_classes) |device_class| {
-        var checked_compatibles = std.ArrayList([]const u8).init(allocator);
+        var checked_compatibles = std.array_list.Managed([]const u8).init(allocator);
         // Search for all the drivers. For each device class we need
         // to iterate through each directory and find the config file
         for (@as(Config.Driver.Class, @enumFromInt(device_class.value)).dirs()) |dir| {
@@ -149,7 +149,7 @@ pub fn probe(allocator: Allocator, path: []const u8) !void {
                     log.err("failed to stat driver config file: {s}: {}", .{ config_path, e });
                     return e;
                 };
-                const config_bytes = try config_file.reader().readAllAlloc(allocator, @intCast(config_file_stat.size));
+                const config_bytes = try config_file.deprecatedReader().readAllAlloc(allocator, @intCast(config_file_stat.size));
                 // TODO; free config? we'd have to dupe the json data when populating our data structures
                 assert(config_bytes.len == config_file_stat.size);
                 // TODO: should probably free the memory at some point
@@ -165,7 +165,7 @@ pub fn probe(allocator: Allocator, path: []const u8) !void {
                 const config = Config.Driver.fromJson(json, device_class.name, fmt(allocator, "{s}/{s}", .{ driver_dir, entry.name })) catch unreachable;
 
                 // Check IRQ resources are valid
-                var checked_irqs = std.ArrayList(DeviceTreeIndex).init(allocator);
+                var checked_irqs = std.array_list.Managed(DeviceTreeIndex).init(allocator);
                 defer checked_irqs.deinit();
                 for (config.resources.irqs) |irq| {
                     for (checked_irqs.items) |checked_dt_index| {
@@ -178,7 +178,7 @@ pub fn probe(allocator: Allocator, path: []const u8) !void {
                 }
 
                 // Check region resources are valid
-                var checked_regions = std.ArrayList(Config.Region).init(allocator);
+                var checked_regions = std.array_list.Managed(Config.Region).init(allocator);
                 defer checked_regions.deinit();
                 for (config.resources.regions) |region| {
                     for (checked_regions.items) |checked_region| {
@@ -322,8 +322,8 @@ pub const Timer = struct {
     device: *dtb.Node,
     device_res: ConfigResources.Device,
     /// Client PDs serviced by the timer driver
-    clients: std.ArrayList(*Pd),
-    client_configs: std.ArrayList(ConfigResources.Timer.Client),
+    clients: std.array_list.Managed(*Pd),
+    client_configs: std.array_list.Managed(ConfigResources.Timer.Client),
     connected: bool = false,
     serialised: bool = false,
 
@@ -340,8 +340,8 @@ pub const Timer = struct {
             .driver = driver,
             .device = device,
             .device_res = std.mem.zeroInit(ConfigResources.Device, .{}),
-            .clients = std.ArrayList(*Pd).init(allocator),
-            .client_configs = std.ArrayList(ConfigResources.Timer.Client).init(allocator),
+            .clients = std.array_list.Managed(*Pd).init(allocator),
+            .client_configs = std.array_list.Managed(ConfigResources.Timer.Client).init(allocator),
         };
     }
 
@@ -414,13 +414,13 @@ pub const I2c = struct {
     device: ?*dtb.Node,
     device_res: ConfigResources.Device,
     virt: *Pd,
-    clients: std.ArrayList(*Pd),
+    clients: std.array_list.Managed(*Pd),
     region_req_size: usize,
     region_resp_size: usize,
     region_data_size: usize,
     driver_config: ConfigResources.I2c.Driver,
     virt_config: ConfigResources.I2c.Virt,
-    client_configs: std.ArrayList(ConfigResources.I2c.Client),
+    client_configs: std.array_list.Managed(ConfigResources.I2c.Client),
     num_buffers: u16,
     connected: bool = false,
     serialised: bool = false,
@@ -437,7 +437,7 @@ pub const I2c = struct {
         return .{
             .allocator = allocator,
             .sdf = sdf,
-            .clients = std.ArrayList(*Pd).init(allocator),
+            .clients = std.array_list.Managed(*Pd).init(allocator),
             .driver = driver,
             .device = device,
             .device_res = std.mem.zeroInit(ConfigResources.Device, .{}),
@@ -447,7 +447,7 @@ pub const I2c = struct {
             .region_data_size = options.region_data_size,
             .driver_config = std.mem.zeroInit(ConfigResources.I2c.Driver, .{}),
             .virt_config = std.mem.zeroInit(ConfigResources.I2c.Virt, .{}),
-            .client_configs = std.ArrayList(ConfigResources.I2c.Client).init(allocator),
+            .client_configs = std.array_list.Managed(ConfigResources.I2c.Client).init(allocator),
             // TODO: handle properly
             .num_buffers = 128,
         };
@@ -634,7 +634,7 @@ pub const Blk = struct {
     device: *dtb.Node,
     device_res: ConfigResources.Device,
     virt: *Pd,
-    clients: std.ArrayList(Client),
+    clients: std.array_list.Managed(Client),
     connected: bool = false,
     serialised: bool = false,
     // Only needed for initialisation to read partition table, maximum of 10 pages
@@ -652,8 +652,8 @@ pub const Blk = struct {
     const Config = struct {
         driver: ConfigResources.Blk.Driver = undefined,
         virt_driver: ConfigResources.Blk.Virt.Driver = undefined,
-        virt_clients: std.ArrayList(ConfigResources.Blk.Virt.Client),
-        clients: std.ArrayList(ConfigResources.Blk.Client),
+        virt_clients: std.array_list.Managed(ConfigResources.Blk.Virt.Client),
+        clients: std.array_list.Managed(ConfigResources.Blk.Client),
     };
 
     pub const Error = SystemError || error{
@@ -672,7 +672,7 @@ pub const Blk = struct {
         return .{
             .allocator = allocator,
             .sdf = sdf,
-            .clients = std.ArrayList(Client).init(allocator),
+            .clients = std.array_list.Managed(Client).init(allocator),
             .driver = driver,
             .device = device,
             .device_res = std.mem.zeroInit(ConfigResources.Device, .{}),
@@ -909,7 +909,7 @@ pub const Serial = struct {
     device_res: ConfigResources.Device,
     virt_rx: ?*Pd,
     virt_tx: *Pd,
-    clients: std.ArrayList(*Pd),
+    clients: std.array_list.Managed(*Pd),
     connected: bool = false,
     enable_color: bool,
     serialised: bool = false,
@@ -918,7 +918,7 @@ pub const Serial = struct {
     driver_config: ConfigResources.Serial.Driver,
     virt_rx_config: ConfigResources.Serial.VirtRx,
     virt_tx_config: ConfigResources.Serial.VirtTx,
-    client_configs: std.ArrayList(ConfigResources.Serial.Client),
+    client_configs: std.array_list.Managed(ConfigResources.Serial.Client),
 
     pub const Error = SystemError || error{
         InvalidVirt,
@@ -963,7 +963,7 @@ pub const Serial = struct {
             .sdf = sdf,
             .data_size = options.data_size,
             .queue_size = options.queue_size,
-            .clients = std.ArrayList(*Pd).init(allocator),
+            .clients = std.array_list.Managed(*Pd).init(allocator),
             .driver = driver,
             .device = device,
             .device_res = std.mem.zeroInit(ConfigResources.Device, .{}),
@@ -975,7 +975,7 @@ pub const Serial = struct {
             .driver_config = std.mem.zeroInit(ConfigResources.Serial.Driver, .{}),
             .virt_rx_config = std.mem.zeroInit(ConfigResources.Serial.VirtRx, .{}),
             .virt_tx_config = std.mem.zeroInit(ConfigResources.Serial.VirtTx, .{}),
-            .client_configs = std.ArrayList(ConfigResources.Serial.Client).init(allocator),
+            .client_configs = std.array_list.Managed(ConfigResources.Serial.Client).init(allocator),
         };
     }
 
@@ -1136,22 +1136,22 @@ pub const Net = struct {
     driver: *Pd,
     virt_rx: *Pd,
     virt_tx: *Pd,
-    copiers: std.ArrayList(?*Pd),
-    clients: std.ArrayList(*Pd),
+    copiers: std.array_list.Managed(?*Pd),
+    clients: std.array_list.Managed(*Pd),
 
     device_res: ConfigResources.Device,
     driver_config: ConfigResources.Net.Driver,
     virt_rx_config: ConfigResources.Net.VirtRx,
     virt_tx_config: ConfigResources.Net.VirtTx,
-    copy_configs: std.ArrayList(ConfigResources.Net.Copy),
-    client_configs: std.ArrayList(ConfigResources.Net.Client),
+    copy_configs: std.array_list.Managed(ConfigResources.Net.Copy),
+    client_configs: std.array_list.Managed(ConfigResources.Net.Client),
 
     connected: bool = false,
     serialised: bool = false,
 
     rx_buffers: usize,
     maybe_rx_dma_mr: ?*Mr,
-    client_info: std.ArrayList(ClientInfo),
+    client_info: std.array_list.Managed(ClientInfo),
 
     pub fn init(allocator: Allocator, sdf: *SystemDescription, device: *dtb.Node, driver: *Pd, virt_tx: *Pd, virt_rx: *Pd, options: Options) Net {
         if (options.rx_dma_mr) |exists_rx_dma| {
@@ -1167,8 +1167,8 @@ pub const Net = struct {
         return .{
             .allocator = allocator,
             .sdf = sdf,
-            .clients = std.ArrayList(*Pd).init(allocator),
-            .copiers = std.ArrayList(?*Pd).init(allocator),
+            .clients = std.array_list.Managed(*Pd).init(allocator),
+            .copiers = std.array_list.Managed(?*Pd).init(allocator),
             .driver = driver,
             .device = device,
             .device_res = std.mem.zeroInit(ConfigResources.Device, .{}),
@@ -1178,10 +1178,10 @@ pub const Net = struct {
             .driver_config = std.mem.zeroInit(ConfigResources.Net.Driver, .{}),
             .virt_rx_config = std.mem.zeroInit(ConfigResources.Net.VirtRx, .{}),
             .virt_tx_config = std.mem.zeroInit(ConfigResources.Net.VirtTx, .{}),
-            .copy_configs = std.ArrayList(ConfigResources.Net.Copy).init(allocator),
-            .client_configs = std.ArrayList(ConfigResources.Net.Client).init(allocator),
+            .copy_configs = std.array_list.Managed(ConfigResources.Net.Copy).init(allocator),
+            .client_configs = std.array_list.Managed(ConfigResources.Net.Client).init(allocator),
 
-            .client_info = std.ArrayList(ClientInfo).init(allocator),
+            .client_info = std.array_list.Managed(ClientInfo).init(allocator),
             .rx_buffers = options.rx_buffers,
             .maybe_rx_dma_mr = options.rx_dma_mr,
         };
@@ -1490,7 +1490,7 @@ pub const Gpu = struct {
     device: *dtb.Node,
     device_res: ConfigResources.Device,
     virt: *Pd,
-    clients: std.ArrayList(*Pd),
+    clients: std.array_list.Managed(*Pd),
     connected: bool = false,
     serialised: bool = false,
     config: Gpu.Config,
@@ -1504,8 +1504,8 @@ pub const Gpu = struct {
     const Config = struct {
         driver: ConfigResources.Gpu.Driver = undefined,
         virt_driver: ConfigResources.Gpu.Virt.Driver = undefined,
-        virt_clients: std.ArrayList(ConfigResources.Gpu.Virt.Client),
-        clients: std.ArrayList(ConfigResources.Gpu.Client),
+        virt_clients: std.array_list.Managed(ConfigResources.Gpu.Virt.Client),
+        clients: std.array_list.Managed(ConfigResources.Gpu.Client),
     };
 
     pub const Error = SystemError;
@@ -1519,7 +1519,7 @@ pub const Gpu = struct {
         return .{
             .allocator = allocator,
             .sdf = sdf,
-            .clients = std.ArrayList(*Pd).init(allocator),
+            .clients = std.array_list.Managed(*Pd).init(allocator),
             .driver = driver,
             .device = device,
             .device_res = std.mem.zeroInit(ConfigResources.Device, .{}),
@@ -1784,7 +1784,7 @@ pub fn createDriver(sdf: *SystemDescription, pd: *Pd, device: *dtb.Node, class: 
     // If a status property does exist, we should check that it is 'okay'
     if (device.prop(.Status)) |status| {
         if (status != .Okay) {
-            log.err("Device '{s}' has invalid status: '{s}'", .{ device.name, status });
+            log.err("Device '{s}' has invalid status: '{f}'", .{ device.name, status });
             return error.DeviceStatusInvalid;
         }
     }
