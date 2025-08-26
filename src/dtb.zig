@@ -319,7 +319,7 @@ pub fn parseIrqs(allocator: Allocator, arch: SystemDescription.Arch, irqs: [][]u
 pub fn parseIrq(arch: SystemDescription.Arch, irq: []u32) !Irq {
     if (arch.isArm()) {
         if (irq.len < 3) {
-            log.err("expected more than 3 interrupt cells, found {}", .{ irq.len });
+            log.err("expected at least 3 interrupt cells, found {}", .{ irq.len });
             return error.InvalidInterruptCells;
         }
         const trigger = armGicTrigger(irq[2]);
