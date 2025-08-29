@@ -3,7 +3,7 @@ const builtin = @import("builtin");
 const mod_sdf = @import("sdf.zig");
 const dtb = @import("dtb.zig");
 const mod_data = @import("data.zig");
-const sddf = @import("sddf.zig");
+const sddf = @import("sddf/sddf.zig");
 const log = @import("log.zig");
 
 const Allocator = std.mem.Allocator;
