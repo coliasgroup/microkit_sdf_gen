@@ -283,22 +283,22 @@ pub fn regPaddr(arch: SystemDescription.Arch, device: *dtb.Node, paddr: u128) u6
     const page_bits = @ctz(arch.defaultPageSize());
     // We have to @intCast here because any mappable address in seL4 must be a
     // 64-bit address or smaller.
-    var device_paddr: u64 = @intCast((paddr >> page_bits) << page_bits);
+    var device_paddr: u128 = @intCast((paddr >> page_bits) << page_bits);
     var parent_node_maybe: ?*dtb.Node = device.parent;
     while (parent_node_maybe) |parent_node| : (parent_node_maybe = parent_node.parent) {
         if (parent_node.prop(.Ranges)) |ranges| {
-            if (ranges.len != 0) {
-                // TODO: I need to revisit the spec. I am not confident in this behaviour.
-                const parent_addr = ranges[0][1];
-                const size = ranges[0][2];
+            for (ranges) |range| {
+                const parent_addr = range[1];
+                const size = range[2];
                 if (paddr + size <= parent_addr) {
-                    device_paddr += @intCast(parent_addr);
+                    const offset = device_paddr - range[0];
+                    device_paddr = parent_addr + offset;
                 }
             }
         }
     }
 
-    return device_paddr;
+    return @intCast(device_paddr);
 }
 
 /// Device Trees do not encode the software's view of IRQs and their identifiers.
