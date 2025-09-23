@@ -134,6 +134,8 @@ libsdfgen.sdfgen_pd_add_map.restype = None
 libsdfgen.sdfgen_pd_add_map.argtypes = [c_void_p, c_void_p]
 libsdfgen.sdfgen_pd_add_irq.restype = c_int8
 libsdfgen.sdfgen_pd_add_irq.argtypes = [c_void_p, c_void_p]
+libsdfgen.sdfgen_pd_set_virtual_machine.restype = c_bool
+libsdfgen.sdfgen_pd_set_virtual_machine.argtypes = [c_void_p, c_void_p]
 
 libsdfgen.sdfgen_sddf_timer.restype = c_void_p
 libsdfgen.sdfgen_sddf_timer.argtypes = [c_void_p, c_void_p, c_void_p]
