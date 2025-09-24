@@ -288,11 +288,13 @@ pub fn regPaddr(arch: SystemDescription.Arch, device: *dtb.Node, paddr: u128) u6
     while (parent_node_maybe) |parent_node| : (parent_node_maybe = parent_node.parent) {
         if (parent_node.prop(.Ranges)) |ranges| {
             for (ranges) |range| {
+                const child_addr = range[0];
                 const parent_addr = range[1];
-                const size = range[2];
-                if (paddr + size <= parent_addr) {
-                    const offset = device_paddr - range[0];
+                const length = range[2];
+                if (child_addr <= device_paddr and child_addr + length > device_paddr) {
+                    const offset = device_paddr - child_addr;
                     device_paddr = parent_addr + offset;
+                    break;
                 }
             }
         }
