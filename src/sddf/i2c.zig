@@ -117,7 +117,6 @@ pub const I2c = struct {
 
         system.driver_config = .{
             .virt = .{
-                // Will be set in connectClient
                 .req_queue = .createFromMap(driver_map_req),
                 .resp_queue = .createFromMap(driver_map_resp),
                 .num_buffers = system.num_buffers,
