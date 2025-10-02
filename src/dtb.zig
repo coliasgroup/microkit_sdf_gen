@@ -151,10 +151,13 @@ pub fn armGicIrqNumber(number: u32, irq_type: ArmGicIrqType) u32 {
 
 pub fn armGicTrigger(trigger: usize) Irq.Trigger {
     // Only bits 0-3 of the DT IRQ type are for the trigger
-    return switch (trigger & 0b111) {
-        0x1 => return .edge,
-        0x4 => return .level,
-        else => @panic("unexpected trigger value"),
+    return switch (trigger & 0b1111) {
+        0x1, 0x2 => return .edge,
+        0x4, 0x8 => return .level,
+        else => {
+            log.err("unexpected trigger value {}", .{ trigger });
+            @panic("unexpected trigger value");
+        }
     };
 }
 
