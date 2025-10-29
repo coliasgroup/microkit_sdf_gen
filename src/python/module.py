@@ -128,6 +128,9 @@ libsdfgen.sdfgen_pd_add_map.argtypes = [c_void_p, c_void_p]
 libsdfgen.sdfgen_pd_add_irq.restype = c_int8
 libsdfgen.sdfgen_pd_add_irq.argtypes = [c_void_p, c_void_p]
 
+libsdfgen.sdfgen_pd_get_map_vaddr.argtypes = [c_void_p, c_void_p]
+libsdfgen.sdfgen_pd_get_map_vaddr.restype = c_uint64
+
 libsdfgen.sdfgen_sddf_timer.restype = c_void_p
 libsdfgen.sdfgen_sddf_timer.argtypes = [c_void_p, c_void_p, c_void_p]
 libsdfgen.sdfgen_sddf_timer_destroy.restype = None
@@ -487,6 +490,9 @@ class SystemDescription:
             ret = libsdfgen.sdfgen_pd_set_virtual_machine(self._obj, vm._obj)
             if not ret:
                 raise Exception(f"ProtectionDomain '{self.name}' already has VirtualMachine")
+
+        def get_map_vaddr(self, mr: SystemDescription.MemoryRegion) -> int:
+            return libsdfgen.sdfgen_pd_get_map_vaddr(self._obj, mr._obj)
 
         def __del__(self):
             libsdfgen.sdfgen_pd_destroy(self._obj)

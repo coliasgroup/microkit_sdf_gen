@@ -203,6 +203,12 @@ export fn sdfgen_pd_set_virtual_machine(c_pd: *align(8) anyopaque, c_vm: *align(
     return true;
 }
 
+export fn sdfgen_pd_get_map_vaddr(c_pd: *align(8) anyopaque, c_mr: *align(8) anyopaque) u64 {
+    const pd: *Pd = @ptrCast(c_pd);
+    const mr: *Mr = @ptrCast(c_mr);
+    return pd.getMapVaddr(mr);
+}
+
 export fn sdfgen_vm_create(name: [*c]u8, c_vcpus: [*c]*align(8) anyopaque, num_vcpus: u32) ?*anyopaque {
     var vcpus = std.ArrayList(Vm.Vcpu).initCapacity(allocator, num_vcpus) catch @panic("OOM");
     defer vcpus.deinit();
