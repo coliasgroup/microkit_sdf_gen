@@ -78,7 +78,7 @@ libsdfgen.sdfgen_channel_get_pd_b_id.restype = c_uint8
 libsdfgen.sdfgen_channel_get_pd_b_id.argtypes = [c_void_p]
 
 libsdfgen.sdfgen_map_create.restype = c_void_p
-libsdfgen.sdfgen_map_create.argtypes = [c_void_p, c_uint64, MapPermsType, c_bool]
+libsdfgen.sdfgen_map_create.argtypes = [c_void_p, c_uint64, MapPermsType, c_bool, c_char_p, c_char_p]
 libsdfgen.sdfgen_map_get_vaddr.restype = c_uint64
 libsdfgen.sdfgen_map_get_vaddr.argtypes = [c_void_p]
 libsdfgen.sdfgen_map_destroy.restype = None
@@ -588,9 +588,17 @@ class SystemDescription:
             perms: str,
             *,
             cached: bool = True,
+            setvar_vaddr: Optional[str] = None,
+            setvar_size: Optional[str] = None,
         ) -> None:
             c_perms = SystemDescription.Map._perms_to_c_bindings(perms)
-            self._obj = libsdfgen.sdfgen_map_create(mr._obj, vaddr, c_perms, cached)
+            c_setvar_vaddr = c_char_p(0)
+            if setvar_vaddr is not None:
+                c_setvar_vaddr = c_char_p(setvar_vaddr.encode("utf-8"))
+            c_setvar_size = c_char_p(0)
+            if setvar_size is not None:
+                c_setvar_size = c_char_p(setvar_size.encode("utf-8"))
+            self._obj = libsdfgen.sdfgen_map_create(mr._obj, vaddr, c_perms, cached, c_setvar_vaddr, c_setvar_size)
             if self._obj is None:
                 raise Exception("failed to create mapping")
 
@@ -647,10 +655,15 @@ class SystemDescription:
         def __init__(
             self,
             irq: int,
+            *,
             trigger: Optional[Trigger] = None,
             id: Optional[int] = None,
+            setvar_id: Optional[str] = None,
         ):
-            self._obj = libsdfgen.sdfgen_irq_create(irq, ffi_uint32_ptr(trigger), ffi_uint8_ptr(id))
+            c_setvar_id = c_char_p(0)
+            if setvar_id is not None:
+                c_setvar_id = c_char_p(setvar_id.encode("utf-8"))
+            self._obj = libsdfgen.sdfgen_irq_create(irq, ffi_uint32_ptr(trigger), ffi_uint8_ptr(id), c_setvar_id)
             if self._obj is None:
                 raise Exception("failed to create IRQ")
 
@@ -672,6 +685,8 @@ class SystemDescription:
             pp_b: Optional[bool] = None,
             notify_a: Optional[bool] = None,
             notify_b: Optional[bool] = None,
+            pd_a_setvar_id: Optional[str] = None,
+            pd_b_setvar_id: Optional[str] = None,
         ) -> None:
             c_pp = None
             if pp_a is not None:
@@ -682,6 +697,14 @@ class SystemDescription:
             if pp_a is not None and pp_b is not None:
                 raise Exception("attempting to create channel with PP on both ends")
 
+            c_pd_a_setvar_id = c_char_p(0)
+            if pd_a_setvar_id is not None:
+                c_pd_a_setvar_id = c_char_p(pd_a_setvar_id.encode("utf-8"))
+
+            c_pd_b_setvar_id = c_char_p(0)
+            if pd_b_setvar_id is not None:
+                c_pd_b_setvar_id = c_char_p(pd_b_setvar_id.encode("utf-8"))
+
             self._obj = libsdfgen.sdfgen_channel_create(
                 a._obj,
                 b._obj,
@@ -690,6 +713,8 @@ class SystemDescription:
                 ffi_bool_ptr(notify_a),
                 ffi_bool_ptr(notify_b),
                 ffi_uint8_ptr(c_pp),
+                c_pd_a_setvar_id,
+                c_pd_b_setvar_id,
             )
             if self._obj is None:
                 raise Exception("failed to create channel")
