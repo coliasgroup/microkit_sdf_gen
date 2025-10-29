@@ -273,7 +273,7 @@ export fn sdfgen_sddf_init(path: [*c]u8) bool {
     return true;
 }
 
-export fn sdfgen_irq_create(number: u32, c_trigger: [*c]bindings.sdfgen_irq_trigger_t, c_id: [*c]u8) ?*anyopaque {
+export fn sdfgen_irq_create(number: u32, c_trigger: [*c]bindings.sdfgen_irq_trigger_t, c_id: [*c]u8, c_setvar_id: ?[*:0]u8) ?*anyopaque {
     const irq = allocator.create(Irq) catch @panic("OOM");
     var options: Irq.Options = .{};
     if (c_trigger != null) {
@@ -289,6 +289,9 @@ export fn sdfgen_irq_create(number: u32, c_trigger: [*c]bindings.sdfgen_irq_trig
     }
     if (c_id != null) {
         options.id = c_id.*;
+    }
+    if (c_setvar_id) |s| {
+        options.setvar_id = allocator.dupe(u8, std.mem.span(s)) catch @panic("OOM");
     }
 
     irq.* = Irq.create(number, options);
@@ -329,7 +332,7 @@ export fn sdfgen_mr_destroy(c_mr: *align(8) anyopaque) void {
     allocator.destroy(mr);
 }
 
-export fn sdfgen_map_create(c_mr: *align(8) anyopaque, vaddr: u64, c_perms: bindings.sdfgen_map_perms_t, cached: bool) ?*anyopaque {
+export fn sdfgen_map_create(c_mr: *align(8) anyopaque, vaddr: u64, c_perms: bindings.sdfgen_map_perms_t, cached: bool, c_setvar_vaddr: [*c]u8, c_setvar_size: ?[*:0]u8) ?*anyopaque {
     const mr: *Mr = @ptrCast(c_mr);
 
     var perms: Map.Perms = .{};
@@ -343,10 +346,18 @@ export fn sdfgen_map_create(c_mr: *align(8) anyopaque, vaddr: u64, c_perms: bind
         perms.execute = true;
     }
 
+    var options: Map.Options = .{.cached = cached};
+    if (c_setvar_vaddr) |s| {
+        options.setvar_vaddr = allocator.dupe(u8, std.mem.span(s)) catch @panic("OOM");
+    }
+    if (c_setvar_size) |s| {
+        options.setvar_size = allocator.dupe(u8, std.mem.span(s)) catch @panic("OOM");
+    }
+
     const map = allocator.create(Map) catch @panic("OOM");
     // TODO: I think we got some memory problems if we're dereferencing this stuff since
     // we need MemoryRegion to still be valid the whole time since we depend on it
-    map.* = Map.create(mr.*, vaddr, perms, .{ .cached = cached });
+    map.* = Map.create(mr.*, vaddr, perms, options);
 
     return map;
 }
@@ -356,7 +367,7 @@ export fn sdfgen_map_destroy(c_map: *align(8) anyopaque) void {
     allocator.destroy(map);
 }
 
-export fn sdfgen_channel_create(c_pd_a: *align(8) anyopaque, c_pd_b: *align(8) anyopaque, pd_a_id: [*c]u8, pd_b_id: [*c]u8, pd_a_notify: [*c]bool, pd_b_notify: [*c]bool, c_pp: [*c]u8) ?*anyopaque {
+export fn sdfgen_channel_create(c_pd_a: *align(8) anyopaque, c_pd_b: *align(8) anyopaque, pd_a_id: [*c]u8, pd_b_id: [*c]u8, pd_a_notify: [*c]bool, pd_b_notify: [*c]bool, c_pp: [*c]u8, c_pd_a_setvar_id: ?[*:0]u8, c_pd_b_setvar_id: ?[*:0]u8) ?*anyopaque {
     const pd_a: *Pd = @ptrCast(c_pd_a);
     const pd_b: *Pd = @ptrCast(c_pd_b);
 
@@ -383,6 +394,12 @@ export fn sdfgen_channel_create(c_pd_a: *align(8) anyopaque, c_pd_b: *align(8) a
             },
         };
         options.pp = pp;
+    }
+    if (c_pd_a_setvar_id) |s| {
+        options.pd_a_setvar_id = allocator.dupe(u8, std.mem.span(s)) catch @panic("OOM");
+    }
+    if (c_pd_b_setvar_id) |s| {
+        options.pd_b_setvar_id = allocator.dupe(u8, std.mem.span(s)) catch @panic("OOM");
     }
 
     const ch = allocator.create(Channel) catch @panic("OOM");
